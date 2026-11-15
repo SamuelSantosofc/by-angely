@@ -66,15 +66,25 @@
     if (!key) return '';
     var raw = String(key).trim();
     var type = (keyType || '').toLowerCase();
+    if (type === 'numero' || type === 'direta') {
+      return raw;
+    }
     if (type === 'cpf' || type === 'cnpj') {
-      return raw.replace(/\D/g, '');
+      var cleanDoc = raw.replace(/\D/g, '');
+      return cleanDoc || raw;
     }
     if (type === 'phone' || type === 'telefone' || type === 'celular') {
+      if (raw.indexOf('@') !== -1) return raw.toLowerCase();
       var digits = raw.replace(/\D/g, '');
-      if (digits.startsWith('55') && digits.length >= 12) {
+      if (!digits) return raw;
+      if (raw.charAt(0) === '+') return '+' + digits;
+      if (digits.indexOf('55') === 0 && digits.length >= 12 && digits.length <= 13) {
         return '+' + digits;
       }
-      return '+55' + digits;
+      if (digits.length === 10 || digits.length === 11) {
+        return '+55' + digits;
+      }
+      return digits;
     }
     if (type === 'email' || type === 'e-mail') {
       return raw.toLowerCase();
