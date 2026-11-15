@@ -3203,5 +3203,521 @@
 
   window.ByAngelyAdmin = {
     renderAdminView
-  };
+
+    
+const _origRenderOrdersSection = typeof renderOrdersSection === 'function' ? renderOrdersSection : null;
+const _origRenderPaymentsSection = typeof renderPaymentsSection === 'function' ? renderPaymentsSection : null;
+const _origRenderCustomersSection = typeof renderCustomersSection === 'function' ? renderCustomersSection : null;
+const _origRenderCategoriesBannersCouponsSection = typeof renderCategoriesBannersCouponsSection === 'function' ? renderCategoriesBannersCouponsSection : null;
+const _origBindAdminWorkspaceEvents = typeof bindAdminWorkspaceEvents === 'function' ? bindAdminWorkspaceEvents : null;
+const FULL_ORDER_STATUS_OPTIONS = [
+{ value: 'awaiting_payment', label: 'Aguardando pagamento' },
+{ value: 'awaiting_whatsapp', label: 'Aguardando confirmação pelo WhatsApp' },
+{ value: 'payment_approved', label: 'Pagamento aprovado • Aguardando separação' },
+{ value: 'awaiting_separation', label: 'Aguardando separação' },
+{ value: 'in_separation', label: 'Em separação' },
+{ value: 'ready_for_shipping', label: 'Pedido pronto para envio ou retirada' },
+{ value: 'shipped', label: 'Enviado' },
+{ value: 'out_for_delivery', label: 'Saiu para entrega' },
+{ value: 'delivered', label: 'Entregue' },
+{ value: 'cancelled_expired', label: 'Cancelado por falta de pagamento' },
+{ value: 'cancelled', label: 'Cancelado' },
+{ value: 'late_payment_reconciliation', label: 'Pagamento após expiração (Em conciliação)' }
+];
+renderOrdersSection = function () {
+const app = window.ByAngelyApp;
+const db = app.getState().db;
+const orders = db.orders || [];
+const returns = db.returnRequests || [];
+const currentAdmin = app.getState().currentAdmin;
+const canManageOrders = hasPermission(currentAdmin, 'orders');
+const newPaidOrders = orders.filter(
+(o) => o.status === 'payment_approved' || o.status === 'awaiting_separation' || o.status === 'paid'
+);
+const lateOrders = orders.filter((o) => o.status === 'late_payment_reconciliation');
+const filteredOrders = orders.filter((o) => {
+if (AdminState.orderFilterStatus !== 'all' && o.status !== AdminState.orderFilterStatus) {
+return false;
+}
+if (AdminState.orderSearchTerm) {
+const q = AdminState.orderSearchTerm.toLowerCase();
+const num = String(o.orderNumber || '').toLowerCase();
+const cName = String((o.customer && o.customer.name) || '').toLowerCase();
+const cPhone = String((o.customer && o.customer.phone) || '').toLowerCase();
+return num.includes(q) || cName.includes(q) || cPhone.includes(q);
+}
+return true;
+});
+return `
+<div>
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:18px;">
+<div>
+<span class="section-eyebrow">Operação de Vendas, Separação e Pós-Venda</span>
+<h1 style="font-family:var(--font-serif);font-size:2rem;">Gestão de Pedidos, Separação & Rastreio</h1>
+</div>
+<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+<input type="search" id="admin-order-search" class="form-control" placeholder="Buscar por código ou cliente..." value="${app.escapeHtml(AdminState.orderSearchTerm)}" style="width:230px;min-height:40px;" />
+<select id="admin-order-filter" class="form-control" style="width:auto;min-height:40px;">
+<option value="all" ${AdminState.orderFilterStatus === 'all' ? 'selected' : ''}>Todos os Status (${orders.length})</option>
+${FULL_ORDER_STATUS_OPTIONS.map((st) => {
+const count = orders.filter((o) => o.status === st.value).length;
+return `<option value="${st.value}" ${AdminState.orderFilterStatus === st.value ? 'selected' : ''}>${st.label} (${count})</option>`;
+}).join('')}
+</select>
+</div>
+</div>
+${newPaidOrders.length > 0 ? `
+<div class="alert-box alert-info" style="background:#EDF7F1;border-color:#2E6F52;color:#1E4D38;margin-bottom:18px;">
+<strong>🔔 NOVOS PEDIDOS PAGOS AGUARDANDO SEPARAÇÃO (${newPaidOrders.length}):</strong>
+Os pedidos <strong>${newPaidOrders.map((o) => app.escapeHtml(o.orderNumber)).join(', ')}</strong> tiveram o pagamento confirmado automaticamente via Pix e já podem entrar em separação!
+</div>
+` : ''}
+${lateOrders.length > 0 ? `
+<div class="alert-box alert-danger" style="margin-bottom:18px;">
+<strong>⚠️ ALERTA DE CONCILIAÇÃO TARDIA (${lateOrders.length}):</strong>
+O(s) pedido(s) <strong>${lateOrders.map((o) => app.escapeHtml(o.orderNumber)).join(', ')}</strong> receberam pagamento após a expiração e exigem revisão manual (aprovação ou estorno).
+</div>
+` : ''}
+${filteredOrders.length === 0 ? `
+<div class="admin-card" style="text-align:center;padding:36px;">
+<p style="color:var(--text-secondary);">Nenhum pedido encontrado para o filtro selecionado.</p>
+</div>
+` : filteredOrders.map((ord) => {
+const waCustomerDigits = String((ord.customer && ord.customer.phone) || '').replace(/\D/g, '');
+const waCustomerUrl = waCustomerDigits.length >= 10
+? `https://wa.me/${waCustomerDigits.startsWith('55') ? waCustomerDigits : '55' + waCustomerDigits}?text=${encodeURIComponent(`Olá ${ord.customer.name || ''}! Aqui é da BY ANGÉLY sobre o seu pedido ${ord.orderNumber}.` )}`
+: '';
+const isApproved = ['payment_approved', 'paid', 'awaiting_separation', 'in_separation', 'ready_for_shipping', 'shipped', 'out_for_delivery', 'delivered'].includes(ord.status);
+const isCancelled = ord.status === 'cancelled_expired' || ord.status === 'cancelled';
+const addr = (ord.shipping && ord.shipping.address) || {};
+return `
+<div class="admin-card" data-admin-order-card="${app.escapeHtml(ord.id)}">
+<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;padding-bottom:12px;border-bottom:1px solid var(--border-subtle);margin-bottom:12px;">
+<div>
+<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+<strong style="font-size:1.14rem;">Pedido ${app.escapeHtml(ord.orderNumber)}</strong>
+<span class="status-pill ${ord.paymentMethod === 'pix' ? 'confirmed' : 'info'}">
+${app.escapeHtml(ord.paymentMethodLabel || ord.paymentMethod)}
+</span>
+<span style="font-size:0.78rem;color:var(--text-secondary);">${app.formatDateBR(ord.createdAt)}</span>
+</div>
+<div style="font-size:0.85rem;margin-top:4px;">
+Cliente: <strong>${app.escapeHtml(ord.customer ? ord.customer.name : '-')}</strong> • Tel: ${app.escapeHtml(ord.customer ? ord.customer.phone : '-')} • E-mail: ${app.escapeHtml(ord.customer ? ord.customer.email : '-')}
+${waCustomerUrl ? `<a href="${app.escapeHtml(waCustomerUrl)}" target="_blank" rel="noopener noreferrer" style="margin-left:8px;color:#806044;font-weight:700;text-decoration:underline;">Chamar no WhatsApp ↗</a>` : ''}
+</div>
+</div>
+<div style="text-align:right;">
+<span class="status-pill ${isApproved ? 'confirmed' : isCancelled ? 'danger' : 'pending'}">
+${app.escapeHtml(ord.statusLabel || ord.status)}
+</span>
+<div style="font-size:1.18rem;font-weight:700;margin-top:4px;color:#806044;">${app.formatBRL(ord.total)}</div>
+</div>
+</div>
+<div class="admin-form-grid-2" style="font-size:0.85rem;margin-bottom:14px;">
+<div>
+<strong style="display:block;margin-bottom:6px;">Peças para Separação:</strong>
+${(ord.items || []).map((it) => `
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;padding:6px;background:var(--bg-primary);border-radius:6px;">
+${it.imageUrl ? `<img src="${app.escapeHtml(it.imageUrl)}" alt="" style="width:34px;height:42px;object-fit:cover;border-radius:4px;" />` : ''}
+<div>
+<strong>${it.quantity}x ${app.escapeHtml(it.name)}</strong>
+<div style="font-size:0.76rem;color:var(--text-secondary);">Tamanho: <strong>${app.escapeHtml(it.size)}</strong> | Cor: <strong>${app.escapeHtml(it.color)}</strong> — ${app.formatBRL(it.unitPrice * it.quantity)}</div>
+</div>
+</div>
+`).join('')}
+${ord.customerNotes ? `<div style="margin-top:6px;color:var(--text-secondary);"><strong>Observações da cliente:</strong> ${app.escapeHtml(ord.customerNotes)}</div>` : ''}
+</div>
+<div style="background:var(--bg-primary);padding:12px;border-radius:8px;">
+<div><strong>Modalidade de Entrega:</strong> ${app.escapeHtml(ord.shipping ? ord.shipping.methodName : '-')}</div>
+<div><strong>Endereço Completo:</strong> ${app.escapeHtml(addr.street || '')}, ${app.escapeHtml(addr.number || '')} ${addr.complement ? ' - ' + app.escapeHtml(addr.complement) : ''}</div>
+<div><strong>Bairro / Cidade:</strong> ${app.escapeHtml(addr.neighborhood || '')} — ${app.escapeHtml(addr.cityState || ((addr.city || '') + ' - ' + (addr.state || '')))} (CEP ${app.escapeHtml(addr.zipCode || '')})</div>
+${addr.reference ? `<div><strong>Referência:</strong> ${app.escapeHtml(addr.reference)}</div>` : ''}
+<div style="margin-top:6px;"><strong>Status do Pagamento:</strong> ${ord.paymentStatus === 'paid' ? '<span style="color:#2E6F52;font-weight:700;">✓ Pago e Confirmado</span>' : app.escapeHtml(ord.paymentStatus || 'Pendente')}</div>
+${ord.pixData && ord.pixData.chargeId ? `<div style="font-size:0.76rem;color:var(--text-secondary);"><strong>Cobrança Pix:</strong> <code>${app.escapeHtml(ord.pixData.chargeId)}</code> | <strong>TXID:</strong> <code>${app.escapeHtml(ord.pixData.txid)}</code></div>` : ''}
+</div>
+</div>
+${canManageOrders ? `
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding-top:10px;border-top:1px dashed var(--border-subtle);">
+<span style="font-size:0.76rem;font-weight:700;text-transform:uppercase;color:var(--text-secondary);align-self:center;margin-right:4px;">Fluxo Rápido:</span>
+<button type="button" class="btn btn-outline btn-sm" data-admin-quick-status="in_separation" data-order-id="${app.escapeHtml(ord.id)}">1. Iniciar Separação</button>
+<button type="button" class="btn btn-outline btn-sm" data-admin-quick-status="ready_for_shipping" data-order-id="${app.escapeHtml(ord.id)}">2. Pronto p/ Envio ou Retirada</button>
+<button type="button" class="btn btn-outline btn-sm" data-admin-quick-status="shipped" data-order-id="${app.escapeHtml(ord.id)}">3. Marcar como Enviado</button>
+<button type="button" class="btn btn-outline btn-sm" data-admin-quick-status="out_for_delivery" data-order-id="${app.escapeHtml(ord.id)}">4. Saiu para Entrega</button>
+<button type="button" class="btn btn-primary btn-sm" data-admin-quick-status="delivered" data-order-id="${app.escapeHtml(ord.id)}">5. Confirmar Entrega</button>
+</div>
+<div style="display:grid;grid-template-columns:1.2fr 1.2fr auto;gap:10px;align-items:end;padding-top:10px;border-top:1px solid var(--border-subtle);">
+<div>
+<label style="display:block;font-size:0.74rem;font-weight:600;margin-bottom:4px;">Status Completo do Pedido</label>
+<select class="form-control" id="ord-status-${app.escapeHtml(ord.id)}" style="min-height:38px;">
+${FULL_ORDER_STATUS_OPTIONS.map((st) => `
+<option value="${st.value}" ${ord.status === st.value ? 'selected' : ''}>${st.label}</option>
+`).join('')}
+</select>
+</div>
+<div>
+<label style="display:block;font-size:0.74rem;font-weight:600;margin-bottom:4px;">Código de Rastreio (Correios / Transportadora)</label>
+<input type="text" class="form-control" id="ord-track-${app.escapeHtml(ord.id)}" value="${app.escapeHtml((ord.shipping && ord.shipping.trackingCode) || '')}" placeholder="Ex.: BR123456789BR" style="min-height:38px;" />
+</div>
+<button type="button" class="btn btn-primary btn-sm" data-action-admin="save-order-update" data-order-id="${app.escapeHtml(ord.id)}">
+Salvar Status & Rastreio
+</button>
+</div>
+` : ''}
+${Array.isArray(ord.notificationsLog) && ord.notificationsLog.length > 0 ? `
+<details style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--border-subtle);font-size:0.78rem;">
+<summary style="cursor:pointer;font-weight:600;color:var(--text-secondary);">Histórico Auditado do Pedido (${ord.notificationsLog.length})</summary>
+<div style="margin-top:6px;display:flex;flex-direction:column;gap:4px;">
+${ord.notificationsLog.map((lg) => `
+<div style="color:var(--text-secondary);">• [${app.formatDateBR(lg.date)}] <strong>${app.escapeHtml(lg.channel)}:</strong> ${app.escapeHtml(lg.message)}</div>
+`).join('')}
+</div>
+</details>
+` : ''}
+</div>
+`;
+}).join('')}
+<div class="admin-card" style="margin-top:24px;">
+<h2 style="font-family:var(--font-serif);font-size:1.5rem;margin-bottom:12px;">Solicitações de Troca e Devolução (${returns.length})</h2>
+${returns.length === 0 ? `
+<p style="font-size:0.86rem;color:var(--text-secondary);">Nenhuma solicitação de troca ou devolução registrada.</p>
+` : returns.map((r) => `
+<div style="padding:12px;border:1px solid var(--border-subtle);border-radius:6px;margin-bottom:10px;font-size:0.86rem;">
+<div style="display:flex;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px;">
+<strong>Pedido ${app.escapeHtml(r.orderNumber)} • ${app.escapeHtml(r.customerName)} (${app.escapeHtml(r.type)})</strong>
+<span class="status-pill ${r.status === 'Atendida pela Loja' ? 'confirmed' : 'pending'}">${app.escapeHtml(r.status)}</span>
+</div>
+<p style="color:var(--text-secondary);margin-bottom:8px;">Motivo informado: ${app.escapeHtml(r.reason)}</p>
+<div style="display:flex;gap:8px;flex-wrap:wrap;">
+<input type="text" class="form-control" id="ret-resp-${app.escapeHtml(r.id)}" placeholder="Instruções de devolução/troca para a cliente..." value="${app.escapeHtml(r.ownerResponse || '')}" style="flex:1;min-height:36px;" />
+<button type="button" class="btn btn-primary btn-sm" data-action-admin="respond-return" data-return-id="${app.escapeHtml(r.id)}">Aprovar / Responder</button>
+</div>
+</div>
+`).join('')}
+</div>
+</div>
+`;
+}
+renderPaymentsSection = function () {
+const app = window.ByAngelyApp;
+const db = app.getState().db;
+const pay = db.paymentSettings || {};
+const pixCfg = pay.pix || {};
+const charges = db.pixCharges || [];
+const finEvents = db.financialEvents || [];
+const paidCharges = charges.filter((c) => c.status === 'paid' || c.status === 'paid_late_conflict');
+const pendingCharges = charges.filter((c) => c.status === 'pending');
+const expiredCharges = charges.filter((c) => c.status === 'expired');
+const pixControlCard = `
+<div class="admin-card" style="border:1.5px solid #806044;margin-bottom:22px;">
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+<div>
+<span class="section-eyebrow">Motor Financeiro & Conciliação em Tempo Real</span>
+<h2 style="font-family:var(--font-serif);font-size:1.55rem;margin-bottom:2px;">Pix Automático, Expiração de 15 Minutos & Webhooks</h2>
+</div>
+<span class="status-pill confirmed">Webhook Automático Ativo (/api/webhooks/pix)</span>
+</div>
+<form id="admin-pix-expiration-form" style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:12px;background:var(--bg-primary);border-radius:8px;margin-bottom:16px;">
+<div>
+<label style="display:block;font-size:0.76rem;font-weight:600;margin-bottom:4px;">Prazo de Expiração do QR Code Pix (minutos)</label>
+<input type="number" name="expirationMinutes" min="1" max="120" class="form-control" value="${Number(pixCfg.expirationMinutes) || 15}" style="width:140px;" />
+</div>
+<button type="submit" class="btn btn-primary btn-sm">Salvar Prazo de Expiração</button>
+<span style="font-size:0.8rem;color:var(--text-secondary);">Padrão recomendado: <strong>15 minutos</strong>. Pedidos não pagos dentro do prazo são cancelados automaticamente e liberam o estoque reservado.</span>
+</form>
+<div class="admin-form-grid-4" style="margin-bottom:16px;">
+<div style="padding:12px;background:#EDF7F1;border:1px solid #B8E0C8;border-radius:8px;">
+<span style="font-size:0.74rem;text-transform:uppercase;color:#1E4D38;font-weight:700;">Pix Aprovados</span>
+<strong style="display:block;font-size:1.4rem;color:#1E4D38;">${paidCharges.length}</strong>
+</div>
+<div style="padding:12px;background:#FFF8EB;border:1px solid #E2B96B;border-radius:8px;">
+<span style="font-size:0.74rem;text-transform:uppercase;color:#7A5211;font-weight:700;">Aguardando (No Prazo)</span>
+<strong style="display:block;font-size:1.4rem;color:#7A5211;">${pendingCharges.length}</strong>
+</div>
+<div style="padding:12px;background:#FDF2F2;border:1px solid #F2B8B5;border-radius:8px;">
+<span style="font-size:0.74rem;text-transform:uppercase;color:#8E2626;font-weight:700;">Expirados / Cancelados</span>
+<strong style="display:block;font-size:1.4rem;color:#8E2626;">${expiredCharges.length}</strong>
+</div>
+<div style="padding:12px;background:var(--bg-primary);border:1px solid var(--border-subtle);border-radius:8px;">
+<span style="font-size:0.74rem;text-transform:uppercase;color:var(--text-secondary);font-weight:700;">Eventos Financeiros</span>
+<strong style="display:block;font-size:1.4rem;color:var(--text-primary);">${finEvents.length}</strong>
+</div>
+</div>
+${charges.length > 0 ? `
+<details style="margin-bottom:10px;">
+<summary style="cursor:pointer;font-weight:600;font-size:0.86rem;">Ver Cobranças Pix Geradas (${charges.length})</summary>
+<div style="overflow-x:auto;margin-top:8px;">
+<table class="data-table">
+<thead>
+<tr>
+<th>ID Cobrança / TXID</th>
+<th>Pedido</th>
+<th>Valor</th>
+<th>Vencimento</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+${charges.slice(0, 20).map((c) => `
+<tr>
+<td><code>${app.escapeHtml(c.chargeId)}</code><br/><small>${app.escapeHtml(c.txid)}</small></td>
+<td><strong>${app.escapeHtml(c.orderNumber)}</strong></td>
+<td>${app.formatBRL(c.amount)}</td>
+<td style="font-size:0.76rem;">${app.formatDateBR(c.expiresAt)}</td>
+<td><span class="status-pill ${c.status === 'paid' ? 'confirmed' : c.status === 'expired' ? 'danger' : 'pending'}">${app.escapeHtml(c.status)}</span></td>
+</tr>
+`).join('')}
+</tbody>
+</table>
+</div>
+</details>
+` : ''}
+${finEvents.length > 0 ? `
+<details>
+<summary style="cursor:pointer;font-weight:600;font-size:0.86rem;">Ver Log de Webhooks e Eventos Financeiros (${finEvents.length})</summary>
+<div style="overflow-x:auto;margin-top:8px;">
+<table class="data-table">
+<thead>
+<tr>
+<th>Data/Hora</th>
+<th>Tipo de Evento</th>
+<th>Pedido</th>
+<th>Valor</th>
+<th>Detalhe</th>
+</tr>
+</thead>
+<tbody>
+${finEvents.slice(0, 20).map((ev) => `
+<tr>
+<td style="font-size:0.75rem;">${app.formatDateBR(ev.timestamp)}</td>
+<td><code>${app.escapeHtml(ev.type)}</code></td>
+<td><strong>${app.escapeHtml(ev.orderNumber || '-')}</strong></td>
+<td>${ev.amount !== undefined ? app.formatBRL(ev.amount) : '-'}</td>
+<td style="font-size:0.78rem;">${app.escapeHtml(ev.detail || '')}</td>
+</tr>
+`).join('')}
+</tbody>
+</table>
+</div>
+</details>
+` : ''}
+</div>
+`;
+return pixControlCard + _origRenderPaymentsSection();
+}
+renderCustomersSection = function () {
+const app = window.ByAngelyApp;
+const db = app.getState().db;
+const reviews = db.reviews || [];
+const reviewsCard = `
+<div class="admin-card" style="margin-top:20px;">
+<h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:8px;">Moderação de Avaliações de Produtos (${reviews.length})</h2>
+<p style="font-size:0.84rem;color:var(--text-secondary);margin-bottom:12px;">
+Aprove, oculte ou exclua avaliações enviadas pelas clientes nas fichas dos produtos.
+</p>
+${reviews.length === 0 ? `
+<p style="font-size:0.85rem;color:var(--text-muted);">Nenhuma avaliação enviada até o momento.</p>
+` : `
+<div style="overflow-x:auto;">
+<table class="data-table">
+<thead>
+<tr>
+<th>Data</th>
+<th>Cliente</th>
+<th>Nota</th>
+<th>Comentário</th>
+<th>Status</th>
+<th>Ações</th>
+</tr>
+</thead>
+<tbody>
+${reviews.map((r) => `
+<tr>
+<td style="font-size:0.78rem;">${app.escapeHtml(r.date || '')}</td>
+<td><strong>${app.escapeHtml(r.customerName || '')}</strong></td>
+<td style="color:var(--accent-gold);font-weight:700;">${'★'.repeat(Number(r.rating) || 5)} (${Number(r.rating) || 5})</td>
+<td style="font-size:0.82rem;">${app.escapeHtml(r.comment || '(Sem comentário escrito)')}</td>
+<td>
+<span class="status-pill ${r.status === 'hidden' ? 'danger' : 'confirmed'}">
+${r.status === 'hidden' ? 'Oculta' : 'Publicada'}
+</span>
+</td>
+<td>
+<div style="display:flex;gap:6px;">
+<button type="button" class="btn btn-outline btn-sm" data-admin-review-action="toggle" data-review-id="${app.escapeHtml(r.id)}">
+${r.status === 'hidden' ? 'Aprovar / Exibir' : 'Ocultar'}
+</button>
+<button type="button" class="btn btn-danger btn-sm" data-admin-review-action="delete" data-review-id="${app.escapeHtml(r.id)}">
+Excluir
+</button>
+</div>
+</td>
+</tr>
+`).join('')}
+</tbody>
+</table>
+</div>
+`}
+</div>
+`;
+return _origRenderCustomersSection() + reviewsCard;
+}
+renderCategoriesBannersCouponsSection = function () {
+const app = window.ByAngelyApp;
+const db = app.getState().db;
+const hs = (db.storeSettings && db.storeSettings.homeSections) || {
+hero: true,
+featured: true,
+newArrivals: true,
+promotions: true,
+categories: true,
+brandStory: true
+};
+const homeVisibilityCard = `
+<div class="admin-card" style="margin-top:20px;">
+<h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:6px;">Organização da Página Inicial (Ativar ou Ocultar Seções)</h2>
+<p style="font-size:0.84rem;color:var(--text-secondary);margin-bottom:14px;">
+Escolha quais seções aparecem na Página Inicial da loja sem precisar editar código:
+</p>
+<form id="admin-home-sections-form">
+<div class="admin-form-grid-3" style="margin-bottom:14px;">
+<label style="display:flex;align-items:center;gap:8px;font-size:0.86rem;cursor:pointer;">
+<input type="checkbox" name="hero" ${hs.hero !== false ? 'checked' : ''} />
+<span>1. Banner Principal / Identidade</span>
+</label>
+<label style="display:flex;align-items:center;gap:8px;font-size:0.86rem;cursor:pointer;">
+<input type="checkbox" name="featured" ${hs.featured !== false ? 'checked' : ''} />
+<span>2. Peças em Destaque</span>
+</label>
+<label style="display:flex;align-items:center;gap:8px;font-size:0.86rem;cursor:pointer;">
+<input type="checkbox" name="newArrivals" ${hs.newArrivals !== false ? 'checked' : ''} />
+<span>3. Novidades da Coleção</span>
+</label>
+<label style="display:flex;align-items:center;gap:8px;font-size:0.86rem;cursor:pointer;">
+<input type="checkbox" name="promotions" ${hs.promotions !== false ? 'checked' : ''} />
+<span>4. Promoções Selecionadas</span>
+</label>
+<label style="display:flex;align-items:center;gap:8px;font-size:0.86rem;cursor:pointer;">
+<input type="checkbox" name="categories" ${hs.categories !== false ? 'checked' : ''} />
+<span>5. Explore por Categoria</span>
+</label>
+<label style="display:flex;align-items:center;gap:8px;font-size:0.86rem;cursor:pointer;">
+<input type="checkbox" name="brandStory" ${hs.brandStory !== false ? 'checked' : ''} />
+<span>6. Sobre a Marca (A Essência)</span>
+</label>
+</div>
+<button type="submit" class="btn btn-primary btn-sm">Salvar Organização da Página Inicial</button>
+</form>
+</div>
+`;
+return _origRenderCategoriesBannersCouponsSection() + homeVisibilityCard;
+}
+bindAdminWorkspaceEvents = function (containerEl) {
+if (db && db.paymentSettings) db.paymentSettings.paymentConfigVersion = 3;
+_origBindAdminWorkspaceEvents(containerEl);
+const app = window.ByAngelyApp;
+const db = app.getState().db;
+const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+async function updateOrderStatusOnServer(orderId, newStatus, trackingCode) {
+try {
+const res = await fetch(`${apiBase}/api/admin/orders/${encodeURIComponent(orderId)}/status`, {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({
+status: newStatus,
+trackingCode,
+actorName: app.getState().currentAdmin ? app.getState().currentAdmin.name : 'Proprietária BY ANGÉLY'
+})
+});
+const data = await res.json();
+if (res.ok && data && data.ok && data.order) {
+const idx = (db.orders || []).findIndex((o) => o.id === orderId);
+if (idx >= 0) db.orders[idx] = data.order;
+app.saveDatabase(`Pedido ${data.order.orderNumber} atualizado para ${data.order.statusLabel}`);
+app.showToast(`Status do pedido ${data.order.orderNumber} atualizado para "${data.order.statusLabel}"!`, 'success');
+renderAdminView(containerEl);
+return;
+}
+} catch (e) {}
+const ord = (db.orders || []).find((o) => o.id === orderId);
+if (ord) {
+const opt = FULL_ORDER_STATUS_OPTIONS.find((x) => x.value === newStatus);
+ord.status = newStatus;
+ord.statusLabel = opt ? opt.label : newStatus;
+if (trackingCode !== undefined && ord.shipping) {
+ord.shipping.trackingCode = trackingCode;
+}
+app.saveDatabase(`Pedido ${ord.orderNumber} atualizado para ${ord.statusLabel}`);
+app.showToast(`Pedido ${ord.orderNumber} atualizado!`, 'success');
+renderAdminView(containerEl);
+}
+}
+containerEl.querySelectorAll('[data-admin-quick-status]').forEach((btn) => {
+btn.addEventListener('click', () => {
+const oid = btn.getAttribute('data-order-id');
+const nextSt = btn.getAttribute('data-admin-quick-status');
+const trInp = containerEl.querySelector(`#ord-track-${oid}`);
+const trVal = trInp ? trInp.value.trim() : undefined;
+updateOrderStatusOnServer(oid, nextSt, trVal);
+});
+});
+containerEl.querySelectorAll('[data-action-admin="save-order-update"]').forEach((btn) => {
+btn.addEventListener('click', () => {
+const oid = btn.getAttribute('data-order-id');
+const stSel = containerEl.querySelector(`#ord-status-${oid}`);
+const trInp = containerEl.querySelector(`#ord-track-${oid}`);
+if (oid && stSel) {
+updateOrderStatusOnServer(oid, stSel.value, trInp ? trInp.value.trim() : undefined);
+}
+});
+});
+const pixExpForm = containerEl.querySelector('#admin-pix-expiration-form');
+if (pixExpForm) {
+pixExpForm.addEventListener('submit', async (e) => {
+e.preventDefault();
+const fd = new FormData(pixExpForm);
+const mins = Math.max(1, Math.min(120, Number(fd.get('expirationMinutes')) || 15));
+db.paymentSettings.pix.expirationMinutes = mins;
+await app.saveDatabase(`Prazo de expiração do QR Code Pix ajustado para ${mins} minutos.`);
+app.showToast(`Prazo de expiração do Pix salvo (${mins} minutos)!`, 'success');
+renderAdminView(containerEl);
+});
+}
+containerEl.querySelectorAll('[data-admin-review-action]').forEach((btn) => {
+btn.addEventListener('click', async () => {
+const act = btn.getAttribute('data-admin-review-action');
+const rid = btn.getAttribute('data-review-id');
+const rev = (db.reviews || []).find((r) => r.id === rid);
+if (!rev) return;
+if (act === 'toggle') {
+rev.status = rev.status === 'hidden' ? 'approved' : 'hidden';
+await app.saveDatabase(`Avaliação de ${rev.customerName} ${rev.status === 'hidden' ? 'ocultada' : 'aprovada'}.`);
+app.showToast('Visibilidade da avaliação atualizada!', 'success');
+renderAdminView(containerEl);
+} else if (act === 'delete') {
+db.reviews = (db.reviews || []).filter((r) => r.id !== rid);
+await app.saveDatabase(`Avaliação de ${rev.customerName} removida.`);
+app.showToast('Avaliação excluída.');
+renderAdminView(containerEl);
+}
+});
+});
+const homeSecForm = containerEl.querySelector('#admin-home-sections-form');
+if (homeSecForm) {
+homeSecForm.addEventListener('submit', async (e) => {
+e.preventDefault();
+const fd = new FormData(homeSecForm);
+db.storeSettings.homeSections = {
+hero: fd.get('hero') === 'on',
+featured: fd.get('featured') === 'on',
+newArrivals: fd.get('newArrivals') === 'on',
+promotions: fd.get('promotions') === 'on',
+categories: fd.get('categories') === 'on',
+brandStory: fd.get('brandStory') === 'on'
+};
+await app.saveDatabase('Seções visíveis da Página Inicial atualizadas.');
+app.showToast('Organização da Página Inicial salva com sucesso!', 'success');
+renderAdminView(containerEl);
+});
+}
+}
 })();
