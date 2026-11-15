@@ -4249,6 +4249,9 @@
   window.addEventListener('DOMContentLoaded', () => {
     sanitizeCartItems();
     setTimeout(sanitizeCartItems, 1200);
+    
+  });
+
 
                           
 const _origNormalizeAndRepairDatabase = typeof normalizeAndRepairDatabase === 'function' ? normalizeAndRepairDatabase : null;
