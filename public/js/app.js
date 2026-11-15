@@ -5452,7 +5452,7 @@ function bindCheckoutEvents() {
         return;
       }
       const createdOrder = data.order;
-      if (createdOrder.paymentMethod === 'pix' && createdOrder.pixData && window.ByAngelyPix) {
+      if (createdOrder.paymentMethod === 'pix' && createdOrder.pixData && !createdOrder.pixData.payload && window.ByAngelyPix) {
         createdOrder.pixData.payload = window.ByAngelyPix.generatePixPayload({
           pixKey: createdOrder.pixData.pixKey || '+5528999871458',
           keyType: pixCfg.keyType || 'telefone',
