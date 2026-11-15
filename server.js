@@ -956,43 +956,133 @@ const server = http.createServer(async (req, res) => {
             })
           : db.customers;
 
-        const isAdminReq = Boolean(req.headers['x-admin-role']);
+                // Protege status de pedidos contra aprovação falsa vinda de cliente comum
+        // e impede que um salvamento administrativo com estado antigo em memória sobrescreva um pagamento Pix já confirmado pelo servidor
+        const isAdminReq = Boolean(req.headers['x-admin-role'] || req.headers['x-admin-token']);
         let mergedOrders = db.orders || [];
         if (Array.isArray(incoming.orders)) {
-          if (isAdminReq) {
-            mergedOrders = incoming.orders;
-          } else {
-            const serverOrdersById = new Map((db.orders || []).map((o) => [o.id, o]));
-            mergedOrders = incoming.orders.map((incOrd) => {
-              const srvOrd = serverOrdersById.get(incOrd.id);
-              if (srvOrd) {
-                return {
-                  ...incOrd,
-                  status: srvOrd.status,
-                  statusLabel: srvOrd.statusLabel,
-                  paymentStatus: srvOrd.paymentStatus,
-                  total: srvOrd.total,
-                  expiresAt: srvOrd.expiresAt,
-                  paidAt: srvOrd.paidAt
-                };
-              }
-              return incOrd;
-            });
-          }
+          const serverOrdersById = new Map((db.orders || []).map((o) => [o.id, o]));
+          const incomingIds = new Set();
+
+          const mappedIncoming = incoming.orders.map((incOrd) => {
+            if (!incOrd || !incOrd.id) return incOrd;
+            incomingIds.add(incOrd.id);
+            const srvOrd = serverOrdersById.get(incOrd.id);
+            if (!srvOrd) return incOrd;
+
+            const srvPaid = ['paid', 'approved', 'approved_late', 'approved_late_conflict', 'refunded'].includes(
+              String(srvOrd.paymentStatus || srvOrd.payment_status || '').toLowerCase()
+            );
+            const incPaid = ['paid', 'approved', 'approved_late', 'approved_late_conflict', 'refunded'].includes(
+              String(incOrd.paymentStatus || incOrd.payment_status || '').toLowerCase()
+            );
+
+            if (!isAdminReq) {
+              return {
+                ...incOrd,
+                status: srvOrd.status,
+                statusLabel: srvOrd.statusLabel,
+                paymentStatus: srvOrd.paymentStatus,
+                payment_status: srvOrd.payment_status || srvOrd.paymentStatus,
+                total: srvOrd.total,
+                expiresAt: srvOrd.expiresAt,
+                paidAt: srvOrd.paidAt,
+                pixData: srvOrd.pixData || incOrd.pixData,
+                notificationsLog: srvOrd.notificationsLog || incOrd.notificationsLog,
+                cancellationRequest: srvOrd.cancellationRequest || incOrd.cancellationRequest
+              };
+            }
+
+            // Se for requisição Admin, mas o pedido já foi pago/confirmado no servidor via Webhook Pix e o navegador Admin ainda estava com 'pending', preserva a aprovação!
+            if (srvPaid && !incPaid) {
+              const preserveApprovedStatus =
+                incOrd.status === 'awaiting_payment' || incOrd.status === 'awaiting_confirmation'
+                  ? srvOrd.status
+                  : incOrd.status;
+              const preserveApprovedLabel =
+                incOrd.status === 'awaiting_payment' || incOrd.status === 'awaiting_confirmation'
+                  ? srvOrd.statusLabel
+                  : incOrd.statusLabel;
+              return {
+                ...incOrd,
+                status: preserveApprovedStatus,
+                statusLabel: preserveApprovedLabel,
+                paymentStatus: srvOrd.paymentStatus,
+                payment_status: srvOrd.payment_status || srvOrd.paymentStatus,
+                paidAt: srvOrd.paidAt,
+                stockReserved: srvOrd.stockReserved,
+                stockDeducted: srvOrd.stockDeducted,
+                pixData: srvOrd.pixData || incOrd.pixData,
+                notificationsLog: Array.isArray(srvOrd.notificationsLog) && srvOrd.notificationsLog.length >= (incOrd.notificationsLog || []).length
+                  ? srvOrd.notificationsLog
+                  : incOrd.notificationsLog,
+                cancellationRequest: srvOrd.cancellationRequest || incOrd.cancellationRequest
+              };
+            }
+
+            return {
+              ...incOrd,
+              payment_status: incOrd.paymentStatus || incOrd.payment_status || srvOrd.paymentStatus,
+              pixData: srvOrd.pixData || incOrd.pixData
+            };
+          });
+
+          // Preserva pedidos recém-criados no servidor que ainda não estavam na memória do navegador
+          const missingServerOrders = (db.orders || []).filter((srvOrd) => srvOrd && srvOrd.id && !incomingIds.has(srvOrd.id));
+          mergedOrders = [...missingServerOrders, ...mappedIncoming];
         }
 
-        db = {
+        // Mescla cobranças Pix preservando confirmações do servidor
+        const serverChargesById = new Map((db.pixCharges || []).map((c) => [c.chargeId || c.txid, c]));
+        let mergedPixCharges = db.pixCharges || [];
+        if (Array.isArray(incoming.pixCharges) && isAdminReq) {
+          const seenChargeKeys = new Set();
+          const combinedCharges = [];
+          [...(db.pixCharges || []), ...incoming.pixCharges].forEach((c) => {
+            if (!c) return;
+            const key = c.chargeId || c.txid;
+            if (!key || seenChargeKeys.has(key)) return;
+            seenChargeKeys.add(key);
+            const srvCharge = serverChargesById.get(key);
+            if (srvCharge && ['paid', 'approved', 'expired', 'paid_late_conflict'].includes(String(srvCharge.status || '').toLowerCase())) {
+              combinedCharges.push(srvCharge);
+            } else {
+              combinedCharges.push(c);
+            }
+          });
+          mergedPixCharges = combinedCharges;
+        }
+
+        // Mescla log de auditoria sem perder registros do servidor
+        const serverAudit = Array.isArray(db.auditLog) ? db.auditLog : [];
+        const incomingAudit = Array.isArray(incoming.auditLog) ? incoming.auditLog : [];
+        const seenAuditIds = new Set();
+        const mergedAuditLog = [];
+        [...incomingAudit, ...serverAudit].forEach((entry) => {
+          if (!entry) return;
+          const key = entry.id || `${entry.date || entry.timestamp}_${entry.action}_${entry.user}`;
+          if (!seenAuditIds.has(key)) {
+            seenAuditIds.add(key);
+            mergedAuditLog.push(entry);
+          }
+        });
+
+        db = repairDatabaseState({
           ...db,
           ...incoming,
           customers: mergedCustomers,
           orders: mergedOrders,
-          pixCharges: Array.isArray(incoming.pixCharges) && isAdminReq ? incoming.pixCharges : (db.pixCharges || []),
+          pixCharges: mergedPixCharges,
           processedWebhooks: db.processedWebhooks || [],
+          pendingWebhookRetries: db.pendingWebhookRetries || [],
           financialEvents: db.financialEvents || [],
           stockMovements: db.stockMovements || [],
+          cancellationRequests: Array.isArray(incoming.cancellationRequests) && isAdminReq ? incoming.cancellationRequests : (db.cancellationRequests || []),
+          auditLog: mergedAuditLog.slice(0, 500),
           adminNotifications: Array.isArray(incoming.adminNotifications) && isAdminReq ? incoming.adminNotifications : (db.adminNotifications || []),
+          analytics: db.analytics,
           updatedAt: new Date().toISOString()
-        };
+        });
         saveDatabase(db);
         return sendJson(res, 200, { ok: true, updatedAt: db.updatedAt, serverNow: new Date().toISOString() });
       }
