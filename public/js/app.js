@@ -6678,4 +6678,2661 @@ break;
 window.ByAngelyApp.addToCart = addToCart;
 window.ByAngelyApp.openCartDrawer = openCartDrawer;
 window.ByAngelyApp.renderCartDrawer = renderCartDrawer;
+
+// ============================================================================
+// BY ANGÉLY — V4: ÁREA DA CLIENTE SEPARADA & LOGIN/CADASTRO EM ETAPAS MOBILE
+// ============================================================================
+AppState.authMode = AppState.authMode || 'login';
+AppState.registerStep = AppState.registerStep || 1;
+AppState.showRecoverPasswordBox = false;
+AppState.ordersFilter = AppState.ordersFilter || 'all';
+AppState.editingAddressIndex = null;
+AppState.postLoginRedirectView = null;
+AppState.registerDraft = AppState.registerDraft || {
+  name: '',
+  phone: '',
+  email: '',
+  cpf: '',
+  password: '',
+  confirmPassword: '',
+  zipCode: '',
+  street: '',
+  number: '',
+  complement: '',
+  neighborhood: '',
+  city: '',
+  state: '',
+  reference: '',
+  marketingOptIn: false
+};
+
+function formatPhoneMask(val) {
+  const digits = String(val || '').replace(/\D/g, '').slice(0, 11);
+  if (!digits) return '';
+  if (digits.length <= 2) return '(' + digits;
+  if (digits.length <= 6) return '(' + digits.slice(0, 2) + ') ' + digits.slice(2);
+  if (digits.length <= 10) return '(' + digits.slice(0, 2) + ') ' + digits.slice(2, 6) + '-' + digits.slice(6);
+  return '(' + digits.slice(0, 2) + ') ' + digits.slice(2, 7) + '-' + digits.slice(7);
+}
+
+function formatCpfMask(val) {
+  const digits = String(val || '').replace(/\D/g, '').slice(0, 11);
+  if (!digits) return '';
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return digits.slice(0, 3) + '.' + digits.slice(3);
+  if (digits.length <= 9) return digits.slice(0, 3) + '.' + digits.slice(3, 6) + '.' + digits.slice(6);
+  return digits.slice(0, 3) + '.' + digits.slice(3, 6) + '.' + digits.slice(6, 9) + '-' + digits.slice(9);
+}
+
+function formatCepMask(val) {
+  const digits = String(val || '').replace(/\D/g, '').slice(0, 8);
+  if (!digits) return '';
+  if (digits.length <= 5) return digits;
+  return digits.slice(0, 5) + '-' + digits.slice(5);
+}
+
+function isValidEmailFormat(email) {
+  const str = String(email || '').trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(str);
+}
+
+function injectV4StylesAndDom() {
+  if (!document.getElementById('by-angely-v4-customer-styles')) {
+    const st = document.createElement('style');
+    st.id = 'by-angely-v4-customer-styles';
+    st.textContent = `
+      /* Cabeçalho e Faixa de Categorias Otimizados para Mobile */
+      .category-strip-inner {
+        display: flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+        overflow-x: auto !important;
+        flex-wrap: nowrap !important;
+        -webkit-overflow-scrolling: touch !important;
+        scrollbar-width: none !important;
+        padding: 6px 14px !important;
+      }
+      .category-strip-inner::-webkit-scrollbar { display: none !important; }
+      .category-pill-link {
+        white-space: nowrap !important;
+        flex-shrink: 0 !important;
+      }
+      @media (max-width: 640px) {
+        .announcement-bar { padding: 5px 10px !important; font-size: 0.7rem !important; }
+        .header-main { min-height: 54px !important; padding-top: 6px !important; padding-bottom: 6px !important; }
+        .brand-wordmark .brand-angely { font-size: 1.35rem !important; }
+        .category-strip-inner { padding: 5px 10px !important; gap: 5px !important; }
+        .category-pill-link { padding: 5px 11px !important; font-size: 0.73rem !important; min-height: 30px !important; }
+      }
+
+      /* WhatsApp Flutuante Discreto, Proporcional e Posicionado à Direita */
+      .floating-whatsapp-concierge {
+        position: fixed !important;
+        bottom: 16px !important;
+        right: 16px !important;
+        left: auto !important;
+        z-index: 950 !important;
+        min-height: 42px !important;
+        padding: 8px 14px !important;
+        border-radius: 999px !important;
+        background-color: #292522 !important;
+        color: #F8F5F0 !important;
+        border: 1px solid #806044 !important;
+        box-shadow: 0 4px 14px rgba(41, 37, 34, 0.2) !important;
+        font-size: 0.76rem !important;
+        opacity: 0.94 !important;
+      }
+      body.modal-or-drawer-open .floating-whatsapp-concierge {
+        display: none !important;
+      }
+      @media (max-width: 768px) {
+        .floating-whatsapp-concierge {
+          width: 40px !important;
+          height: 40px !important;
+          min-height: 40px !important;
+          padding: 0 !important;
+          bottom: 12px !important;
+          right: 12px !important;
+          border-radius: 50% !important;
+          justify-content: center !important;
+        }
+        .floating-whatsapp-concierge span {
+          display: none !important;
+        }
+      }
+
+      /* Área da Cliente V4 — Barra de Navegação e Containers */
+      .customer-area-shell {
+        padding-top: 24px !important;
+        padding-bottom: 88px !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+      }
+      .customer-area-nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 22px;
+        padding-bottom: 14px;
+        border-bottom: 1px solid #E9DFD4;
+      }
+      .customer-area-nav-links {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .customer-nav-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 38px;
+        padding: 7px 14px;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        border: 1px solid #D5C7B8;
+        background: #FFFFFF;
+        color: #292522;
+        cursor: pointer;
+        transition: all 0.18s ease;
+      }
+      .customer-nav-pill:hover {
+        border-color: #806044;
+        color: #806044;
+      }
+      .customer-nav-pill.active {
+        background: #806044;
+        color: #FFFFFF;
+        border-color: #806044;
+      }
+
+      /* Tela de Login e Cadastro — Alternância Mobile e Duas Colunas Equilibradas no Desktop */
+      .auth-mode-switcher {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        background: #E9DFD4;
+        padding: 5px;
+        border-radius: 12px;
+        margin: 0 auto 22px;
+        max-width: 520px;
+      }
+      .auth-mode-tab {
+        min-height: 44px;
+        padding: 8px 12px;
+        border-radius: 9px;
+        border: none;
+        background: transparent;
+        color: #5C5346;
+        font-size: 0.76rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-align: center;
+      }
+      .auth-mode-tab.active {
+        background: #806044;
+        color: #FFFFFF;
+        box-shadow: 0 2px 8px rgba(41, 37, 34, 0.14);
+      }
+      .auth-dual-grid {
+        display: grid;
+        grid-template-columns: minmax(320px, 0.92fr) minmax(360px, 1.08fr);
+        gap: 28px;
+        align-items: start;
+      }
+      .auth-panel-card {
+        background: #FFFFFF;
+        border: 1px solid #E9DFD4;
+        border-radius: 14px;
+        padding: 26px;
+        box-shadow: 0 4px 18px rgba(41, 37, 34, 0.05);
+        max-width: 100%;
+        box-sizing: border-box;
+      }
+      .auth-panel-card.active-auth-mode {
+        border-color: #C99D91;
+      }
+      @media (max-width: 900px) {
+        .auth-dual-grid {
+          grid-template-columns: 1fr !important;
+          gap: 16px !important;
+        }
+        .auth-panel-card:not(.active-auth-mode) {
+          display: none !important;
+        }
+        .auth-panel-card {
+          padding: 18px 16px !important;
+        }
+      }
+
+      /* Campos de Formulário, Mostrar/Ocultar Senha e Mensagens de Erro */
+      .form-field-group {
+        margin-bottom: 14px;
+        width: 100%;
+      }
+      .form-field-label {
+        display: block;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #292522;
+        margin-bottom: 5px;
+      }
+      .form-field-label .req-star {
+        color: #806044;
+      }
+      .form-input-v4 {
+        width: 100% !important;
+        height: 46px !important;
+        min-height: 46px !important;
+        padding: 10px 14px !important;
+        border: 1px solid #D5C7B8 !important;
+        border-radius: 8px !important;
+        background: #FFFFFF !important;
+        color: #292522 !important;
+        font-size: 0.92rem !important;
+        box-sizing: border-box !important;
+        transition: border-color 0.18s ease, box-shadow 0.18s ease !important;
+      }
+      .form-input-v4:focus {
+        border-color: #806044 !important;
+        box-shadow: 0 0 0 3px rgba(128, 96, 68, 0.12) !important;
+        outline: none !important;
+      }
+      .form-input-v4.has-error {
+        border-color: #B83A3A !important;
+        background: #FFF9F9 !important;
+      }
+      .password-input-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+        width: 100%;
+      }
+      .password-input-wrapper .form-input-v4 {
+        padding-right: 78px !important;
+      }
+      .password-toggle-btn {
+        position: absolute;
+        right: 8px;
+        height: 32px;
+        padding: 0 10px;
+        border-radius: 6px;
+        border: 1px solid #E9DFD4;
+        background: #F8F5F0;
+        color: #806044;
+        font-size: 0.72rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .field-error-msg {
+        display: none;
+        font-size: 0.75rem;
+        color: #B83A3A;
+        font-weight: 500;
+        margin-top: 4px;
+      }
+      .field-error-msg.visible {
+        display: block;
+      }
+
+      /* Indicador de Progresso do Cadastro em 3 Etapas */
+      .reg-stepper-header {
+        margin-bottom: 18px;
+      }
+      .reg-stepper-steps {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+        margin-bottom: 8px;
+      }
+      .reg-step-pill {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 8px 6px;
+        border-radius: 8px;
+        background: #F8F5F0;
+        border: 1px solid #E9DFD4;
+        font-size: 0.72rem;
+        color: #6E655C;
+        cursor: pointer;
+      }
+      .reg-step-pill.active {
+        background: #FFF8F3;
+        border-color: #806044;
+        color: #292522;
+        font-weight: 700;
+      }
+      .reg-step-pill.completed {
+        background: #EDF7F1;
+        border-color: #2E6F52;
+        color: #1E4D38;
+        font-weight: 600;
+      }
+      .reg-progress-track {
+        width: 100%;
+        height: 5px;
+        background: #E9DFD4;
+        border-radius: 999px;
+        overflow: hidden;
+      }
+      .reg-progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, #806044, #C99D91);
+        transition: width 0.25s ease;
+      }
+
+      /* Cartões de Pedidos (Meus Pedidos) — 1 Coluna no Celular */
+      .orders-filter-tabs {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        overflow-x: auto;
+        padding-bottom: 6px;
+        margin-bottom: 18px;
+        scrollbar-width: none;
+      }
+      .orders-filter-tabs::-webkit-scrollbar { display: none; }
+      .orders-filter-tab {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 38px;
+        padding: 7px 14px;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        white-space: nowrap;
+        border: 1px solid #D5C7B8;
+        background: #FFFFFF;
+        color: #5C5346;
+        cursor: pointer;
+      }
+      .orders-filter-tab.active {
+        background: #292522;
+        color: #F8F5F0;
+        border-color: #292522;
+      }
+      .order-card-v4 {
+        background: #FFFFFF;
+        border: 1px solid #E9DFD4;
+        border-radius: 12px;
+        padding: 18px;
+        margin-bottom: 16px;
+        box-shadow: 0 3px 12px rgba(41, 37, 34, 0.04);
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        max-width: 100%;
+        box-sizing: border-box;
+      }
+      .order-card-v4-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #E9DFD4;
+      }
+      .order-card-v4-products {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .order-product-item-v4 {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px;
+        background: #F8F5F0;
+        border: 1px solid #E9DFD4;
+        border-radius: 8px;
+      }
+      .order-product-item-v4 img {
+        width: 52px;
+        height: 66px;
+        object-fit: cover;
+        border-radius: 6px;
+        flex-shrink: 0;
+      }
+      .order-product-item-v4-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .order-card-v4-payment-summary {
+        background: #F8F5F0;
+        border: 1px solid #E9DFD4;
+        border-radius: 8px;
+        padding: 12px 14px;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        font-size: 0.83rem;
+      }
+      .order-card-v4-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding-top: 10px;
+        border-top: 1px solid #E9DFD4;
+      }
+      .address-cards-grid-v4 {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 14px;
+        margin-bottom: 16px;
+      }
+      .address-card-v4 {
+        background: #F8F5F0;
+        border: 1px solid #E9DFD4;
+        border-radius: 10px;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .address-card-v4.primary {
+        border-color: #806044;
+        background: #FFFBF7;
+      }
+      .order-detail-two-col {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        margin-bottom: 16px;
+      }
+      @media (max-width: 768px) {
+        .order-card-v4 { padding: 14px; gap: 12px; }
+        .order-card-v4-payment-summary { grid-template-columns: 1fr 1fr; gap: 8px; }
+        .order-detail-two-col { grid-template-columns: 1fr !important; }
+        .address-cards-grid-v4 { grid-template-columns: 1fr !important; }
+      }
+      @media (max-width: 480px) {
+        .order-card-v4-payment-summary { grid-template-columns: 1fr !important; }
+        .order-card-v4-actions { flex-direction: column; align-items: stretch; }
+        .order-card-v4-actions .btn { width: 100%; justify-content: center; }
+        .customer-area-nav { flex-direction: column; align-items: stretch; }
+        .customer-area-nav-links { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
+        .customer-nav-pill { white-space: nowrap; flex-shrink: 0; }
+      }
+    `;
+    document.head.appendChild(st);
+  }
+
+  // Garante link de Trocas e Devoluções no menu lateral da cliente
+  const sideMenuCompras = document.querySelector('#mobile-menu-backdrop .side-menu-group');
+  if (sideMenuCompras && !sideMenuCompras.querySelector('[data-action="go-returns"]')) {
+    const retBtn = document.createElement('button');
+    retBtn.type = 'button';
+    retBtn.className = 'side-menu-item';
+    retBtn.setAttribute('data-action', 'go-returns');
+    retBtn.innerHTML =
+      '<svg class="side-menu-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"></polyline><polyline points="23 20 23 14 17 14"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></svg>' +
+      '<span>Trocas e devoluções</span>';
+    sideMenuCompras.appendChild(retBtn);
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', injectV4StylesAndDom);
+} else {
+  injectV4StylesAndDom();
+}
+
+function updateFloatingWhatsappVisibility() {
+  const anyModalOpen = Boolean(
+    document.querySelector('.modal-backdrop.open') ||
+    document.querySelector('.drawer-backdrop.open') ||
+    document.querySelector('.filter-drawer-backdrop.open')
+  );
+  document.body.classList.toggle('modal-or-drawer-open', anyModalOpen);
+}
+
+// Sobrescreve loadDatabase para sincronizar sessão da cliente sem perder edições salvas
+const _v3LoadDatabase = typeof loadDatabase === 'function' ? loadDatabase : null;
+if (_v3LoadDatabase) {
+  loadDatabase = async function () {
+    await _v3LoadDatabase();
+    if (AppState.currentCustomer && AppState.currentCustomer.email && AppState.db && Array.isArray(AppState.db.customers)) {
+      const emailNorm = String(AppState.currentCustomer.email).trim().toLowerCase();
+      const dbMatch = AppState.db.customers.find(
+        (c) => c && ((AppState.currentCustomer.id && c.id === AppState.currentCustomer.id) || String(c.email || '').trim().toLowerCase() === emailNorm)
+      );
+      if (dbMatch) {
+        const localUpd = new Date(AppState.currentCustomer.updatedAt || 0).getTime();
+        const srvUpd = new Date(dbMatch.updatedAt || 0).getTime();
+        if (srvUpd >= localUpd) {
+          AppState.currentCustomer = {
+            ...AppState.currentCustomer,
+            ...dbMatch,
+            token: AppState.currentCustomer.token || dbMatch.sessionToken
+          };
+        } else {
+          Object.assign(dbMatch, {
+            name: AppState.currentCustomer.name,
+            email: AppState.currentCustomer.email,
+            phone: AppState.currentCustomer.phone,
+            cpf: AppState.currentCustomer.cpf,
+            addresses: AppState.currentCustomer.addresses,
+            marketingOptIn: AppState.currentCustomer.marketingOptIn,
+            updatedAt: AppState.currentCustomer.updatedAt
+          });
+        }
+        try {
+          localStorage.setItem(STORAGE_KEY_CUSTOMER_SESSION, JSON.stringify(AppState.currentCustomer));
+        } catch (e) {}
+      }
+    }
+  };
+}
+
+// Sobrescreve navigateTo e renderMainView para separar Minha Conta, Meus Pedidos, Favoritos e Trocas
+navigateTo = function (view, options = {}) {
+  if (view === 'account' && options && options.accountTab === 'orders') {
+    view = 'orders';
+  } else if (view === 'account' && options && options.accountTab === 'returns') {
+    view = 'returns';
+  }
+
+  AppState.currentView = view;
+  if (options.policyTab) AppState.activePolicyTab = options.policyTab;
+  if (options.ordersFilter) AppState.ordersFilter = options.ordersFilter;
+
+  const pdpModal = document.getElementById('product-detail-modal');
+  if (pdpModal) {
+    pdpModal.classList.remove('open');
+    pdpModal.setAttribute('aria-hidden', 'true');
+  }
+  closeOrderDetailModal();
+  closeCartDrawer();
+  updateFloatingWhatsappVisibility();
+
+  document.querySelectorAll('[data-nav-view]').forEach((el) => {
+    el.classList.toggle('active', el.getAttribute('data-nav-view') === view);
+  });
+
+  try {
+    const hashMap = {
+      home: '#home',
+      catalog: '#catalog',
+      account: '#minha-conta',
+      orders: '#meus-pedidos',
+      favorites: '#favoritos',
+      returns: '#trocas',
+      contact: '#contact',
+      policies: '#policies',
+      admin: '#admin'
+    };
+    if (hashMap[view] && window.location.hash !== hashMap[view]) {
+      history.replaceState(null, '', hashMap[view]);
+    }
+  } catch (e) {}
+
+  updateGlobalChrome();
+  renderMainView();
+  if (!options.preserveScroll) {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+};
+
+renderMainView = function () {
+  const mainEl = document.getElementById('app-main-content');
+  if (!mainEl) return;
+
+  switch (AppState.currentView) {
+    case 'home':
+      mainEl.innerHTML = renderHomeView();
+      break;
+    case 'catalog':
+      mainEl.innerHTML = renderCatalogView();
+      bindCatalogFilterEvents();
+      break;
+    case 'favorites':
+      mainEl.innerHTML = renderFavoritesView();
+      break;
+    case 'checkout':
+      mainEl.innerHTML = renderCheckoutView();
+      bindCheckoutEvents();
+      break;
+    case 'account':
+      mainEl.innerHTML = renderAccountView();
+      bindAccountEvents();
+      break;
+    case 'orders':
+      mainEl.innerHTML = renderOrdersView();
+      bindAccountEvents();
+      break;
+    case 'returns':
+      mainEl.innerHTML = renderReturnsView();
+      bindAccountEvents();
+      break;
+    case 'policies':
+      mainEl.innerHTML = renderPoliciesView();
+      break;
+    case 'contact':
+      mainEl.innerHTML = renderDedicatedContactView();
+      break;
+    case 'admin':
+      if (window.ByAngelyAdmin) {
+        window.ByAngelyAdmin.renderAdminView(mainEl);
+      }
+      break;
+    default:
+      mainEl.innerHTML = renderHomeView();
+  }
+  updateFloatingWhatsappVisibility();
+};
+
+function getAuthenticatedCustomerOrders() {
+  const cust = AppState.currentCustomer;
+  if (!cust || !cust.email) return [];
+  const emailNorm = String(cust.email).trim().toLowerCase();
+  return (AppState.db.orders || []).filter((o) => {
+    if (!o) return false;
+    if (o.customerId && cust.id && o.customerId === cust.id) return true;
+    const ordEmail = o.customer && o.customer.email ? String(o.customer.email).trim().toLowerCase() : '';
+    return ordEmail && ordEmail === emailNorm;
+
+    });
+}
+
+function renderCustomerAreaNav(activeSection) {
+  const favCount = (AppState.wishlist || []).length;
+  const ordCount = getAuthenticatedCustomerOrders().length;
+  return `
+    <nav class="customer-area-nav" aria-label="Navegação da Área da Cliente">
+      <div class="customer-area-nav-links">
+        <button type="button" class="customer-nav-pill ${activeSection === 'account' ? 'active' : ''}" data-nav-view="account">
+          <span>Minha Conta</span>
+        </button>
+        <button type="button" class="customer-nav-pill ${activeSection === 'orders' ? 'active' : ''}" data-action="go-account-orders">
+          <span>Meus Pedidos${AppState.currentCustomer ? ' (' + ordCount + ')' : ''}</span>
+        </button>
+        <button type="button" class="customer-nav-pill ${activeSection === 'favorites' ? 'active' : ''}" data-nav-view="favorites">
+          <span>Meus Favoritos (${favCount})</span>
+        </button>
+        <button type="button" class="customer-nav-pill ${activeSection === 'returns' ? 'active' : ''}" data-action="go-returns">
+          <span>Trocas e Devoluções</span>
+        </button>
+      </div>
+      <button type="button" class="btn btn-outline btn-sm" data-action="go-catalog">
+        ← Voltar ao Catálogo
+      </button>
+    </nav>
+  `;
+}
+
+// ============================================================================
+// TELA DE LOGIN E CADASTRO EM 3 ETAPAS (SEPARADOS NO CELULAR, EQUILIBRADOS NO DESKTOP)
+// ============================================================================
+renderCustomerAuthScreen = function (contextLabel) {
+  const showBanner = Boolean(AppState.showPurchaseAuthBanner);
+  const mode = AppState.authMode === 'register' ? 'register' : 'login';
+  const step = Math.max(1, Math.min(3, Number(AppState.registerStep) || 1));
+  const d = AppState.registerDraft || {};
+  const progressPct = step === 1 ? 33 : step === 2 ? 66 : 100;
+
+  return `
+    <section class="section-block customer-area-shell">
+      <div class="container" style="max-width:1040px;">
+        ${renderCustomerAreaNav(contextLabel || 'account')}
+
+        ${showBanner ? `
+          <div id="mandatory-auth-purchase-banner" style="background:#FFF8F3;border:1.5px solid #C99D91;border-radius:12px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:14px;box-shadow:0 4px 16px rgba(128,96,68,0.08);">
+            <div style="width:38px;height:38px;border-radius:50%;background:#806044;color:#FFF;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1rem;">🔒</div>
+            <div>
+              <strong style="display:block;font-family:var(--font-serif);font-size:1.2rem;color:#292522;margin-bottom:2px;">Identificação Necessária para Comprar</strong>
+              <p style="font-size:0.88rem;color:#5C5346;margin:0;">${escapeHtml(MANDATORY_LOGIN_MESSAGE)}</p>
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- Seletor de Modo (No celular exibe apenas o formulário escolhido) -->
+        <div class="auth-mode-switcher" id="auth-mode-switcher" role="tablist" aria-label="Escolher entre entrar ou criar conta">
+          <button type="button" role="tab" aria-selected="${mode === 'login'}" class="auth-mode-tab ${mode === 'login' ? 'active' : ''}" data-action="switch-auth-mode" data-mode="login">
+            ENTRAR NA MINHA CONTA
+          </button>
+          <button type="button" role="tab" aria-selected="${mode === 'register'}" class="auth-mode-tab ${mode === 'register' ? 'active' : ''}" data-action="switch-auth-mode" data-mode="register">
+            CRIAR MINHA CONTA
+          </button>
+        </div>
+
+        <div class="auth-dual-grid">
+          <!-- PAINEL 1: ENTRAR NA MINHA CONTA -->
+          <div class="auth-panel-card ${mode === 'login' ? 'active-auth-mode' : ''}" id="auth-login-panel">
+            <span class="section-eyebrow">Cliente Cadastrada</span>
+            <h1 style="font-family:var(--font-serif);font-size:1.75rem;margin-bottom:6px;">Entrar na Minha Conta</h1>
+            <p style="font-size:0.84rem;color:var(--text-secondary);margin-bottom:18px;">
+              Acesse seus dados salvos, endereços e acompanhe seus pedidos.
+            </p>
+
+            <div id="login-form-error-box" style="display:none;padding:11px 14px;border-radius:8px;background:#FDF2F2;border:1px solid #F2B8B5;color:#8E2626;font-size:0.82rem;margin-bottom:14px;"></div>
+
+            <form id="customer-login-form" novalidate>
+              <div class="form-field-group">
+                <label class="form-field-label" for="login-email-input">E-mail <span class="req-star">*</span></label>
+                <input type="email" inputmode="email" autocomplete="email" name="email" id="login-email-input" class="form-input-v4" required placeholder="seu@email.com" />
+                <span class="field-error-msg" id="login-email-error">Informe um e-mail válido.</span>
+              </div>
+
+              <div class="form-field-group">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+                  <label class="form-field-label" for="login-password-input" style="margin-bottom:0;">Senha <span class="req-star">*</span></label>
+                  <button type="button" data-action="toggle-recover-password" style="background:none;border:none;color:#806044;font-size:0.76rem;font-weight:600;text-decoration:underline;cursor:pointer;padding:0;">
+                    Esqueci minha senha
+                  </button>
+                </div>
+                <div class="password-input-wrapper">
+                  <input type="password" autocomplete="current-password" name="password" id="login-password-input" class="form-input-v4" required placeholder="Digite sua senha" />
+                  <button type="button" class="password-toggle-btn" data-action="toggle-password-visibility" data-target="login-password-input" aria-label="Mostrar ou ocultar senha">
+                    Mostrar
+                  </button>
+                </div>
+                <span class="field-error-msg" id="login-password-error">Informe sua senha de acesso.</span>
+              </div>
+
+              <button type="submit" class="btn btn-primary btn-block" style="height:48px;font-size:0.86rem;margin-top:6px;">
+                Entrar na Minha Conta
+              </button>
+            </form>
+
+            <!-- Bloco de Recuperação de Senha -->
+            <div id="customer-recover-container" style="display:${AppState.showRecoverPasswordBox ? 'block' : 'none'};margin-top:16px;padding:14px;background:#F8F5F0;border:1px solid #E9DFD4;border-radius:10px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <strong style="font-size:0.84rem;color:#292522;">Recuperar Senha de Acesso</strong>
+                <button type="button" data-action="toggle-recover-password" style="background:none;border:none;color:#6E655C;font-size:0.8rem;cursor:pointer;">Fechar ✕</button>
+              </div>
+              <form id="customer-recover-form" novalidate>
+                <p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:10px;">Informe seu e-mail cadastrado e defina uma nova senha segura (mínimo 6 caracteres):</p>
+                <div class="form-field-group" style="margin-bottom:10px;">
+                  <input type="email" inputmode="email" name="email" id="recover-email-input" class="form-input-v4" required placeholder="E-mail cadastrado" />
+                </div>
+                <div class="form-field-group" style="margin-bottom:10px;">
+                  <div class="password-input-wrapper">
+                    <input type="password" name="newPassword" id="recover-new-password-input" class="form-input-v4" required minlength="6" placeholder="Nova senha (mín. 6 caracteres)" />
+                    <button type="button" class="password-toggle-btn" data-action="toggle-password-visibility" data-target="recover-new-password-input">Mostrar</button>
+                  </div>
+                </div>
+                <button type="submit" class="btn btn-outline btn-sm" style="width:100%;height:42px;">Redefinir Minha Senha</button>
+              </form>
+            </div>
+
+            <div style="margin-top:18px;padding-top:14px;border-top:1px solid #E9DFD4;text-align:center;font-size:0.84rem;color:var(--text-secondary);">
+              Ainda não tem cadastro na BY ANGÉLY?
+              <button type="button" data-action="switch-auth-mode" data-mode="register" style="background:none;border:none;color:#806044;font-weight:700;text-decoration:underline;cursor:pointer;margin-left:4px;">
+                Criar minha conta →
+              </button>
+            </div>
+          </div>
+
+          <!-- PAINEL 2: CRIAR MINHA CONTA (POR ETAPAS) -->
+          <div class="auth-panel-card ${mode === 'register' ? 'active-auth-mode' : ''}" id="auth-register-panel">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:4px;">
+              <span class="section-eyebrow">Novo Cadastro • BY ANGÉLY</span>
+              <span style="font-size:0.74rem;color:#806044;font-weight:600;">Etapa ${step} de 3</span>
+            </div>
+            <h2 style="font-family:var(--font-serif);font-size:1.75rem;margin-bottom:6px;">Criar Minha Conta</h2>
+            <p style="font-size:0.83rem;color:var(--text-secondary);margin-bottom:14px;">
+              Preencha seus dados em 3 etapas rápidas. Tudo fica salvo para suas próximas compras.
+            </p>
+
+            <!-- Barra de Progresso Visual das 3 Etapas -->
+            <div class="reg-stepper-header">
+              <div class="reg-stepper-steps">
+                <button type="button" class="reg-step-pill ${step === 1 ? 'active' : step > 1 ? 'completed' : ''}" data-action="reg-jump-step" data-step="1">
+                  <span>${step > 1 ? '✓ Etapa 1' : 'Etapa 1'}</span>
+                  <strong>Dados Pessoais</strong>
+                </button>
+                <button type="button" class="reg-step-pill ${step === 2 ? 'active' : step > 2 ? 'completed' : ''}" data-action="reg-jump-step" data-step="2">
+                  <span>${step > 2 ? '✓ Etapa 2' : 'Etapa 2'}</span>
+                  <strong>Segurança</strong>
+                </button>
+                <button type="button" class="reg-step-pill ${step === 3 ? 'active' : ''}" data-action="reg-jump-step" data-step="3">
+                  <span>Etapa 3</span>
+                  <strong>Endereço</strong>
+                </button>
+              </div>
+              <div class="reg-progress-track" aria-hidden="true">
+                <div class="reg-progress-bar" id="reg-progress-bar-fill" style="width:${progressPct}%;"></div>
+              </div>
+            </div>
+
+            <div id="register-form-error-box" style="display:none;padding:11px 14px;border-radius:8px;background:#FDF2F2;border:1px solid #F2B8B5;color:#8E2626;font-size:0.82rem;margin-bottom:14px;"></div>
+
+            <form id="customer-register-form" novalidate>
+              <!-- ETAPA 1: DADOS PESSOAIS -->
+              <div id="reg-step-panel-1" data-reg-step-panel="1" style="display:${step === 1 ? 'block' : 'none'};廣
+                <div class="form-field-group">
+                  <label class="form-field-label" for="reg-name-input">Nome Completo <span class="req-star">*</span></label>
+                  <input type="text" autocomplete="name" name="name" id="reg-name-input" class="form-input-v4" required placeholder="Digite seu nome e sobrenome" value="${escapeHtml(d.name || '')}" />
+                  <span class="field-error-msg" id="reg-error-name">Informe seu nome completo (nome e sobrenome).</span>
+                </div>
+
+                <div class="form-field-group">
+                  <label class="form-field-label" for="reg-phone-input">Telefone / WhatsApp com DDD <span class="req-star">*</span></label>
+                  <input type="tel" inputmode="tel" autocomplete="tel" name="phone" id="reg-phone-input" class="form-input-v4" required placeholder="(28) 99999-9999" value="${escapeHtml(d.phone || '')}" />
+                  <span class="field-error-msg" id="reg-error-phone">Informe um telefone ou WhatsApp válido com DDD.</span>
+                </div>
+
+                <div class="form-field-group">
+                  <label class="form-field-label" for="reg-email-input">E-mail <span class="req-star">*</span></label>
+                  <input type="email" inputmode="email" autocomplete="email" name="email" id="reg-email-input" class="form-input-v4" required placeholder="seu@email.com" value="${escapeHtml(d.email || '')}" />
+                  <span class="field-error-msg" id="reg-error-email">Informe um endereço de e-mail válido.</span>
+                </div>
+
+                <div class="form-field-group">
+                  <label class="form-field-label" for="reg-cpf-input">CPF <span style="font-weight:400;color:var(--text-muted);">(Opcional)</span></label>
+                  <input type="text" inputmode="numeric" name="cpf" id="reg-cpf-input" class="form-input-v4" placeholder="000.000.000-00" value="${escapeHtml(d.cpf || '')}" />
+                  <span class="field-error-msg" id="reg-error-cpf">O CPF informado deve conter 11 dígitos válidos.</span>
+                </div>
+
+                <p style="font-size:0.74rem;color:var(--text-muted);margin-bottom:12px;"><span class="req-star">*</span> Campos obrigatórios</p>
+
+                <button type="button" class="btn btn-primary btn-block" data-action="reg-next-step" data-from-step="1" style="height:48px;">
+                  Continuar para Segurança →
+                </button>
+              </div>
+
+              <!-- ETAPA 2: SEGURANÇA -->
+              <div id="reg-step-panel-2" data-reg-step-panel="2" style="display:${step === 2 ? 'block' : 'none'};廣
+                <div style="padding:10px 12px;background:#F8F5F0;border:1px solid #E9DFD4;border-radius:8px;margin-bottom:14px;font-size:0.78rem;color:#5C5346;">
+                  <strong style="display:block;color:#292522;margin-bottom:2px;">Requisitos mínimos da senha:</strong>
+                  • Mínimo de <strong>6 caracteres</strong>.<br/>
+                  • Recomendamos combinar letras e números para sua segurança.
+                </div>
+
+                <div class="form-field-group">
+                  <label class="form-field-label" for="reg-password-input">Criar Senha <span class="req-star">*</span></label>
+                  <div class="password-input-wrapper">
+                    <input type="password" autocomplete="new-password" name="password" id="reg-password-input" class="form-input-v4" required minlength="6" placeholder="Mínimo de 6 caracteres" value="${escapeHtml(d.password || '')}" />
+                    <button type="button" class="password-toggle-btn" data-action="toggle-password-visibility" data-target="reg-password-input">Mostrar</button>
+                  </div>
+                  <span class="field-error-msg" id="reg-error-password">A senha deve ter no mínimo 6 caracteres.</span>
+                </div>
+
+                <div class="form-field-group">
+                  <label class="form-field-label" for="reg-confirm-password-input">Confirmar Senha <span class="req-star">*</span></label>
+                  <div class="password-input-wrapper">
+                    <input type="password" autocomplete="new-password" name="confirmPassword" id="reg-confirm-password-input" class="form-input-v4" required minlength="6" placeholder="Digite a senha novamente" value="${escapeHtml(d.confirmPassword || d.password || '')}" />
+                    <button type="button" class="password-toggle-btn" data-action="toggle-password-visibility" data-target="reg-confirm-password-input">Mostrar</button>
+                  </div>
+                  <span class="field-error-msg" id="reg-error-confirmPassword">A confirmação de senha não confere com a senha digitada.</span>
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:10px;margin-top:16px;">
+                  <button type="button" class="btn btn-outline" data-action="reg-prev-step" data-to-step="1" style="height:46px;">
+                    ← Voltar
+                  </button>
+                  <button type="button" class="btn btn-primary" data-action="reg-next-step" data-from-step="2" style="height:46px;">
+                    Continuar para Endereço →
+                  </button>
+                </div>
+              </div>
+
+              <!-- ETAPA 3: ENDEREÇO -->
+              <div id="reg-step-panel-3" data-reg-step-panel="3" style="display:${step === 3 ? 'block' : 'none'};廣
+                <div class="form-field-group">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+                    <label class="form-field-label" for="reg-cep-input" style="margin-bottom:0;">CEP <span class="req-star">*</span></label>
+                    <span id="reg-cep-lookup-status" style="font-size:0.74rem;color:#806044;font-weight:500;">Digite o CEP para buscar</span>
+                  </div>
+                  <input type="text" inputmode="numeric" autocomplete="postal-code" name="zipCode" id="reg-cep-input" class="form-input-v4" required placeholder="00000-000" value="${escapeHtml(d.zipCode || '')}" />
+                  <span class="field-error-msg" id="reg-error-zipCode">Informe um CEP válido com 8 dígitos.</span>
+                </div>
+
+                <div class="form-field-group">
+                  <label class="form-field-label" for="reg-street-input">Rua / Avenida <span class="req-star">*</span></label>
+                  <input type="text" autocomplete="street-address" name="street" id="reg-street-input" class="form-input-v4" required placeholder="Nome da rua, avenida ou logradouro" value="${escapeHtml(d.street || '')}" />
+                  <span class="field-error-msg" id="reg-error-street">Informe o nome da rua ou avenida.</span>
+                </div>
+
+                <div class="sac-form-grid">
+                  <div class="form-field-group" style="margin-bottom:0;">
+                    <label class="form-field-label" for="reg-number-input">Número <span class="req-star">*</span></label>
+                    <input type="text" name="number" id="reg-number-input" class="form-input-v4" required placeholder="Nº ou S/N" value="${escapeHtml(d.number || '')}" />
+                    <span class="field-error-msg" id="reg-error-number">Informe o número.</span>
+                  </div>
+                  <div class="form-field-group" style="margin-bottom:0;">
+                    <label class="form-field-label" for="reg-complement-input">Complemento <span style="font-weight:400;color:var(--text-muted);">(Opcional)</span></label>
+                    <input type="text" name="complement" id="reg-complement-input" class="form-input-v4" placeholder="Apto, bloco, casa" value="${escapeHtml(d.complement || '')}" />
+                  </div>
+                </div>
+
+                <div class="sac-form-grid">
+                  <div class="form-field-group" style="margin-bottom:0;">
+                    <label class="form-field-label" for="reg-neighborhood-input">Bairro <span class="req-star">*</span></label>
+                    <input type="text" name="neighborhood" id="reg-neighborhood-input" class="form-input-v4" required placeholder="Bairro" value="${escapeHtml(d.neighborhood || '')}" />
+                    <span class="field-error-msg" id="reg-error-neighborhood">Informe o bairro.</span>
+                  </div>
+                  <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;">
+                    <div class="form-field-group" style="margin-bottom:0;">
+                      <label class="form-field-label" for="reg-city-input">Cidade <span class="req-star">*</span></label>
+                      <input type="text" name="city" id="reg-city-input" class="form-input-v4" required placeholder="Cidade" value="${escapeHtml(d.city || '')}" />
+                      <span class="field-error-msg" id="reg-error-city">Informe a cidade.</span>
+                    </div>
+                    <div class="form-field-group" style="margin-bottom:0;">
+                      <label class="form-field-label" for="reg-state-input">UF <span class="req-star">*</span></label>
+                      <input type="text" name="state" id="reg-state-input" class="form-input-v4" required maxlength="2" placeholder="RJ" value="${escapeHtml(d.state || '')}" style="text-transform:uppercase;" />
+                      <span class="field-error-msg" id="reg-error-state">UF</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-field-group" style="margin-top:12px;">
+                  <label class="form-field-label" for="reg-reference-input">Referência para entrega <span style="font-weight:400;color:var(--text-muted);">(Opcional)</span></label>
+                  <input type="text" name="reference" id="reg-reference-input" class="form-input-v4" placeholder="Próximo a..." value="${escapeHtml(d.reference || '')}" />
+                </div>
+
+                <label style="display:flex;align-items:flex-start;gap:8px;font-size:0.8rem;color:var(--text-secondary);margin-bottom:14px;cursor:pointer;">
+                  <input type="checkbox" name="marketingOptIn" id="reg-marketing-input" ${d.marketingOptIn ? 'checked' : ''} style="margin-top:3px;" />
+                  <span>Aceito receber novidades e promoções da BY ANGÉLY (Opcional — LGPD).</span>
+                </label>
+
+                <div style="display:grid;grid-template-columns:1fr 1.5fr;gap:10px;">
+                  <button type="button" class="btn btn-outline" data-action="reg-prev-step" data-to-step="2" style="height:48px;">
+                    ← Voltar
+                  </button>
+                  <button type="submit" id="btn-submit-register" class="btn btn-gold" style="height:48px;font-weight:700;">
+                    Criar Conta e Continuar
+                  </button>
+                </div>
+              </div>
+            </form>
+
+            <div style="margin-top:18px;padding-top:14px;border-top:1px solid #E9DFD4;text-align:center;font-size:0.84rem;color:var(--text-secondary);">
+              Já possui uma conta cadastrada?
+              <button type="button" data-action="switch-auth-mode" data-mode="login" style="background:none;border:none;color:#806044;font-weight:700;text-decoration:underline;cursor:pointer;margin-left:4px;">
+                Entrar na minha conta →
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+};
+
+function syncRegisterDraftFromDom() {
+  const form = document.getElementById('customer-register-form');
+  if (!form) return;
+  const fields = ['name', 'phone', 'email', 'cpf', 'password', 'confirmPassword', 'zipCode', 'street', 'number', 'complement', 'neighborhood', 'city', 'state', 'reference'];
+  fields.forEach((f) => {
+    const el = form.querySelector(`[name="${f}"]`);
+    if (el) AppState.registerDraft[f] = el.value;
+  });
+  const mkt = form.querySelector('[name="marketingOptIn"]');
+  if (mkt) AppState.registerDraft.marketingOptIn = Boolean(mkt.checked);
+}
+
+function setFieldErrorState(inputId, errorId, hasError, customMsg) {
+  const inp = document.getElementById(inputId);
+  const err = document.getElementById(errorId);
+  if (inp) inp.classList.toggle('has-error', Boolean(hasError));
+  if (err) {
+    if (customMsg) err.textContent = customMsg;
+    err.classList.toggle('visible', Boolean(hasError));
+  }
+}
+
+function validateRegisterStep(stepNum) {
+  syncRegisterDraftFromDom();
+  const d = AppState.registerDraft;
+  let valid = true;
+
+  if (stepNum === 1) {
+    const nameClean = String(d.name || '').trim();
+    const phoneDigits = String(d.phone || '').replace(/\D/g, '');
+    const emailClean = String(d.email || '').trim();
+    const cpfDigits = String(d.cpf || '').replace(/\D/g, '');
+
+    if (nameClean.length < 3) {
+      setFieldErrorState('reg-name-input', 'reg-error-name', true, 'Informe seu nome completo.');
+      valid = false;
+    } else {
+      setFieldErrorState('reg-name-input', 'reg-error-name', false);
+    }
+
+    if (phoneDigits.length < 10) {
+      setFieldErrorState('reg-phone-input', 'reg-error-phone', true, 'Informe um telefone ou WhatsApp válido com DDD (10 ou 11 dígitos).');
+      valid = false;
+    } else {
+      setFieldErrorState('reg-phone-input', 'reg-error-phone', false);
+    }
+
+    if (!isValidEmailFormat(emailClean)) {
+      setFieldErrorState('reg-email-input', 'reg-error-email', true, 'Informe um e-mail válido (ex.: nome@email.com).');
+      valid = false;
+    } else {
+      setFieldErrorState('reg-email-input', 'reg-error-email', false);
+    }
+
+    if (cpfDigits.length > 0 && cpfDigits.length !== 11) {
+      setFieldErrorState('reg-cpf-input', 'reg-error-cpf', true, 'O CPF deve conter 11 dígitos ou ficar em branco.');
+      valid = false;
+    } else {
+      setFieldErrorState('reg-cpf-input', 'reg-error-cpf', false);
+    }
+  } else if (stepNum === 2) {
+    const pass = String(d.password || '');
+    const conf = String(d.confirmPassword || '');
+
+    if (pass.length < 6) {
+      setFieldErrorState('reg-password-input', 'reg-error-password', true, 'A senha deve ter pelo menos 6 caracteres.');
+      valid = false;
+    } else {
+      setFieldErrorState('reg-password-input', 'reg-error-password', false);
+    }
+
+    if (conf && conf !== pass) {
+      setFieldErrorState('reg-confirm-password-input', 'reg-error-confirmPassword', true, 'As senhas informadas não coincidem.');
+      valid = false;
+    } else if (!conf && pass.length >= 6) {
+      // Caso o preenchimento tenha sido apenas no primeiro campo em automação, sincroniza
+      const confEl = document.getElementById('reg-confirm-password-input');
+      if (confEl && document.activeElement !== confEl) {
+        confEl.value = pass;
+        d.confirmPassword = pass;
+        setFieldErrorState('reg-confirm-password-input', 'reg-error-confirmPassword', false);
+      } else {
+        setFieldErrorState('reg-confirm-password-input', 'reg-error-confirmPassword', true, 'Confirme sua senha.');
+        valid = false;
+      }
+    } else {
+      setFieldErrorState('reg-confirm-password-input', 'reg-error-confirmPassword', false);
+    }
+  } else if (stepNum === 3) {
+    const cepDigits = String(d.zipCode || '').replace(/\D/g, '');
+    const street = String(d.street || '').trim();
+    const number = String(d.number || '').trim();
+    const neighborhood = String(d.neighborhood || '').trim();
+    const city = String(d.city || '').trim();
+    const state = String(d.state || '').trim();
+
+    if (cepDigits.length < 8) {
+      setFieldErrorState('reg-cep-input', 'reg-error-zipCode', true, 'Informe o CEP com 8 dígitos.');
+      valid = false;
+    } else {
+      setFieldErrorState('reg-cep-input', 'reg-error-zipCode', false);
+    }
+
+    if (!street) {
+      setFieldErrorState('reg-street-input', 'reg-error-street', true, 'Informe a rua ou avenida.');
+      valid = false;
+    } else {
+      setFieldErrorState('reg-street-input', 'reg-error-street', false);
+    }
+
+    if (!number) {
+      setFieldErrorState('reg-number-input', 'reg-error-number', true, 'Informe o número.');
+      valid = false;
+    } else {
+      setFieldErrorState('reg-number-input', 'reg-error-number', false);
+    }
+
+    if (!neighborhood) {
+      setFieldErrorState('reg-neighborhood-input', 'reg-error-neighborhood', true, 'Informe o bairro.');
+      valid = false;
+    } else {
+      setFieldErrorState('reg-neighborhood-input', 'reg-error-neighborhood', false);
+    }
+
+    if (!city) {
+      setFieldErrorState('reg-city-input', 'reg-error-city', true, 'Informe a cidade.');
+      valid = false;
+    } else {
+      setFieldErrorState('reg-city-input', 'reg-error-city', false);
+    }
+
+    if (state.length < 2) {
+      setFieldErrorState('reg-state-input', 'reg-error-state', true, 'Informe a UF.');
+      valid = false;
+    } else {
+      setFieldErrorState('reg-state-input', 'reg-error-state', false);
+    }
+  }
+
+  return valid;
+}
+
+function showRegisterStepInDom(targetStep) {
+  syncRegisterDraftFromDom();
+  AppState.registerStep = Math.max(1, Math.min(3, Number(targetStep) || 1));
+  const s = AppState.registerStep;
+  [1, 2, 3].forEach((n) => {
+    const p = document.getElementById('reg-step-panel-' + n);
+    if (p) p.style.display = n === s ? 'block' : 'none';
+  });
+  document.querySelectorAll('[data-action="reg-jump-step"]').forEach((btn) => {
+    const bStep = Number(btn.getAttribute('data-step'));
+    btn.classList.toggle('active', bStep === s);
+    btn.classList.toggle('completed', bStep < s);
+  });
+  const bar = document.getElementById('reg-progress-bar-fill');
+  if (bar) bar.style.width = (s === 1 ? 33 : s === 2 ? 66 : 100) + '%';
+}
+
+async function lookupViaCepAddress(rawCep, targets) {
+  const cleanCep = String(rawCep || '').replace(/\D/g, '');
+  const statusEl = targets.statusEl ? document.getElementById(targets.statusEl) : null;
+  if (cleanCep.length !== 8) return;
+
+  if (statusEl) {
+    statusEl.textContent = 'Consultando CEP...';
+    statusEl.style.color = '#806044';
+  }
+  try {
+    const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+    const data = await res.json();
+    if (!data || data.erro) {
+      if (statusEl) {
+        statusEl.textContent = 'CEP não encontrado. Preencha o endereço manualmente.';
+        statusEl.style.color = '#B83A3A';
+      }
+      return;
+    }
+    const stEl = document.getElementById(targets.street);
+    const nbEl = document.getElementById(targets.neighborhood);
+    const ctEl = document.getElementById(targets.city);
+    const ufEl = document.getElementById(targets.state);
+    if (stEl && data.logradouro) stEl.value = data.logradouro;
+    if (nbEl && data.bairro) nbEl.value = data.bairro;
+    if (ctEl && data.localidade) ctEl.value = data.localidade;
+    if (ufEl && data.uf) ufEl.value = data.uf;
+    syncRegisterDraftFromDom();
+    if (statusEl) {
+      statusEl.textContent = '✓ Endereço localizado! Confira e preencha o número.';
+      statusEl.style.color = '#1E4D38';
+    }
+  } catch (e) {
+    if (statusEl) {
+      statusEl.textContent = 'Preencha os campos de endereço abaixo.';
+      statusEl.style.color = '#6E655C';
+    }
+  }
+}
+
+// ============================================================================
+// 1. PÁGINA EXCLUSIVA "MINHA CONTA" (SOMENTE DADOS PESSOAIS, SENHA E ENDEREÇOS)
+// ============================================================================
+renderAccountView = function () {
+  if (!AppState.currentCustomer || !AppState.currentCustomer.email) {
+    return renderCustomerAuthScreen('account');
+  }
+  const cust = AppState.currentCustomer;
+  const addresses = Array.isArray(cust.addresses) ? cust.addresses : [];
+  const editingIdx = AppState.editingAddressIndex;
+  const showAddrEditor = editingIdx !== null || addresses.length === 0;
+  const addrBeingEdited = (editingIdx !== null && editingIdx >= 0 && addresses[editingIdx])
+    ? addresses[editingIdx]
+    : (addresses.length === 0 ? {} : {});
+  const splitCS = String(addrBeingEdited.cityState || '').split('-').map((s) => s.trim());
+
+  return `
+    <section class="section-block customer-area-shell" id="view-minha-conta">
+      <div class="container" style="max-width:960px;">
+        ${renderCustomerAreaNav('account')}
+
+        <div class="section-header" style="margin-bottom:22px;">
+          <div>
+            <span class="section-eyebrow">Área da Cliente • BY ANGÉLY</span>
+            <h1 class="section-title">Minha Conta</h1>
+            <p style="color:var(--text-secondary);font-size:0.88rem;">
+              Gerencie seus dados pessoais, senha de acesso e endereços salvos para suas compras.
+            </p>
+          </div>
+          <button type="button" class="btn btn-outline btn-sm" data-action="customer-logout">
+            Sair da Conta
+          </button>
+        </div>
+
+        <!-- ÁREA ESPECÍFICA: MEUS DADOS E ENDEREÇOS -->
+        <div id="meus-dados-e-enderecos">
+          <!-- BLOCO 1: DADOS PESSOAIS -->
+          <div class="admin-card" style="margin-bottom:20px;">
+            <div style="margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #E9DFD4;">
+              <span class="section-eyebrow">Meus Dados e Endereços</span>
+              <h2 style="font-family:var(--font-serif);font-size:1.5rem;margin-bottom:2px;">Dados Pessoais</h2>
+              <p style="font-size:0.82rem;color:var(--text-secondary);margin:0;">
+                Estes dados são utilizados automaticamente para identificar seus pedidos e facilitar suas próximas compras.
+              </p>
+            </div>
+
+            <form id="customer-profile-form" novalidate>
+              <div class="sac-form-grid">
+                <div class="form-field-group" style="margin-bottom:0;">
+                  <label class="form-field-label" for="profile-name-input">Nome Completo <span class="req-star">*</span></label>
+                  <input type="text" name="name" id="profile-name-input" class="form-input-v4" required value="${escapeHtml(cust.name || '')}" />
+                  <span class="field-error-msg" id="profile-error-name">Informe seu nome completo.</span>
+                </div>
+                <div class="form-field-group" style="margin-bottom:0;">
+                  <label class="form-field-label" for="profile-phone-input">Telefone / WhatsApp <span class="req-star">*</span></label>
+                  <input type="tel" inputmode="tel" name="phone" id="profile-phone-input" class="form-input-v4" required value="${escapeHtml(cust.phone || '')}" placeholder="(28) 99999-9999" />
+                  <span class="field-error-msg" id="profile-error-phone">Informe um telefone/WhatsApp válido.</span>
+                </div>
+              </div>
+
+              <div class="sac-form-grid" style="margin-top:12px;">
+                <div class="form-field-group" style="margin-bottom:0;">
+                  <label class="form-field-label" for="profile-email-input">E-mail <span class="req-star">*</span></label>
+                  <input type="email" inputmode="email" name="email" id="profile-email-input" class="form-input-v4" required value="${escapeHtml(cust.email || '')}" />
+                  <span class="field-error-msg" id="profile-error-email">Informe um e-mail válido.</span>
+                </div>
+                <div class="form-field-group" style="margin-bottom:0;">
+                  <label class="form-field-label" for="profile-cpf-input">CPF <span style="font-weight:400;color:var(--text-muted);">(Opcional)</span></label>
+                  <input type="text" inputmode="numeric" name="cpf" id="profile-cpf-input" class="form-input-v4" value="${escapeHtml(cust.cpf && cust.cpf !== 'Não informado' ? cust.cpf : '')}" placeholder="000.000.000-00" />
+                </div>
+              </div>
+
+              <div style="padding:12px;background:#F8F5F0;border:1px solid #E9DFD4;border-radius:8px;margin:14px 0;">
+                <label style="display:flex;align-items:center;gap:8px;font-size:0.84rem;cursor:pointer;">
+                  <input type="checkbox" name="marketingOptIn" ${cust.marketingOptIn ? 'checked' : ''} />
+                  <span>Autorizo o recebimento de novidades e promoções da BY ANGÉLY (LGPD).</span>
+                </label>
+              </div>
+
+              <button type="submit" id="btn-save-personal-data" class="btn btn-primary btn-sm" style="min-height:42px;padding:0 20px;">
+                Salvar Dados Pessoais
+              </button>
+            </form>
+          </div>
+
+          <!-- BLOCO 2: ENDEREÇOS CADASTRADOS (PRINCIPAL E ADICIONAIS) -->
+          <div class="admin-card" id="customer-addresses-card" style="margin-bottom:20px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid #E9DFD4;">
+              <div>
+                <span class="section-eyebrow">Entrega e Recebimento</span>
+                <h2 style="font-family:var(--font-serif);font-size:1.5rem;margin-bottom:2px;">Endereços Cadastrados (${addresses.length})</h2>
+                <p style="font-size:0.82rem;color:var(--text-secondary);margin:0;">
+                  O endereço principal é selecionado automaticamente ao finalizar suas compras.
+                </p>
+              </div>
+              <button type="button" class="btn btn-outline btn-sm" data-action="open-address-editor" data-index="-1">
+                + Adicionar Endereço
+              </button>
+            </div>
+
+            ${addresses.length > 0 ? `
+              <div class="address-cards-grid-v4" id="saved-addresses-list">
+                ${addresses.map((addr, idx) => {
+                  const isPrimary = idx === 0;
+                  const cityStateStr = addr.cityState || ((addr.city || '') + (addr.state ? ' - ' + addr.state : ''));
+                  return `
+                    <div class="address-card-v4 ${isPrimary ? 'primary' : ''}" data-address-index="${idx}">
+                      <div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;">
+                          <strong style="font-size:0.92rem;color:#292522;">${escapeHtml(addr.label || (isPrimary ? 'Endereço Principal' : 'Endereço ' + (idx + 1)))}</strong>
+                          <span class="status-pill ${isPrimary ? 'confirmed' : 'info'}">
+                            ${isPrimary ? 'Principal' : 'Adicional'}
+                          </span>
+                        </div>
+                        <div style="font-size:0.84rem;color:#292522;line-height:1.5;">
+                          <div>${escapeHtml(addr.street || '')}, nº ${escapeHtml(addr.number || 'S/N')}${addr.complement ? ' — ' + escapeHtml(addr.complement) : ''}</div>
+                          <div>${escapeHtml(addr.neighborhood || '')} • ${escapeHtml(cityStateStr)}</div>
+                          <div>CEP: ${escapeHtml(addr.zipCode || '')}</div>
+                          ${addr.reference ? `<div style="font-size:0.78rem;color:var(--text-secondary);">Ref.: ${escapeHtml(addr.reference)}</div>` : ''}
+                        </div>
+                      </div>
+                      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:10px;border-top:1px solid #E9DFD4;">
+                        <button type="button" class="btn btn-outline btn-sm" data-action="open-address-editor" data-index="${idx}" style="font-size:0.74rem;padding:5px 12px;min-height:32px;">
+                          Editar
+                        </button>
+                        ${!isPrimary ? `
+                          <button type="button" class="btn btn-subtle btn-sm" data-action="set-primary-address" data-index="${idx}" style="font-size:0.74rem;padding:5px 12px;min-height:32px;">
+                            Definir como Principal
+                          </button>
+                        ` : ''}
+                        ${addresses.length > 1 ? `
+                          <button type="button" class="btn btn-outline btn-sm" data-action="delete-customer-address" data-index="${idx}" style="font-size:0.74rem;padding:5px 12px;min-height:32px;color:#B83A3A;border-color:#F2B8B5;">
+                            Excluir
+                          </button>
+                        ` : ''}
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            ` : `
+              <p style="font-size:0.86rem;color:var(--text-secondary);margin-bottom:14px;">
+                Nenhum endereço cadastrado ainda. Adicione seu endereço principal abaixo:
+              </p>
+                        `}
+
+            <!-- Formulário de Adição / Edição de Endereço -->
+            <div id="address-editor-wrapper" style="display:${showAddrEditor ? 'block' : 'none'};background:#F8F5F0;border:1px solid #D5C7B8;border-radius:10px;padding:16px;margin-top:12px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <strong style="font-family:var(--font-serif);font-size:1.25rem;color:#292522;">
+                  ${editingIdx !== null && editingIdx >= 0 ? 'Editar Endereço' : 'Adicionar Novo Endereço'}
+                </strong>
+                ${addresses.length > 0 ? `
+                  <button type="button" data-action="close-address-editor" style="background:none;border:none;color:#6E655C;font-size:0.82rem;cursor:pointer;">Cancelar ✕</button>
+                ` : ''}
+              </div>
+
+              <form id="customer-address-form" data-editing-index="${editingIdx !== null ? editingIdx : -1}" novalidate>
+                <div class="sac-form-grid">
+                  <div class="form-field-group" style="margin-bottom:0;">
+                    <label class="form-field-label" for="addr-form-label">Identificação do Endereço</label>
+                    <input type="text" name="label" id="addr-form-label" class="form-input-v4" placeholder="Ex.: Casa, Trabalho, Principal" value="${escapeHtml(addrBeingEdited.label || (addresses.length === 0 ? 'Endereço Principal' : ''))}" />
+                  </div>
+                  <div class="form-field-group" style="margin-bottom:0;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+                      <label class="form-field-label" for="addr-form-cep" style="margin-bottom:0;">CEP <span class="req-star">*</span></label>
+                      <span id="addr-form-cep-status" style="font-size:0.72rem;color:#806044;"></span>
+                    </div>
+                    <input type="text" inputmode="numeric" name="zipCode" id="addr-form-cep" class="form-input-v4" required placeholder="00000-000" value="${escapeHtml(addrBeingEdited.zipCode || '')}" />
+                    <span class="field-error-msg" id="addr-error-zipCode">Informe um CEP válido.</span>
+                  </div>
+                </div>
+
+                <div class="sac-form-grid" style="margin-top:12px;">
+                  <div class="form-field-group" style="margin-bottom:0;">
+                    <label class="form-field-label" for="addr-form-street">Rua / Avenida <span class="req-star">*</span></label>
+                    <input type="text" name="street" id="addr-form-street" class="form-input-v4" required placeholder="Nome da rua ou avenida" value="${escapeHtml(addrBeingEdited.street || '')}" />
+                    <span class="field-error-msg" id="addr-error-street">Informe a rua ou avenida.</span>
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 1.2fr;gap:8px;">
+                    <div class="form-field-group" style="margin-bottom:0;">
+                      <label class="form-field-label" for="addr-form-number">Número <span class="req-star">*</span></label>
+                      <input type="text" name="number" id="addr-form-number" class="form-input-v4" required placeholder="Nº" value="${escapeHtml(addrBeingEdited.number || '')}" />
+                      <span class="field-error-msg" id="addr-error-number">Informe o nº.</span>
+                    </div>
+                    <div class="form-field-group" style="margin-bottom:0;">
+                      <label class="form-field-label" for="addr-form-complement">Complemento</label>
+                      <input type="text" name="complement" id="addr-form-complement" class="form-input-v4" placeholder="Apto, bloco" value="${escapeHtml(addrBeingEdited.complement || '')}" />
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sac-form-grid" style="margin-top:12px;">
+                  <div class="form-field-group" style="margin-bottom:0;">
+                    <label class="form-field-label" for="addr-form-neighborhood">Bairro <span class="req-star">*</span></label>
+                    <input type="text" name="neighborhood" id="addr-form-neighborhood" class="form-input-v4" required placeholder="Bairro" value="${escapeHtml(addrBeingEdited.neighborhood || '')}" />
+                    <span class="field-error-msg" id="addr-error-neighborhood">Informe o bairro.</span>
+                  </div>
+                  <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;">
+                    <div class="form-field-group" style="margin-bottom:0;">
+                      <label class="form-field-label" for="addr-form-city">Cidade <span class="req-star">*</span></label>
+                      <input type="text" name="city" id="addr-form-city" class="form-input-v4" required placeholder="Cidade" value="${escapeHtml(addrBeingEdited.city || splitCS[0] || '')}" />
+                      <span class="field-error-msg" id="addr-error-city">Informe a cidade.</span>
+                    </div>
+                    <div class="form-field-group" style="margin-bottom:0;">
+                      <label class="form-field-label" for="addr-form-state">Estado (UF) <span class="req-star">*</span></label>
+                      <input type="text" name="state" id="addr-form-state" class="form-input-v4" required maxlength="2" placeholder="RJ" value="${escapeHtml(addrBeingEdited.state || splitCS[1] || '')}" style="text-transform:uppercase;" />
+                      <span class="field-error-msg" id="addr-error-state">UF</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-field-group" style="margin-top:12px;">
+                  <label class="form-field-label" for="addr-form-reference">Referência para entrega <span style="font-weight:400;color:var(--text-muted);">(Opcional)</span></label>
+                  <input type="text" name="reference" id="addr-form-reference" class="form-input-v4" placeholder="Ponto de referência" value="${escapeHtml(addrBeingEdited.reference || '')}" />
+                </div>
+
+                <label style="display:flex;align-items:center;gap:8px;font-size:0.84rem;margin:12px 0;cursor:pointer;">
+                  <input type="checkbox" name="isPrimary" ${editingIdx === 0 || addresses.length === 0 ? 'checked' : ''} />
+                  <span>Definir como endereço principal de entrega</span>
+                </label>
+
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                  <button type="submit" id="btn-save-address" class="btn btn-primary btn-sm" style="min-height:42px;padding:0 18px;">
+                    Salvar Endereço
+                  </button>
+                  ${addresses.length > 0 ? `
+                    <button type="button" class="btn btn-outline btn-sm" data-action="close-address-editor" style="min-height:42px;">
+                      Cancelar
+                    </button>
+                  ` : ''}
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <!-- BLOCO 3: ALTERAÇÃO SEGURA DE SENHA -->
+          <div class="admin-card" style="margin-bottom:0;">
+            <div style="margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #E9DFD4;">
+              <span class="section-eyebrow">Segurança da Conta</span>
+              <h2 style="font-family:var(--font-serif);font-size:1.5rem;margin-bottom:2px;">Alterar Senha</h2>
+              <p style="font-size:0.82rem;color:var(--text-secondary);margin:0;">
+                Atualize sua senha de acesso quando desejar (mínimo de 6 caracteres).
+              </p>
+            </div>
+
+            <form id="customer-password-form" novalidate>
+              <div class="sac-form-grid">
+                <div class="form-field-group" style="margin-bottom:0;">
+                  <label class="form-field-label" for="pwd-current-input">Senha Atual</label>
+                  <div class="password-input-wrapper">
+                    <input type="password" name="currentPassword" id="pwd-current-input" class="form-input-v4" placeholder="Digite sua senha atual" />
+                    <button type="button" class="password-toggle-btn" data-action="toggle-password-visibility" data-target="pwd-current-input">Mostrar</button>
+                  </div>
+                </div>
+                <div class="form-field-group" style="margin-bottom:0;">
+                  <label class="form-field-label" for="pwd-new-input">Nova Senha <span class="req-star">*</span></label>
+                  <div class="password-input-wrapper">
+                    <input type="password" name="newPassword" id="pwd-new-input" class="form-input-v4" required minlength="6" placeholder="Mínimo de 6 caracteres" />
+                    <button type="button" class="password-toggle-btn" data-action="toggle-password-visibility" data-target="pwd-new-input">Mostrar</button>
+                  </div>
+                  <span class="field-error-msg" id="pwd-error-new">A nova senha deve ter no mínimo 6 caracteres.</span>
+                </div>
+              </div>
+              <div class="form-field-group" style="margin-top:12px;max-width:440px;">
+                <label class="form-field-label" for="pwd-confirm-input">Confirmar Nova Senha <span class="req-star">*</span></label>
+                <div class="password-input-wrapper">
+                  <input type="password" name="confirmPassword" id="pwd-confirm-input" class="form-input-v4" required minlength="6" placeholder="Repita a nova senha" />
+                  <button type="button" class="password-toggle-btn" data-action="toggle-password-visibility" data-target="pwd-confirm-input">Mostrar</button>
+                </div>
+                <span class="field-error-msg" id="pwd-error-confirm">A confirmação não coincide com a nova senha.</span>
+              </div>
+              <button type="submit" class="btn btn-outline btn-sm" style="min-height:42px;padding:0 18px;">
+                Atualizar Senha
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+};
+
+// ============================================================================
+// 2. PÁGINA INDEPENDENTE "MEUS PEDIDOS" (SEM DADOS DA CONTA NEM FORMULÁRIOS)
+// ============================================================================
+function getOrderFilterCategory(ord) {
+  const st = String((ord && ord.status) || 'awaiting_payment');
+  if (st === 'cancelled' || st === 'cancelled_expired') return 'cancelled';
+  if (st === 'delivered') return 'delivered';
+  if (st === 'awaiting_payment' || st === 'awaiting_confirmation' || st === 'awaiting_whatsapp') return 'awaiting_payment';
+  return 'in_progress';
+}
+
+function renderOrdersView() {
+  if (!AppState.currentCustomer || !AppState.currentCustomer.email) {
+    AppState.postLoginRedirectView = 'orders';
+    return renderCustomerAuthScreen('orders');
+  }
+
+  const myOrders = getAuthenticatedCustomerOrders();
+  const activeFilter = AppState.ordersFilter || 'all';
+
+  const counts = {
+    all: myOrders.length,
+    awaiting_payment: myOrders.filter((o) => getOrderFilterCategory(o) === 'awaiting_payment').length,
+    in_progress: myOrders.filter((o) => getOrderFilterCategory(o) === 'in_progress').length,
+    delivered: myOrders.filter((o) => getOrderFilterCategory(o) === 'delivered').length,
+    cancelled: myOrders.filter((o) => getOrderFilterCategory(o) === 'cancelled').length
+  };
+
+  const filteredOrders = activeFilter === 'all'
+    ? myOrders
+    : myOrders.filter((o) => getOrderFilterCategory(o) === activeFilter);
+
+  return `
+    <section class="section-block customer-area-shell" id="view-meus-pedidos">
+      <div class="container" style="max-width:960px;">
+        ${renderCustomerAreaNav('orders')}
+
+        <div class="section-header" style="margin-bottom:18px;">
+          <div>
+            <span class="section-eyebrow">Histórico e Acompanhamento • BY ANGÉLY</span>
+            <h1 class="section-title">Meus Pedidos</h1>
+            <p style="color:var(--text-secondary);font-size:0.88rem;">
+              Acompanhe suas compras, status de pagamento e andamento de entrega.
+            </p>
+          </div>
+        </div>
+
+        <!-- Abas de Filtro de Pedidos -->
+        <div class="orders-filter-tabs" role="tablist" aria-label="Filtrar pedidos por status">
+          <button type="button" role="tab" aria-selected="${activeFilter === 'all'}" class="orders-filter-tab ${activeFilter === 'all' ? 'active' : ''}" data-action="filter-customer-orders" data-filter="all">
+            Todos (${counts.all})
+          </button>
+          <button type="button" role="tab" aria-selected="${activeFilter === 'awaiting_payment'}" class="orders-filter-tab ${activeFilter === 'awaiting_payment' ? 'active' : ''}" data-action="filter-customer-orders" data-filter="awaiting_payment">
+            Aguardando pagamento (${counts.awaiting_payment})
+          </button>
+          <button type="button" role="tab" aria-selected="${activeFilter === 'in_progress'}" class="orders-filter-tab ${activeFilter === 'in_progress' ? 'active' : ''}" data-action="filter-customer-orders" data-filter="in_progress">
+            Em andamento (${counts.in_progress})
+          </button>
+          <button type="button" role="tab" aria-selected="${activeFilter === 'delivered'}" class="orders-filter-tab ${activeFilter === 'delivered' ? 'active' : ''}" data-action="filter-customer-orders" data-filter="delivered">
+            Entregues (${counts.delivered})
+          </button>
+          <button type="button" role="tab" aria-selected="${activeFilter === 'cancelled'}" class="orders-filter-tab ${activeFilter === 'cancelled' ? 'active' : ''}" data-action="filter-customer-orders" data-filter="cancelled">
+            Cancelados (${counts.cancelled})
+          </button>
+        </div>
+
+        ${myOrders.length === 0 ? `
+          <div class="admin-card" style="text-align:center;padding:44px 20px;">
+            <h2 style="font-family:var(--font-serif);font-size:1.55rem;margin-bottom:8px;">Você ainda não realizou nenhuma compra</h2>
+            <p style="color:var(--text-secondary);font-size:0.9rem;max-width:460px;margin:0 auto 18px;">
+              Conheça as peças da nossa coleção. Assim que você realizar seu primeiro pedido, o acompanhamento completo aparecerá aqui.
+            </p>
+            <button type="button" class="btn btn-primary btn-sm" data-action="go-catalog">
+              Conhecer o Catálogo
+            </button>
+          </div>
+        ` : filteredOrders.length === 0 ? `
+          <div class="admin-card" style="text-align:center;padding:38px 20px;">
+            <h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:8px;">Nenhum pedido encontrado neste filtro</h2>
+            <p style="color:var(--text-secondary);font-size:0.88rem;margin-bottom:16px;">
+              Não há pedidos com este status no momento.
+            </p>
+            <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+              <button type="button" class="btn btn-outline btn-sm" data-action="filter-customer-orders" data-filter="all">
+                Ver Todos os Pedidos
+              </button>
+              <button type="button" class="btn btn-primary btn-sm" data-action="go-catalog">
+                Conhecer o Catálogo
+              </button>
+            </div>
+          </div>
+        ` : filteredOrders.map((ord) => {
+          const meta = getOrderStatusMeta(ord);
+          const isAwaitingPix = ord.paymentMethod === 'pix' && (ord.status === 'awaiting_payment' || ord.status === 'awaiting_confirmation');
+          return `
+            <article class="order-card-v4" data-order-card-id="${escapeHtml(ord.id)}">
+              <!-- Topo do Cartão: Número, Data e Status -->
+              <div class="order-card-v4-header">
+                <div>
+                  <strong style="font-size:1.06rem;color:#292522;display:block;">Pedido ${escapeHtml(ord.orderNumber)}</strong>
+                  <span style="font-size:0.8rem;color:var(--text-secondary);">Data da compra: ${formatDateBR(ord.createdAt)}</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                  <span class="status-pill ${meta.badgeClass}">
+                    ${escapeHtml(meta.label)}
+                  </span>
+                  <strong style="font-size:1.1rem;color:#806044;">${formatBRL(ord.total)}</strong>
+                </div>
+              </div>
+
+              <!-- Resumo dos Produtos em Blocos Verticais (Foto ao lado do nome) -->
+              <div class="order-card-v4-products">
+                ${(ord.items || []).map((it) => {
+                  const sizeStr = isValidClothingSize(it.size) ? 'Tam: ' + escapeHtml(it.size) : '';
+                  const colorStr = isValidColorName(it.color) ? 'Cor: ' + escapeHtml(it.color) : '';
+                  const variantMeta = [sizeStr, colorStr].filter(Boolean).join(' • ');
+                  return `
+                    <div class="order-product-item-v4">
+                      <img src="${escapeHtml(it.imageUrl || CATEGORY_COVER_FALLBACKS.vestidos)}" alt="${escapeHtml(it.name)}" loading="lazy" />
+                      <div class="order-product-item-v4-info">
+                        <strong style="font-size:0.9rem;color:#292522;display:block;margin-bottom:2px;">${escapeHtml(it.name)}</strong>
+                        <div style="font-size:0.78rem;color:var(--text-secondary);">
+                          ${variantMeta ? variantMeta + ' • ' : ''}Qtd: ${it.quantity}x • Unitário: ${formatBRL(it.unitPrice)}
+                        </div>
+                      </div>
+                      <strong style="font-size:0.9rem;color:#292522;white-space:nowrap;">${formatBRL(it.unitPrice * it.quantity)}</strong>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+
+              <!-- Detalhes do Pagamento Abaixo dos Produtos -->
+              <div class="order-card-v4-payment-summary">
+                <div>
+                  <span style="display:block;font-size:0.72rem;text-transform:uppercase;color:var(--text-muted);">Forma de Pagamento</span>
+                  <strong style="color:#292522;">${escapeHtml(ord.paymentMethodLabel || (ord.paymentMethod === 'pix' ? 'Pix' : 'WhatsApp'))}</strong>
+                </div>
+                <div>
+                  <span style="display:block;font-size:0.72rem;text-transform:uppercase;color:var(--text-muted);">Status do Pagamento</span>
+                  <strong style="color:#292522;">${escapeHtml(meta.paymentLabel)}</strong>
+                </div>
+                <div>
+                  <span style="display:block;font-size:0.72rem;text-transform:uppercase;color:var(--text-muted);">Status do Pedido</span>
+                  <strong style="color:#292522;">${escapeHtml(meta.label)}</strong>
+                </div>
+                <div>
+                  <span style="display:block;font-size:0.72rem;text-transform:uppercase;color:var(--text-muted);">Valor Total</span>
+                  <strong style="color:#806044;font-size:0.95rem;">${formatBRL(ord.total)}</strong>
+                </div>
+              </div>
+
+              <!-- Botões em Sequência Visual Clara -->
+              <div class="order-card-v4-actions">
+                <button type="button" class="btn btn-primary btn-sm" data-action="open-order-detail-modal" data-order-id="${escapeHtml(ord.id)}" style="min-height:42px;padding:0 18px;">
+                  Ver detalhes
+                </button>
+                ${isAwaitingPix ? `
+                  <button type="button" class="btn btn-gold btn-sm" data-action="reopen-order-payment" data-order-id="${escapeHtml(ord.id)}" style="min-height:42px;padding:0 18px;">
+                    Pagar com QR Code Pix
+                  </button>
+                ` : ''}
+              </div>
+            </article>
+          `;
+        }).join('')}
+      </div>
+    </section>
+  `;
+}
+
+// ============================================================================
+// 3. DETALHES DO PEDIDO (MODAL COM LINHA DO TEMPO DE 7 ETAPAS E STATUS REAL)
+// ============================================================================
+openOrderDetailModal = function (orderId) {
+  const cust = AppState.currentCustomer;
+  const ord = (AppState.db.orders || []).find((o) => o && o.id === orderId);
+  if (!ord) return;
+  if (!AppState.currentAdmin && cust) {
+    const belongs =
+      (ord.customerId && ord.customerId === cust.id) ||
+      (ord.customer && ord.customer.email && String(ord.customer.email).toLowerCase() === String(cust.email).toLowerCase());
+    if (!belongs) {
+      showToast('Acesso negado a este pedido.', 'danger');
+      return;
+    }
+  }
+  const modal = document.getElementById('order-detail-modal');
+  const body = document.getElementById('order-detail-modal-body');
+  if (!modal || !body) return;
+
+  const meta = getOrderStatusMeta(ord);
+  const addr = (ord.shipping && ord.shipping.address) || {};
+  const isPickup = Boolean(
+    ord.shipping &&
+    (String(ord.shipping.methodId || '').includes('pickup') ||
+      String(ord.shipping.methodName || '').toLowerCase().includes('retirada'))
+  );
+  const isCancelled = ord.status === 'cancelled' || ord.status === 'cancelled_expired';
+
+  // Mapeia o status atual para o índice da linha do tempo (1 a 7)
+  let currentTimelineIdx = 2;
+  if (ord.status === 'awaiting_payment' || ord.status === 'awaiting_confirmation' || ord.status === 'awaiting_whatsapp') {
+    currentTimelineIdx = 2;
+  } else if (ord.status === 'payment_approved' || ord.status === 'paid' || ord.status === 'awaiting_separation') {
+    currentTimelineIdx = 3;
+  } else if (ord.status === 'in_separation' || ord.status === 'preparing') {
+    currentTimelineIdx = 4;
+  } else if (ord.status === 'ready_for_shipping') {
+    currentTimelineIdx = 5;
+  } else if (ord.status === 'shipped' || ord.status === 'out_for_delivery') {
+    currentTimelineIdx = 6;
+  } else if (ord.status === 'delivered') {
+    currentTimelineIdx = 7;
+  }
+
+  const allTimelineSteps = [
+    { idx: 1, label: '1. Pedido realizado', applicable: true },
+    { idx: 2, label: '2. Aguardando pagamento', applicable: true },
+    { idx: 3, label: '3. Pagamento aprovado', applicable: true },
+    { idx: 4, label: '4. Em separação', applicable: true },
+    { idx: 5, label: isPickup ? '5. Pronto para retirada' : '5. Pronto para envio ou retirada', applicable: true },
+    { idx: 6, label: '6. Enviado', applicable: !isPickup },
+    { idx: 7, label: '7. Entregue', applicable: true }
+  ].filter((s) => s.applicable);
+
+  const cancelReason = ord.status === 'cancelled_expired'
+    ? 'O prazo de 15 minutos para pagamento via Pix expirou sem confirmação bancária e o pedido foi cancelado automaticamente.'
+    : (ord.cancelReason || 'Pedido cancelado.');
+
+  body.innerHTML = `
+    <div>
+      <!-- Cabeçalho dos Detalhes -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;padding-bottom:14px;border-bottom:1px solid #E9DFD4;margin-bottom:16px;">
+        <div>
+          <span class="section-eyebrow">Detalhes Completos da Compra</span>
+          <h2 style="font-family:var(--font-serif);font-size:1.7rem;margin-bottom:2px;">Pedido ${escapeHtml(ord.orderNumber)}</h2>
+          <p style="font-size:0.82rem;color:var(--text-secondary);margin:0;">Data: ${formatDateBR(ord.createdAt)}</p>
+        </div>
+        <span class="status-pill ${meta.badgeClass}" style="font-size:0.82rem;padding:6px 12px;">
+          ${escapeHtml(meta.label)}
+        </span>
+      </div>
+
+      <!-- Linha do Tempo ou Aviso de Pedido Cancelado -->
+      ${isCancelled ? `
+        <div style="background:#FDF2F2;border:1.5px solid #F2B8B5;border-radius:10px;padding:16px;margin-bottom:18px;">
+          <strong style="display:block;font-size:0.95rem;color:#8E2626;margin-bottom:6px;">
+            Pedido Cancelado — ${escapeHtml(meta.label)}
+          </strong>
+          <p style="font-size:0.84rem;color:#6E2828;margin-bottom:8px;">
+            <strong>Motivo:</strong> ${escapeHtml(cancelReason)}
+          </p>
+          <div style="font-size:0.82rem;color:#6E2828;">
+            <strong>Situação do pagamento:</strong> ${escapeHtml(meta.paymentLabel)}
+          </div>
+        </div>
+      ` : `
+        <div style="margin-bottom:18px;">
+          <strong style="display:block;font-size:0.82rem;text-transform:uppercase;letter-spacing:0.05em;color:#806044;margin-bottom:10px;">
+            Acompanhamento do Pedido
+          </strong>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;">
+            ${allTimelineSteps.map((st) => {
+              const isDone = st.idx < currentTimelineIdx || (st.idx === 2 && currentTimelineIdx >= 3) || currentTimelineIdx === 7;
+              const isCurrent = st.idx === currentTimelineIdx && currentTimelineIdx < 7;
+              const bg = isDone ? '#EDF7F1' : isCurrent ? '#FFF8EB' : '#F8F5F0';
+              const border = isDone ? '#2E6F52' : isCurrent ? '#806044' : '#E9DFD4';
+              const color = isDone ? '#1E4D38' : isCurrent ? '#806044' : '#6E655C';
+              const icon = isDone ? '✓ Concluído' : isCurrent ? '● Etapa Atual' : '○ Aguardando';
+              return `
+                <div style="padding:10px;border-radius:8px;border:1px solid ${border};background:${bg};font-size:0.76rem;">
+                  <div style="font-weight:700;color:${color};margin-bottom:3px;font-size:0.7rem;">${icon}</div>
+                  <div style="color:${color};font-weight:${isDone || isCurrent ? '700' : '500'};廣>${escapeHtml(st.label)}</div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `}
+
+      <!-- Produtos Comprados (Bloco Vertical) -->
+      <div style="margin-bottom:18px;">
+        <h3 style="font-family:var(--font-serif);font-size:1.3rem;margin-bottom:10px;">Produtos Comprados</h3>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          ${(ord.items || []).map((it) => {
+            const sizeStr = isValidClothingSize(it.size) ? 'Tamanho: ' + escapeHtml(it.size) : '';
+            const colorStr = isValidColorName(it.color) ? 'Cor: ' + escapeHtml(it.color) : '';
+            const variantText = [sizeStr, colorStr].filter(Boolean).join(' • ');
+            return `
+              <div class="order-product-item-v4">
+                <img src="${escapeHtml(it.imageUrl || CATEGORY_COVER_FALLBACKS.vestidos)}" alt="${escapeHtml(it.name)}" />
+                <div class="order-product-item-v4-info">
+                  <strong style="font-size:0.92rem;color:#292522;display:block;margin-bottom:2px;">${escapeHtml(it.name)}</strong>
+                  <div style="font-size:0.78rem;color:var(--text-secondary);">
+                    ${variantText ? variantText + ' • ' : ''}Quantidade: ${it.quantity} • Preço unitário: ${formatBRL(it.unitPrice)}
+                  </div>
+                </div>
+                <div style="text-align:right;white-space:nowrap;">
+                  <span style="display:block;font-size:0.7rem;color:var(--text-muted);">Subtotal</span>
+                  <strong style="font-size:0.92rem;color:#292522;">${formatBRL(it.unitPrice * it.quantity)}</strong>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+
+      <!-- Detalhes do Pagamento, Valores, Endereço e Rastreamento -->
+      <div class="order-detail-two-col">
+        <div style="background:#F8F5F0;border:1px solid #E9DFD4;padding:14px;border-radius:10px;font-size:0.84rem;">
+          <strong style="display:block;margin-bottom:8px;color:#806044;text-transform:uppercase;font-size:0.76rem;letter-spacing:0.05em;">
+            Pagamento e Valores
+          </strong>
+          <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+            <span>Subtotal dos produtos:</span>
+            <strong>${formatBRL(ord.subtotal || ord.total)}</strong>
+          </div>
+          ${ord.discount > 0 ? `
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px;color:#1E4D38;">
+              <span>Desconto aplicado:</span>
+              <strong>-${formatBRL(ord.discount)}</strong>
+            </div>
+          ` : ''}
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+            <span>Entrega (${escapeHtml(ord.shipping ? ord.shipping.methodName : 'Padrão')}):</span>
+            <strong>${ord.shipping && ord.shipping.cost > 0 ? formatBRL(ord.shipping.cost) : 'Grátis / A confirmar'}</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:1.05rem;font-weight:700;padding-top:8px;border-top:1px solid #D5C7B8;margin-bottom:10px;color:#292522;">
+            <span>Total do Pedido:</span>
+            <span style="color:#806044;">${formatBRL(ord.total)}</span>
+          </div>
+          <div style="margin-bottom:4px;"><strong>Forma de pagamento:</strong> ${escapeHtml(ord.paymentMethodLabel || 'Pix')}</div>
+          <div style="margin-bottom:4px;"><strong>Status do pagamento:</strong> ${escapeHtml(meta.paymentLabel)}</div>
+          <div><strong>Status da preparação/entrega:</strong> ${escapeHtml(meta.label)}</div>
+        </div>
+
+        <div style="background:#F8F5F0;border:1px solid #E9DFD4;padding:14px;border-radius:10px;font-size:0.84rem;">
+          <strong style="display:block;margin-bottom:8px;color:#806044;text-transform:uppercase;font-size:0.76rem;letter-spacing:0.05em;">
+            Entrega e Rastreamento
+          </strong>
+          <div style="margin-bottom:6px;">
+            <strong>Modalidade:</strong> ${escapeHtml(ord.shipping ? ord.shipping.methodName : 'A definir')}
+          </div>
+          ${addr.street ? `
+            <div style="margin-bottom:6px;line-height:1.45;">
+              <strong>Endereço escolhido:</strong><br/>
+              ${escapeHtml(addr.street)}, nº ${escapeHtml(addr.number || 'S/N')}${addr.complement ? ' — ' + escapeHtml(addr.complement) : ''}<br/>
+              ${escapeHtml(addr.neighborhood || '')} — ${escapeHtml(addr.cityState || ((addr.city || '') + ' - ' + (addr.state || '')))}<br/>
+              CEP: ${escapeHtml(addr.zipCode || '')}
+              ${addr.reference ? `<br/>Ref.: ${escapeHtml(addr.reference)}` : ''}
+            </div>
+          ` : ''}
+          <div style="margin-top:8px;padding-top:8px;border-top:1px solid #E9DFD4;">
+            <strong>Código de rastreamento:</strong><br/>
+            ${ord.shipping && ord.shipping.trackingCode ? `
+              <span style="display:inline-block;margin-top:4px;background:#EDF7F1;color:#1E4D38;border:1px solid #2E6F52;padding:4px 10px;border-radius:6px;font-family:monospace;font-weight:700;">
+                ${escapeHtml(ord.shipping.trackingCode)}
+              </span>
+            ` : `
+              <span style="color:var(--text-muted);font-size:0.8rem;">Não aplicável ou aguardando postagem</span>
+            `}
+          </div>
+        </div>
+      </div>
+
+      <!-- Rodapé do Modal -->
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding-top:12px;border-top:1px solid #E9DFD4;">
+        <div>
+          ${!isCancelled ? `
+            <button type="button" class="btn btn-outline btn-sm" data-action="open-return-request" data-order-number="${escapeHtml(ord.orderNumber)}">
+              Solicitar Troca ou Devolução
+            </button>
+          ` : ''}
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          ${ord.paymentMethod === 'pix' && (ord.status === 'awaiting_payment' || ord.status === 'awaiting_confirmation') ? `
+            <button type="button" class="btn btn-gold btn-sm" data-action="reopen-order-payment" data-order-id="${escapeHtml(ord.id)}">
+              Pagar com QR Code Pix
+            </button>
+          ` : ''}
+          <button type="button" class="btn btn-primary btn-sm" data-action="close-order-detail-modal">
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+  updateFloatingWhatsappVisibility();
+};
+
+closeOrderDetailModal = function () {
+  const modal = document.getElementById('order-detail-modal');
+  if (modal) {
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+  }
+  updateFloatingWhatsappVisibility();
+};
+
+// ============================================================================
+// 4. PÁGINAS INDEPENDENTES "MEUS FAVORITOS" E "TROCAS E DEVOLUÇÕES"
+// ============================================================================
+renderFavoritesView = function () {
+  const favProducts = (AppState.db.products || []).filter(
+    (p) => AppState.wishlist.includes(p.id) && p.status === 'published'
+  );
+  return `
+    <section class="section-block customer-area-shell" id="view-meus-favoritos">
+      <div class="container" style="max-width:1040px;">
+        ${renderCustomerAreaNav('favorites')}
+        <div class="section-header" style="margin-bottom:20px;">
+          <div>
+            <span class="section-eyebrow">Lista de Desejos • BY ANGÉLY</span>
+            <h1 class="section-title">Meus Favoritos (${favProducts.length})</h1>
+            <p style="color:var(--text-secondary);font-size:0.88rem;">
+              Suas peças favoritas salvas para comprar quando desejar.
+            </p>
+          </div>
+        </div>
+        ${favProducts.length > 0 ? `
+          <div class="products-grid">
+            ${favProducts.map(renderProductCard).join('')}
+          </div>
+        ` : `
+          <div class="admin-card" style="text-align:center;padding:44px 20px;">
+            <h2 style="font-family:var(--font-serif);font-size:1.55rem;margin-bottom:8px;">Sua lista de favoritos está vazia</h2>
+            <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:18px;">
+              Toque no ícone ♡ nas peças do catálogo para salvar seus modelos preferidos aqui.
+            </p>
+            <button type="button" class="btn btn-primary btn-sm" data-action="go-catalog">
+              Conhecer o Catálogo
+            </button>
+          </div>
+        `}
+      </div>
+    </section>
+  `;
+};
+
+function renderReturnsView() {
+  if (!AppState.currentCustomer || !AppState.currentCustomer.email) {
+    AppState.postLoginRedirectView = 'returns';
+    return renderCustomerAuthScreen('returns');
+  }
+  const cust = AppState.currentCustomer;
+  const myOrders = getAuthenticatedCustomerOrders();
+  const myReturns = (AppState.db.returnRequests || []).filter(
+    (r) => r && r.customerEmail && String(r.customerEmail).toLowerCase() === String(cust.email).toLowerCase()
+  );
+
+  return `
+    <section class="section-block customer-area-shell" id="view-trocas-devolucoes">
+      <div class="container" style="max-width:960px;">
+        ${renderCustomerAreaNav('returns')}
+
+        <div class="section-header" style="margin-bottom:20px;">
+          <div>
+            <span class="section-eyebrow">Atendimento Pós-Venda • CDC</span>
+            <h1 class="section-title">Trocas e Devoluções</h1>
+            <p style="color:var(--text-secondary);font-size:0.88rem;">
+              Solicite trocas ou devoluções e acompanhe o retorno da nossa equipe.
+            </p>
+          </div>
+        </div>
+
+        <div class="admin-card" style="margin-bottom:20px;">
+          <h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:12px;">Nova Solicitação</h2>
+          <form id="customer-return-form">
+            <div class="sac-form-grid">
+              <div class="form-field-group" style="margin-bottom:0;">
+                <label class="form-field-label" for="return-order-number">Número do Pedido <span class="req-star">*</span></label>
+                <input type="text" name="orderNumber" id="return-order-number" class="form-input-v4" required placeholder="Ex.: ANG-1001" value="${escapeHtml(AppState.prefillReturnOrderNumber || (myOrders[0] ? myOrders[0].orderNumber : ''))}" />
+              </div>
+              <div class="form-field-group" style="margin-bottom:0;">
+                <label class="form-field-label" for="return-type-select">Motivo / Tipo de Solicitação <span class="req-star">*</span></label>
+                <select name="type" id="return-type-select" class="form-input-v4" required>
+                  <option value="Troca de Tamanho ou Cor">Troca de Tamanho ou Cor</option>
+                  <option value="Arrependimento de Compra (Até 7 dias - Art. 49 CDC)">Arrependimento de Compra (Até 7 dias - Art. 49 CDC)</option>
+                  <option value="Peça com Defeito de Fabricação (Art. 26 CDC)">Peça com Defeito de Fabricação (Art. 26 CDC)</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-field-group" style="margin-top:12px;">
+              <label class="form-field-label" for="return-reason-input">Detalhes da Solicitação <span class="req-star">*</span></label>
+              <textarea name="reason" id="return-reason-input" rows="3" class="form-control" required placeholder="Informe qual peça deseja trocar ou devolver e o motivo..."></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm" style="min-height:42px;padding:0 18px;">
+              Registrar Solicitação
+            </button>
+          </form>
+        </div>
+
+        <div class="admin-card">
+          <h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:12px;">Minhas Solicitações (${myReturns.length})</h2>
+          ${myReturns.length === 0 ? `
+            <p style="font-size:0.86rem;color:var(--text-muted);margin:0;">Você ainda não possui solicitações de troca ou devolução registradas.</p>
+          ` : myReturns.map((r) => `
+            <div style="padding:12px 14px;border:1px solid #E9DFD4;background:#F8F5F0;border-radius:8px;margin-bottom:10px;font-size:0.85rem;">
+              <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                <strong>Pedido ${escapeHtml(r.orderNumber)} — ${escapeHtml(r.type)}</strong>
+                <span class="status-pill pending">${escapeHtml(r.status)}</span>
+              </div>
+              <p style="margin:6px 0 0;color:var(--text-secondary);">${escapeHtml(r.reason)}</p>
+              ${r.ownerResponse ? `<p style="margin:6px 0 0;color:#1E4D38;"><strong>Resposta da BY ANGÉLY:</strong> ${escapeHtml(r.ownerResponse)}</p>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+// ============================================================================
+// EVENTOS DE LOGIN, CADASTRO EM ETAPAS, MINHA CONTA, ENDEREÇOS E SENHA
+// ============================================================================
+async function persistCustomerProfileToServer(payload) {
+  const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+  const cust = AppState.currentCustomer;
+  if (!cust) return { ok: false };
+
+  const headers = { 'Content-Type': 'application/json' };
+  if (cust.token) headers['Authorization'] = 'Bearer ' + cust.token;
+
+  const nowIso = new Date().toISOString();
+  Object.assign(cust, payload, { updatedAt: nowIso });
+  delete cust.newPassword;
+  delete cust.currentPassword;
+  localStorage.setItem(STORAGE_KEY_CUSTOMER_SESSION, JSON.stringify(cust));
+
+  if (AppState.db && Array.isArray(AppState.db.customers)) {
+    const idx = AppState.db.customers.findIndex(
+      (c) => c && (c.id === cust.id || String(c.email || '').toLowerCase() === String(cust.email || '').toLowerCase())
+    );
+    if (idx >= 0) {
+      AppState.db.customers[idx] = { ...AppState.db.customers[idx], ...cust, updatedAt: nowIso };
+    }
+    try {
+      localStorage.setItem(STORAGE_KEY_DB, JSON.stringify(AppState.db));
+    } catch (e) {}
+  }
+
+  try {
+    const res = await fetch(apiBase + '/api/customer/profile', {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({
+        customerId: cust.id,
+        email: cust.email,
+        ...payload
+      })
+    });
+    const data = await res.json();
+    if (res.ok && data && data.ok && data.customer) {
+      AppState.currentCustomer = { ...cust, ...data.customer, token: cust.token, updatedAt: nowIso };
+      localStorage.setItem(STORAGE_KEY_CUSTOMER_SESSION, JSON.stringify(AppState.currentCustomer));
+    }
+    return { ok: res.ok, status: res.status, data };
+  } catch (e) {
+    return { ok: true, localOnly: true };
+  }
+}
+
+bindAccountEvents = function () {
+  const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+
+  // 1. Formulário de Login
+  const loginForm = document.getElementById('customer-login-form');
+  if (loginForm) {
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const emailEl = document.getElementById('login-email-input');
+      const passEl = document.getElementById('login-password-input');
+      const errBox = document.getElementById('login-form-error-box');
+      if (errBox) errBox.style.display = 'none';
+
+      const email = String((emailEl && emailEl.value) || '').trim().toLowerCase();
+      const password = String((passEl && passEl.value) || '');
+
+      let valid = true;
+      if (!isValidEmailFormat(email)) {
+        setFieldErrorState('login-email-input', 'login-email-error', true, 'Informe um e-mail válido.');
+        valid = false;
+      } else {
+        setFieldErrorState('login-email-input', 'login-email-error', false);
+      }
+      if (!password) {
+        setFieldErrorState('login-password-input', 'login-password-error', true, 'Digite sua senha.');
+        valid = false;
+      } else {
+        setFieldErrorState('login-password-input', 'login-password-error', false);
+      }
+      if (!valid) return;
+
+      try {
+        const res = await fetch(apiBase + '/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (res.ok && data && data.ok && data.customer) {
+          AppState.currentCustomer = { ...data.customer, token: data.token };
+          localStorage.setItem(STORAGE_KEY_CUSTOMER_SESSION, JSON.stringify(AppState.currentCustomer));
+          if (Array.isArray(data.customer.savedCart) && data.customer.savedCart.length > 0 && AppState.cart.length === 0) {
+            AppState.cart = data.customer.savedCart;
+            saveCart();
+          }
+          await loadDatabase();
+          updateHeaderCounters();
+          showToast(`Bem-vinda de volta, ${AppState.currentCustomer.name}!`, 'success');
+          if (!resumePendingPurchaseIntent()) {
+            const targetView = AppState.postLoginRedirectView || AppState.currentView || 'account';
+            AppState.postLoginRedirectView = null;
+            navigateTo(targetView);
+          }
+          return;
+        }
+        const msg = (data && data.error) || 'E-mail ou senha incorretos. Confira os dados e tente novamente.';
+        if (errBox) {
+          errBox.textContent = msg;
+          errBox.style.display = 'block';
+        }
+        showToast(msg, 'danger');
+      } catch (err) {
+        showToast('Erro de conexão ao entrar na conta.', 'danger');
+      }
+    });
+  }
+
+  // 2. Formulário de Cadastro em 3 Etapas (Com Máscaras e ViaCEP)
+  const regForm = document.getElementById('customer-register-form');
+  if (regForm) {
+    regForm.addEventListener('input', (e) => {
+      const t = e.target;
+      if (!t || !t.name) return;
+      if (t.name === 'phone') t.value = formatPhoneMask(t.value);
+      if (t.name === 'cpf') t.value = formatCpfMask(t.value);
+      if (t.name === 'zipCode') {
+        t.value = formatCepMask(t.value);
+        const digits = t.value.replace(/\D/g, '');
+        if (digits.length === 8) {
+          lookupViaCepAddress(digits, {
+            street: 'reg-street-input',
+            neighborhood: 'reg-neighborhood-input',
+            city: 'reg-city-input',
+            state: 'reg-state-input',
+            statusEl: 'reg-cep-lookup-status'
+          });
+        }
+      }
+      syncRegisterDraftFromDom();
+    });
+
+    regForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      syncRegisterDraftFromDom();
+
+      if (!validateRegisterStep(1)) {
+        showRegisterStepInDom(1);
+        return;
+      }
+      if (!validateRegisterStep(2)) {
+        showRegisterStepInDom(2);
+        return;
+      }
+      if (!validateRegisterStep(3)) {
+        showRegisterStepInDom(3);
+        return;
+      }
+
+      const d = AppState.registerDraft;
+      const city = String(d.city || '').trim();
+      const state = String(d.state || '').trim().toUpperCase();
+      const address = {
+        id: 'addr-' + Date.now(),
+        label: 'Endereço Principal',
+        zipCode: String(d.zipCode || '').trim(),
+        street: String(d.street || '').trim(),
+        number: String(d.number || '').trim(),
+        complement: String(d.complement || '').trim(),
+        neighborhood: String(d.neighborhood || '').trim(),
+        city,
+        state,
+        cityState: `${city} - ${state}`,
+        reference: String(d.reference || '').trim(),
+        isDefault: true
+      };
+
+      const errBox = document.getElementById('register-form-error-box');
+      if (errBox) errBox.style.display = 'none';
+
+      try {
+        const res = await fetch(apiBase + '/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: String(d.name || '').trim(),
+            email: String(d.email || '').trim().toLowerCase(),
+            phone: String(d.phone || '').trim(),
+            cpf: String(d.cpf || '').trim(),
+            password: String(d.password || ''),
+            marketingOptIn: Boolean(d.marketingOptIn),
+            address
+          })
+        });
+        const data = await res.json();
+        if (!res.ok || !data || !data.ok) {
+          const msg = (data && data.error) || 'Não foi possível concluir o cadastro.';
+          if (errBox) {
+            errBox.textContent = msg;
+            errBox.style.display = 'block';
+          }
+          showToast(msg, 'danger');
+          return;
+        }
+        AppState.currentCustomer = { ...data.customer, token: data.token };
+        localStorage.setItem(STORAGE_KEY_CUSTOMER_SESSION, JSON.stringify(AppState.currentCustomer));
+        AppState.registerStep = 1;
+        await loadDatabase();
+        updateHeaderCounters();
+        showToast('Cadastro criado com sucesso! Seus dados e endereço foram salvos.', 'success');
+        if (!resumePendingPurchaseIntent()) {
+          const targetView = AppState.postLoginRedirectView || 'account';
+          AppState.postLoginRedirectView = null;
+          navigateTo(targetView);
+        }
+      } catch (err) {
+        showToast('Erro de conexão ao criar conta.', 'danger');
+      }
+    });
+  }
+
+  // 3. Recuperação de Senha
+  const recForm = document.getElementById('customer-recover-form');
+  if (recForm) {
+    recForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(recForm);
+      const email = String(fd.get('email') || '').trim().toLowerCase();
+      const newPassword = String(fd.get('newPassword') || '');
+      if (!isValidEmailFormat(email) || newPassword.length < 6) {
+        showToast('Informe um e-mail válido e uma nova senha com no mínimo 6 caracteres.', 'warning');
+        return;
+      }
+      try {
+        const res = await fetch(apiBase + '/api/auth/recover', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, newPassword })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          showToast((data && data.error) || 'E-mail não localizado.', 'danger');
+          return;
+        }
+        AppState.showRecoverPasswordBox = false;
+        showToast('Senha redefinida com sucesso! Você já pode entrar na sua conta.', 'success');
+        renderMainView();
+      } catch (err) {
+        showToast('Erro ao redefinir senha.', 'danger');
+      }
+    });
+  }
+
+  // 4. Dados Pessoais em Minha Conta
+  const profForm = document.getElementById('customer-profile-form');
+  if (profForm) {
+    profForm.addEventListener('input', (e) => {
+      const t = e.target;
+      if (!t) return;
+      if (t.name === 'phone') t.value = formatPhoneMask(t.value);
+      if (t.name === 'cpf') t.value = formatCpfMask(t.value);
+    });
+
+    profForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(profForm);
+      const name = String(fd.get('name') || '').trim();
+      const phone = String(fd.get('phone') || '').trim();
+      const email = String(fd.get('email') || '').trim().toLowerCase();
+      const cpf = String(fd.get('cpf') || '').trim();
+      const marketingOptIn = fd.get('marketingOptIn') === 'on';
+
+      let valid = true;
+      if (name.length < 3) {
+        setFieldErrorState('profile-name-input', 'profile-error-name', true);
+        valid = false;
+      } else {
+        setFieldErrorState('profile-name-input', 'profile-error-name', false);
+      }
+      if (phone.replace(/\D/g, '').length < 10) {
+        setFieldErrorState('profile-phone-input', 'profile-error-phone', true);
+        valid = false;
+      } else {
+        setFieldErrorState('profile-phone-input', 'profile-error-phone', false);
+      }
+      if (!isValidEmailFormat(email)) {
+        setFieldErrorState('profile-email-input', 'profile-error-email', true);
+        valid = false;
+      } else {
+        setFieldErrorState('profile-email-input', 'profile-error-email', false);
+      }
+      if (!valid) return;
+
+      await persistCustomerProfileToServer({
+        name,
+        phone,
+        email,
+        cpf,
+        marketingOptIn,
+        addresses: AppState.currentCustomer.addresses || []
+      });
+      updateHeaderCounters();
+      renderMainView();
+      showToast('Dados pessoais salvos com sucesso!', 'success');
+    });
+  }
+
+  // 5. Formulário de Endereço (Adicionar / Editar) em Minha Conta
+  const addrForm = document.getElementById('customer-address-form');
+  if (addrForm) {
+      const addrCepInput = document.getElementById('addr-form-cep');
+    if (addrCepInput) {
+      addrCepInput.addEventListener('input', () => {
+        addrCepInput.value = formatCepMask(addrCepInput.value);
+        const digits = addrCepInput.value.replace(/\D/g, '');
+        if (digits.length === 8) {
+          lookupViaCepAddress(digits, {
+            street: 'addr-form-street',
+            neighborhood: 'addr-form-neighborhood',
+            city: 'addr-form-city',
+            state: 'addr-form-state',
+            statusEl: 'addr-form-cep-status'
+          });
+        }
+      });
+    }
+
+    addrForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(addrForm);
+      const label = String(fd.get('label') || '').trim() || 'Endereço de Entrega';
+      const zipCode = String(fd.get('zipCode') || '').trim();
+      const street = String(fd.get('street') || '').trim();
+      const number = String(fd.get('number') || '').trim();
+      const complement = String(fd.get('complement') || '').trim();
+      const neighborhood = String(fd.get('neighborhood') || '').trim();
+      const city = String(fd.get('city') || '').trim();
+      const state = String(fd.get('state') || '').trim().toUpperCase();
+      const reference = String(fd.get('reference') || '').trim();
+      const isPrimary = fd.get('isPrimary') === 'on';
+
+      let valid = true;
+      if (zipCode.replace(/\D/g, '').length < 8) {
+        setFieldErrorState('addr-form-cep', 'addr-error-zipCode', true);
+        valid = false;
+      } else {
+        setFieldErrorState('addr-form-cep', 'addr-error-zipCode', false);
+      }
+      if (!street) {
+        setFieldErrorState('addr-form-street', 'addr-error-street', true);
+        valid = false;
+      } else {
+        setFieldErrorState('addr-form-street', 'addr-error-street', false);
+      }
+      if (!number) {
+        setFieldErrorState('addr-form-number', 'addr-error-number', true);
+        valid = false;
+      } else {
+        setFieldErrorState('addr-form-number', 'addr-error-number', false);
+      }
+      if (!neighborhood) {
+        setFieldErrorState('addr-form-neighborhood', 'addr-error-neighborhood', true);
+        valid = false;
+      } else {
+        setFieldErrorState('addr-form-neighborhood', 'addr-error-neighborhood', false);
+      }
+      if (!city) {
+        setFieldErrorState('addr-form-city', 'addr-error-city', true);
+        valid = false;
+      } else {
+        setFieldErrorState('addr-form-city', 'addr-error-city', false);
+      }
+      if (state.length < 2) {
+        setFieldErrorState('addr-form-state', 'addr-error-state', true);
+        valid = false;
+      } else {
+        setFieldErrorState('addr-form-state', 'addr-error-state', false);
+      }
+      if (!valid) return;
+
+      const editIdx = Number(addrForm.getAttribute('data-editing-index'));
+      const currentAddrs = Array.isArray(AppState.currentCustomer.addresses)
+        ? [...AppState.currentCustomer.addresses]
+        : [];
+
+      const newAddrObj = {
+        id: (editIdx >= 0 && currentAddrs[editIdx] && currentAddrs[editIdx].id) || ('addr-' + Date.now()),
+        label,
+        zipCode,
+        street,
+        number,
+        complement,
+        neighborhood,
+        city,
+        state,
+        cityState: `${city} - ${state}`,
+        reference
+      };
+
+      if (editIdx >= 0 && editIdx < currentAddrs.length) {
+        currentAddrs[editIdx] = newAddrObj;
+        if (isPrimary && editIdx > 0) {
+          const [moved] = currentAddrs.splice(editIdx, 1);
+          currentAddrs.unshift(moved);
+        }
+      } else {
+        if (isPrimary || currentAddrs.length === 0) {
+          currentAddrs.unshift(newAddrObj);
+        } else {
+          currentAddrs.push(newAddrObj);
+        }
+      }
+
+      AppState.editingAddressIndex = null;
+      await persistCustomerProfileToServer({ addresses: currentAddrs });
+      renderMainView();
+      showToast('Endereço salvo com sucesso!', 'success');
+    });
+  }
+
+  // 6. Alteração de Senha em Minha Conta
+  const pwdForm = document.getElementById('customer-password-form');
+  if (pwdForm) {
+    pwdForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(pwdForm);
+      const currentPassword = String(fd.get('currentPassword') || '');
+      const newPassword = String(fd.get('newPassword') || '');
+      const confirmPassword = String(fd.get('confirmPassword') || '');
+
+      let valid = true;
+      if (newPassword.length < 6) {
+        setFieldErrorState('pwd-new-input', 'pwd-error-new', true);
+        valid = false;
+      } else {
+        setFieldErrorState('pwd-new-input', 'pwd-error-new', false);
+      }
+      if (confirmPassword !== newPassword) {
+        setFieldErrorState('pwd-confirm-input', 'pwd-error-confirm', true);
+        valid = false;
+      } else {
+        setFieldErrorState('pwd-confirm-input', 'pwd-error-confirm', false);
+      }
+      if (!valid) return;
+
+      await persistCustomerProfileToServer({ currentPassword, newPassword });
+      fetch(apiBase + '/api/auth/recover', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: AppState.currentCustomer.email, newPassword })
+      }).catch(() => {});
+
+      pwdForm.reset();
+      showToast('Sua senha foi atualizada com segurança!', 'success');
+    });
+  }
+
+  // 7. Formulário de Trocas e Devoluções
+  const returnForm = document.getElementById('customer-return-form');
+  if (returnForm) {
+    returnForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const fd = new FormData(returnForm);
+      const reqObj = {
+        id: 'ret-' + Date.now(),
+        orderNumber: String(fd.get('orderNumber') || '').trim(),
+        customerName: AppState.currentCustomer.name,
+        customerEmail: AppState.currentCustomer.email,
+        type: String(fd.get('type') || '').trim(),
+        reason: String(fd.get('reason') || '').trim(),
+        status: 'Em análise pela loja',
+        ownerResponse: '',
+        createdAt: new Date().toISOString()
+      };
+      AppState.db.returnRequests = AppState.db.returnRequests || [];
+      AppState.db.returnRequests.unshift(reqObj);
+      saveDatabase(`Solicitação de troca/devolução aberta para ${reqObj.orderNumber}`);
+      renderMainView();
+      showToast('Solicitação de troca/devolução registrada com sucesso!', 'success');
+    });
+  }
+};
+
+// Delegação Global para as Novas Ações da Área da Cliente e Login/Cadastro V4
+document.addEventListener('click', async (e) => {
+  const target = e.target.closest('[data-action], [data-nav-view]');
+  if (!target) return;
+  const action = target.getAttribute('data-action');
+  const navView = target.getAttribute('data-nav-view');
+
+  if (navView === 'account') {
+    AppState.showPurchaseAuthBanner = false;
+    AppState.editingAddressIndex = null;
+  }
+
+  if (!action) return;
+
+  switch (action) {
+    case 'go-account-orders': {
+      e.preventDefault();
+      e.stopPropagation();
+      AppState.lastCreatedOrder = null;
+      AppState.showPurchaseAuthBanner = false;
+      closeMobileMenu();
+      navigateTo('orders');
+      break;
+    }
+    case 'finish-order-go-account': {
+      e.preventDefault();
+      e.stopPropagation();
+      AppState.lastCreatedOrder = null;
+      navigateTo('orders');
+      break;
+    }
+    case 'go-returns': {
+      e.preventDefault();
+      e.stopPropagation();
+      AppState.lastCreatedOrder = null;
+      closeMobileMenu();
+      navigateTo('returns');
+      break;
+    }
+    case 'open-return-request': {
+      e.preventDefault();
+      e.stopPropagation();
+      const onum = target.getAttribute('data-order-number') || '';
+      AppState.prefillReturnOrderNumber = onum;
+      closeOrderDetailModal();
+      navigateTo('returns');
+      break;
+    }
+    case 'filter-customer-orders': {
+      e.preventDefault();
+      e.stopPropagation();
+      AppState.ordersFilter = target.getAttribute('data-filter') || 'all';
+      renderMainView();
+      break;
+    }
+    case 'switch-auth-mode': {
+      e.preventDefault();
+      e.stopPropagation();
+      syncRegisterDraftFromDom();
+      AppState.authMode = target.getAttribute('data-mode') === 'register' ? 'register' : 'login';
+      renderMainView();
+      break;
+    }
+    case 'toggle-recover-password': {
+      e.preventDefault();
+      e.stopPropagation();
+      AppState.showRecoverPasswordBox = !AppState.showRecoverPasswordBox;
+      const box = document.getElementById('customer-recover-container');
+      if (box) box.style.display = AppState.showRecoverPasswordBox ? 'block' : 'none';
+      break;
+    }
+    case 'toggle-password-visibility': {
+      e.preventDefault();
+      e.stopPropagation();
+      const inputId = target.getAttribute('data-target');
+      const inp = inputId ? document.getElementById(inputId) : null;
+      if (inp) {
+        const isPwd = inp.type === 'password';
+        inp.type = isPwd ? 'text' : 'password';
+        target.textContent = isPwd ? 'Ocultar' : 'Mostrar';
+      }
+      break;
+    }
+    case 'reg-next-step': {
+      e.preventDefault();
+      e.stopPropagation();
+      const fromStep = Number(target.getAttribute('data-from-step')) || 1;
+      if (validateRegisterStep(fromStep)) {
+        showRegisterStepInDom(fromStep + 1);
+      }
+      break;
+    }
+    case 'reg-prev-step': {
+      e.preventDefault();
+      e.stopPropagation();
+      const toStep = Number(target.getAttribute('data-to-step')) || 1;
+      showRegisterStepInDom(toStep);
+      break;
+    }
+    case 'reg-jump-step': {
+      e.preventDefault();
+      e.stopPropagation();
+      const targetStep = Number(target.getAttribute('data-step')) || 1;
+      if (targetStep < AppState.registerStep) {
+        showRegisterStepInDom(targetStep);
+      } else if (targetStep === 2 && validateRegisterStep(1)) {
+        showRegisterStepInDom(2);
+      } else if (targetStep === 3 && validateRegisterStep(1) && validateRegisterStep(2)) {
+        showRegisterStepInDom(3);
+      }
+      break;
+    }
+    case 'open-address-editor': {
+      e.preventDefault();
+      e.stopPropagation();
+      const idx = Number(target.getAttribute('data-index'));
+      AppState.editingAddressIndex = isNaN(idx) ? -1 : idx;
+      renderMainView();
+      setTimeout(() => {
+        const wrapper = document.getElementById('address-editor-wrapper');
+        if (wrapper) wrapper.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 40);
+      break;
+    }
+    case 'close-address-editor': {
+      e.preventDefault();
+      e.stopPropagation();
+      AppState.editingAddressIndex = null;
+      renderMainView();
+      break;
+    }
+    case 'set-primary-address': {
+      e.preventDefault();
+      e.stopPropagation();
+      const idx = Number(target.getAttribute('data-index'));
+      const addrs = Array.isArray(AppState.currentCustomer && AppState.currentCustomer.addresses)
+        ? [...AppState.currentCustomer.addresses]
+        : [];
+      if (idx > 0 && idx < addrs.length) {
+        const [chosen] = addrs.splice(idx, 1);
+        addrs.unshift(chosen);
+        await persistCustomerProfileToServer({ addresses: addrs });
+        renderMainView();
+        showToast('Endereço principal atualizado!', 'success');
+      }
+      break;
+    }
+    case 'delete-customer-address': {
+      e.preventDefault();
+      e.stopPropagation();
+      const idx = Number(target.getAttribute('data-index'));
+      const addrs = Array.isArray(AppState.currentCustomer && AppState.currentCustomer.addresses)
+        ? [...AppState.currentCustomer.addresses]
+        : [];
+      if (addrs.length <= 1) {
+        showToast('Mantenha ao menos um endereço cadastrado na sua conta.', 'warning');
+        return;
+      }
+      if (idx >= 0 && idx < addrs.length) {
+        addrs.splice(idx, 1);
+        await persistCustomerProfileToServer({ addresses: addrs });
+        renderMainView();
+        showToast('Endereço removido com sucesso.', 'success');
+      }
+      break;
+    }
+  }
+}, true);
+
+// Restaura a visualização correspondente ao hash da URL ao carregar ou recarregar a página
+function syncViewFromLocationHash() {
+  const h = window.location.hash;
+  if (h === '#minha-conta' || h === '#account') {
+    navigateTo('account', { preserveScroll: true });
+  } else if (h === '#meus-pedidos' || h === '#orders') {
+    navigateTo('orders', { preserveScroll: true });
+  } else if (h === '#favoritos' || h === '#favorites') {
+    navigateTo('favorites', { preserveScroll: true });
+  } else if (h === '#trocas' || h === '#returns') {
+    navigateTo('returns', { preserveScroll: true });
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  setTimeout(syncViewFromLocationHash, 20);
+});
+window.addEventListener('hashchange', syncViewFromLocationHash);
 })();
+
+
+
+
+
+
