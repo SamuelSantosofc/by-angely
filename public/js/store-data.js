@@ -33,15 +33,13 @@
     city: 'Itaperuna',
     state: 'RJ',
     country: 'Brasil',
-    // Apresentação tipográfica elegante padrão; a proprietária pode enviar o logotipo oficial pelo painel
-    logoMode: 'typography', // 'typography' | 'image'
+    logoMode: 'typography',
     logoUrl: '',
     logoAlt: 'BY ANGÉLY — Moda Feminina',
-    typographyStyle: 'editorial-serif', // inspirado na referência tipográfica BY ANGÉLY
-    announcementBar: 'BY ANGÉLY • Moda Feminina • Atendimento exclusivo via WhatsApp +55 28 99987-1458 e Instagram @_by.angely',
+    typographyStyle: 'editorial-serif',
+    announcementBar: 'BY ANGÉLY • Moda Feminina Contemporânea • Itaperuna, RJ',
     showDemoBanner: true,
 
-    // Dados empresariais e de contato oficiais integrados
     legalName: 'A confirmar pela proprietária',
     cnpj: 'A confirmar pela proprietária',
     stateRegistration: 'A confirmar pela proprietária',
@@ -63,7 +61,6 @@
     tiktokUrl: '',
     businessHours: 'Atendimento online via WhatsApp e Instagram (Horário comercial)',
 
-    // Conteúdo Institucional da Marca
     heroBanner: {
       eyebrow: 'COLEÇÃO ATEMPORAL • ITAPERUNA, RJ',
       title: 'Elegância natural em cada detalhe.',
@@ -86,17 +83,16 @@
     }
   };
 
-  // Configuração de Formas de Pagamento (Controladas pela Proprietária)
   var INITIAL_PAYMENT_SETTINGS = {
     pix: {
       enabled: true,
-      isConfirmedByOwner: false, // Marca se a proprietária já substituiu os dados pendentes pela chave oficial
-      keyType: 'email', // 'cnpj' | 'cpf' | 'email' | 'telefone' | 'aleatoria'
+      isConfirmedByOwner: false,
+      keyType: 'email',
       pixKey: 'A confirmar pela proprietária',
       recipientName: 'A confirmar pela proprietária',
       recipientCity: 'ITAPERUNA',
       txidPrefix: 'BYANGELY',
-      confirmationMode: 'manual', // 'manual' (Aguardando confirmação) | 'webhook' (Integração PSP)
+      confirmationMode: 'manual',
       pspProviderName: '',
       pspWebhookConfigured: false,
       instructions: 'Ao finalizar o pedido com Pix, confira atentamente os dados do recebedor antes de confirmar a transferência no aplicativo do seu banco. Enquanto não houver integração bancária automática via webhook ativa, seu pedido ficará com o status "Aguardando confirmação de pagamento" até a conferência pela administração da loja.'
@@ -104,9 +100,9 @@
     creditCard: {
       enabled: true,
       isConfirmedByOwner: false,
-      mode: 'external_link', // 'external_link' | 'psp_api'
+      mode: 'external_link',
       providerName: 'A confirmar pela proprietária (Ex.: InfinitePay, Mercado Pago, PagBank, Pagar.me, Asaas)',
-      externalPaymentLink: '', // URL segura cadastrada pela proprietária
+      externalPaymentLink: '',
       pspApiConfigured: false,
       installmentsInfo: 'Condições de parcelamento a confirmar pela proprietária',
       instructions: 'O pagamento por cartão é processado exclusivamente em ambiente externo criptografado do provedor de pagamentos escolhido pela loja. A By Angély nunca coleta nem armazena números completos de cartão, data de validade ou código de segurança (CVV). Atenção: um link de pagamento genérico não identifica automaticamente o valor individual do pedido nem aprova o status sozinho — após concluir o pagamento na página segura do provedor, retorne ao site e acompanhe a confirmação do seu pedido.'
@@ -119,11 +115,10 @@
     }
   };
 
-  // Configurações de Entrega e Comunicação Transacional
   var INITIAL_SHIPPING_SETTINGS = {
     originCity: 'Itaperuna - RJ',
     originZip: 'A confirmar pela proprietária',
-    freeShippingThreshold: null, // null = a confirmar pela proprietária
+    freeShippingThreshold: null,
     policyNote: 'Prazos de postagem, valores definitivos de frete e regras de frete grátis estão marcados como "A confirmar pela proprietária" antes da entrada oficial no ar.',
     methods: [
       {
@@ -131,7 +126,7 @@
         name: 'Retirada Presencial em Itaperuna - RJ',
         region: 'Itaperuna, RJ',
         price: 0,
-        priceStatus: 'to_confirm', // 'confirmed' | 'to_confirm'
+        priceStatus: 'to_confirm',
         estimatedDays: 'Prazo e endereço de retirada a confirmar pela proprietária',
         enabled: true,
         description: 'Retire seu pedido em Itaperuna/RJ sem custo de envio após a confirmação do pagamento e agendamento.'
@@ -176,7 +171,6 @@
     }
   };
 
-  // Categorias iniciais editáveis
   var INITIAL_CATEGORIES = [
     {
       id: 'cat-vestidos',
@@ -240,7 +234,6 @@
     }
   ];
 
-  // Tabela de medidas padrão feminina adulta (editável por produto)
   var DEFAULT_SIZE_CHART = [
     { size: 'PP (36)', bust: '82 - 85 cm', waist: '64 - 67 cm', hips: '90 - 93 cm', length: '112 cm' },
     { size: 'P (38)',  bust: '86 - 89 cm', waist: '68 - 71 cm', hips: '94 - 97 cm', length: '114 cm' },
@@ -249,8 +242,6 @@
     { size: 'GG (44)', bust: '100 - 105 cm', waist: '83 - 88 cm', hips: '108 - 113 cm', length: '120 cm' }
   ];
 
-  // Produtos fictícios de demonstração — todos claramente identificados como DEMONSTRAÇÃO
-  // e com imagens profissionais licenciadas do Unsplash (moda feminina adulta).
   var INITIAL_PRODUCTS = [
     {
       id: 'prod-demo-01',
@@ -264,7 +255,7 @@
       isPromo: true,
       isFeatured: true,
       isNew: true,
-      status: 'published', // 'published' | 'paused'
+      status: 'published',
       isDemo: true,
       demoNotice: 'Produto fictício e imagens meramente ilustrativas para demonstração visual do sistema. Substitua pelo Painel Administrativo.',
       shortDescription: 'Vestido midi em misto de linho e viscose com alças largas, recorte anatômico no busto e fenda lateral discreta.',
@@ -641,13 +632,12 @@
     }
   ];
 
-  // Cupons de desconto iniciais (editáveis no painel)
   var INITIAL_COUPONS = [
     {
       id: 'coup-1',
       code: 'BEMVINDA10',
       description: '10% de desconto de boas-vindas (Demonstração editável pela proprietária)',
-      type: 'percent', // 'percent' | 'fixed'
+      type: 'percent',
       value: 10,
       minOrderAmount: 150,
       active: true,
@@ -665,7 +655,6 @@
     }
   ];
 
-  // Avaliações demonstrativas claramente sinalizadas
   var INITIAL_REVIEWS = [
     {
       id: 'rev-demo-1',
@@ -687,8 +676,6 @@
     }
   ];
 
-  // Políticas Legais e Comerciais com campos pendentes de confirmação pela proprietária
-  // Fundamentadas nas fontes oficiais brasileiras consultadas em 14/11/2026
   var INITIAL_POLICIES = {
     lastConsultationDate: CONSULTATION_DATE,
     legalDisclaimer: 'AVISO IMPORTANTE: Os textos abaixo foram estruturados com base na legislação brasileira vigente (Código de Defesa do Consumidor — Lei nº 8.078/1990, Decreto do E-commerce nº 7.962/2013, Lei Geral de Proteção de Dados — Lei nº 13.709/2018 e Guia Orientativo de Cookies da ANPD) apenas como referência técnica e operacional. Eles NÃO constituem aconselhamento jurídico formal e possuem campos específicos marcados como [A CONFIRMAR PELA PROPRIETÁRIA] que devem ser revisados e validados pela proprietária antes da publicação oficial da loja.',
@@ -796,7 +783,6 @@
     }
   };
 
-  // Documentação de Fontes Oficiais e Licenças de Imagens (Consultadas em 14/11/2026)
   var OFFICIAL_REFERENCES = [
     {
       category: 'Legislação — Defesa do Consumidor',
@@ -856,7 +842,6 @@
     }
   ];
 
-  // Registro detalhado de todas as mídias ilustrativas de demonstração utilizadas
   var IMAGE_LICENSES_REGISTRY = [
     {
       usageLocation: 'Banner Principal (Hero)',
@@ -964,13 +949,21 @@
     }
   ];
 
-  // Usuários administrativos iniciais (com controle de permissões por perfil)
   var INITIAL_ADMIN_USERS = [
     {
+      id: 'admin-owner-official',
+      name: 'Proprietária BY ANGÉLY',
+      email: 'byangely1@gmail.com',
+      role: 'owner',
+      roleLabel: 'Proprietária (Acesso Total)',
+      permissions: ['products', 'categories', 'orders', 'customers', 'payments', 'shipping', 'branding', 'policies', 'users'],
+      active: true
+    },
+    {
       id: 'admin-owner',
-      name: 'Proprietária By Angély',
+      name: 'Admin BY ANGÉLY',
       email: 'proprietaria@byangely.local',
-      role: 'owner', // 'owner' | 'catalog_manager' | 'order_operator'
+      role: 'owner',
       roleLabel: 'Proprietária (Acesso Total)',
       permissions: ['products', 'categories', 'orders', 'customers', 'payments', 'shipping', 'branding', 'policies', 'users'],
       active: true
