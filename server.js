@@ -1946,10 +1946,11 @@ const existingWa = existingPay.whatsapp || {};
 const existingCc = existingPay.creditCard || {};
 const existingDc = existingPay.debitCard || {};
 const existingPop = existingPay.payOnPickup || {};
+const isUpgradedV5 = Number(existingPay.paymentConfigVersion) >= 5;
 target.paymentSettings = {
 ...seedPay,
 ...existingPay,
-paymentConfigVersion: 4,
+paymentConfigVersion: 5,
 whatsapp: {
 ...seedPay.whatsapp,
 ...existingWa,
@@ -1958,7 +1959,7 @@ enabled: typeof existingWa.enabled === 'boolean' ? existingWa.enabled : true
 pix: {
 ...seedPay.pix,
 ...existingPix,
-enabled: typeof existingPix.enabled === 'boolean' ? existingPix.enabled : true,
+enabled: isUpgradedV5 && typeof existingPix.enabled === 'boolean' ? existingPix.enabled : true,
 keyType: existingPix.keyType || 'telefone',
 pixKey: (existingPix.pixKey && !String(existingPix.pixKey).toLowerCase().includes('a confirmar'))
 ? String(existingPix.pixKey).trim()
@@ -2070,7 +2071,33 @@ target.analytics.duplicateRefreshesIgnored = Number(target.analytics.duplicateRe
 target.analytics.visitors = target.analytics.visitors && typeof target.analytics.visitors === 'object' ? target.analytics.visitors : {};
 target.analytics.sessions = Array.isArray(target.analytics.sessions) ? target.analytics.sessions : [];
 target.analytics.events = Array.isArray(target.analytics.events) ? target.analytics.events : [];
-target.catalogDataRepairV3 = true;
+    // Normaliza status de cobranças Pix e payment_status de pedidos existentes
+  if (Array.isArray(target.orders)) {
+    target.orders = target.orders.map((ord) => {
+      if (!ord) return ord;
+      const pSt = String(ord.paymentStatus || ord.payment_status || 'pending').toLowerCase();
+      return {
+        ...ord,
+        paymentStatus: pSt,
+        payment_status: pSt
+      };
+    });
+  }
+  if (Array.isArray(target.pixCharges)) {
+    target.pixCharges = target.pixCharges.map((chg) => {
+      if (!chg) return chg;
+      const stLower = String(chg.status || 'pending').toLowerCase();
+      let normSt = stLower;
+      if (stLower === 'approved' || stLower === 'approved_late') normSt = 'paid';
+      else if (stLower === 'late_payment_conflict') normSt = 'paid_late_conflict';
+      return {
+        ...chg,
+        status: normSt
+      };
+    });
+  }
+
+  target.catalogDataRepairV3 = true;
 return target;
 }
 function sanitizeCustomerForClient(cust) {
