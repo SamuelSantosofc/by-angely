@@ -3203,6 +3203,7 @@
 
   window.ByAngelyAdmin = {
     renderAdminView
+  };
 
     
 const _origRenderOrdersSection = typeof renderOrdersSection === 'function' ? renderOrdersSection : null;
