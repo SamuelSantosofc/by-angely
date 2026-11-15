@@ -9896,7 +9896,347 @@ document.addEventListener('click', (e) => {
 setTimeout(syncAuthPageBodyState, 10);
 
   
-if (window.ByAngelyPix && window.ByAngelyPix.generatePixPayload) {  </div>',
+if (window.ByAngelyPix && window.ByAngelyPix.generatePixPayload) {
+const _origPixGen = window.ByAngelyPix.generatePixPayload;
+window.ByAngelyPix.generatePixPayload = function(params) {
+const p = Object.assign({}, params);
+const raw = String(p.pixKey || '').trim();
+const kt = String(p.keyType || '').toLowerCase();
+if (kt === 'numero' || kt === 'direta') {
+p.pixKey = raw;
+p.keyType = 'aleatoria';
+} else if (kt === 'phone' || kt === 'telefone' || kt === 'celular') {
+const digits = raw.replace(/\D/g, '');
+if (raw.indexOf('@') !== -1) { p.pixKey = raw.toLowerCase(); p.keyType = 'aleatoria'; }
+else if (digits && digits.length !== 10 && digits.length !== 11 && !(digits.indexOf('55') === 0 && digits.length >= 12 && digits.length <= 13)) {
+p.pixKey = raw.charAt(0) === '+' ? '+' + digits : digits;
+p.keyType = 'aleatoria';
+}
+}
+return _origPixGen.call(this, p);
+};
+}
+function isPaymentOptionConfigured(methodId, paySettings) {
+const pay = paySettings || (AppState.db && AppState.db.paymentSettings) || {};
+if (methodId === 'whatsapp') {
+return Boolean(pay.whatsapp);
+}
+if (methodId === 'pix') {
+if (!pay.pix) return false;
+const key = String(pay.pix.pixKey || '').trim();
+const rec = String(pay.pix.recipientName || 'BY ANGELY').trim();
+if (key.length < 1 || key.toLowerCase().includes('a confirmar') || rec.length < 1 || rec.toLowerCase().includes('a confirmar')) {
+return false;
+}
+return true;
+}
+if (methodId === 'creditCard' || methodId === 'credit_card') {
+if (!pay.creditCard) return false;
+const prov = String(pay.creditCard.providerName || pay.creditCard.provider || '').trim();
+const link = String(pay.creditCard.externalPaymentLink || '').trim();
+const pubKey = String(pay.creditCard.publicKey || '').trim();
+const hasRealLink = (link.startsWith('http://') || link.startsWith('https://')) && !link.includes('wa.me/');
+const hasApiCreds = Boolean(pay.creditCard.pspApiConfigured || pay.creditCard.hasSecretCredentials || pubKey.length >= 4);
+return Boolean(prov.length >= 2 && !prov.toLowerCase().includes('a confirmar') && (hasRealLink || hasApiCreds));
+}
+if (methodId === 'debitCard' || methodId === 'debit_card') {
+if (!pay.debitCard) return false;
+const prov = String(pay.debitCard.providerName || pay.debitCard.provider || '').trim();
+const link = String(pay.debitCard.externalPaymentLink || '').trim();
+const pubKey = String(pay.debitCard.publicKey || '').trim();
+const hasRealLink = (link.startsWith('http://') || link.startsWith('https://')) && !link.includes('wa.me/');
+const hasApiCreds = Boolean(pay.debitCard.pspApiConfigured || pay.debitCard.hasSecretCredentials || pubKey.length >= 4);
+return Boolean(prov.length >= 2 && !prov.toLowerCase().includes('a confirmar') && (hasRealLink || hasApiCreds));
+}
+if (methodId === 'payOnPickup' || methodId === 'pay_on_pickup') {
+return Boolean(pay.payOnPickup);
+}
+return false;
+}
+/**
+* Retorna diagnóstico detalhado do estado de configuração e validação de cada forma de pagamento para o Painel Admin
+*/
+function getPaymentIntegrationStatus(methodId, paySettings, storeSettings) {
+const pay = paySettings || (AppState.db && AppState.db.paymentSettings) || {};
+const st = storeSettings || (AppState.db && AppState.db.storeSettings) || {};
+if (methodId === 'whatsapp') {
+return {
+stateCode: 'validated',
+badgeClass: 'confirmed',
+label: 'Integração validada (+55 28 99987-1458)',
+detail: 'Canal oficial conectado e mensagem automática validada.'
+};
+}
+if (methodId === 'pix') {
+if (!pay.pix) {
+return { stateCode: 'pending', badgeClass: 'pending', label: 'Aguardando configuração', detail: 'Informe a chave Pix da loja.' };
+}
+const key = String(pay.pix.pixKey || '').trim();
+const rec = String(pay.pix.recipientName || 'BY ANGELY').trim();
+const kType = String(pay.pix.keyType || 'telefone').toLowerCase();
+if (!key || key.toLowerCase().includes('a confirmar') || !rec || rec.toLowerCase().includes('a confirmar')) {
+return { stateCode: 'pending', badgeClass: 'pending', label: 'Aguardando configuração', detail: 'Preencha a chave Pix ou número e o nome do recebedor.' };
+}
+if (pay.pix.pspWebhookConfigured) {
+return {
+stateCode: 'validated',
+badgeClass: 'confirmed',
+label: 'Integração validada',
+detail: 'Chave Pix (' + key + ') • QR Code EMV + Webhook automático ativo.'
+};
+}
+return {
+stateCode: 'configured',
+badgeClass: 'info',
+label: 'Configurado (' + kType.toUpperCase() + ')',
+detail: 'Chave Pix (' + key + ') pronta para recebimento.'
+};
+}
+function getAdminRequestHeaders() {
+const headers = {};
+if (AppState.currentAdmin) {
+headers['X-Admin-Role'] = AppState.currentAdmin.role || 'Proprietária';
+headers['X-Admin-Email'] = AppState.currentAdmin.email || '';
+if (AppState.currentAdmin.token) {
+headers['X-Admin-Token'] = AppState.currentAdmin.token;
+headers['Authorization'] = 'Bearer ' + AppState.currentAdmin.token;
+}
+}
+return headers;
+}
+async function loadDatabase() {
+const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+let supaState = null;
+let serverState = null;
+let localState = null;
+try {
+const saved = localStorage.getItem(STORAGE_KEY_DB);
+if (saved) localState = JSON.parse(saved);
+} catch (e) {}
+const tasks = [];
+if (window.ByAngelyCloud && window.ByAngelyCloud.fetchStateFromSupabase) {
+tasks.push(
+window.ByAngelyCloud.fetchStateFromSupabase()
+.then((st) => { supaState = st; })
+.catch(() => {})
+);
+}
+tasks.push(
+fetch(apiBase + '/api/state', {
+cache: 'no-store',
+headers: getAdminRequestHeaders()
+})
+.then((res) => (res.ok ? res.json() : null))
+.then((st) => { serverState = st; })
+.catch(() => {})
+);
+await Promise.allSettled(tasks);
+const candidates = [serverState, supaState, localState].filter((c) => c && c.storeSettings);
+let chosen = null;
+if (candidates.length > 0) {
+candidates.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+chosen = candidates[0];
+if (serverState && serverState.paymentSettings && Number(serverState.paymentSettings.paymentConfigVersion) >= 4) {
+const chosenPayVer = chosen.paymentSettings ? Number(chosen.paymentSettings.paymentConfigVersion || 0) : 0;
+const serverTs = new Date(serverState.updatedAt || 0).getTime();
+const chosenTs = new Date(chosen.updatedAt || 0).getTime();
+if (chosenPayVer < 4 || serverTs >= chosenTs - 5000) {
+chosen.paymentSettings = serverState.paymentSettings;
+}
+}
+if (serverState && Array.isArray(serverState.orders)) {
+chosen.orders = serverState.orders;
+}
+if (serverState && Array.isArray(serverState.customers)) {
+chosen.customers = serverState.customers;
+}
+if (serverState && Array.isArray(serverState.auditLog) && serverState.auditLog.length > 0) {
+chosen.auditLog = serverState.auditLog;
+}
+const allRealProductsMap = new Map();
+candidates.forEach((cand) => {
+(cand.products || []).forEach((p) => {
+if (p && !p.isDemo && p.id) {
+allRealProductsMap.set(p.id, p);
+}
+});
+});
+if (allRealProductsMap.size > 0) {
+const existingIds = new Set((chosen.products || []).map((p) => p.id));
+allRealProductsMap.forEach((realProd, id) => {
+if (!existingIds.has(id)) {
+chosen.products = [realProd, ...(chosen.products || [])];
+}
+});
+}
+} else {
+chosen = window.ByAngelySeed.createInitialDatabase();
+}
+const hadMissingCatImages =
+supaState &&
+Array.isArray(supaState.categories) &&
+supaState.categories.some((c) => !c.imageUrl || String(c.imageUrl).trim().length < 8);
+const hadFakeOrders =
+supaState &&
+Array.isArray(supaState.orders) &&
+supaState.orders.some((o) => o.id === 'ord-demo-1001' || o.orderNumber === 'BYA-2026-1042');
+AppState.db = normalizeAndRepairDatabase(chosen);
+try {
+localStorage.setItem(STORAGE_KEY_DB, JSON.stringify(AppState.db));
+} catch (e) {}
+if (hadMissingCatImages || hadFakeOrders || !supaState) {
+saveDatabase();
+}
+}
+async function saveDatabase(auditAction) {
+if (!AppState.db) return;
+AppState.db = normalizeAndRepairDatabase(AppState.db);
+if (auditAction) {
+AppState.db.auditLog = AppState.db.auditLog || [];
+AppState.db.auditLog.unshift({
+id: 'log-' + Date.now(),
+timestamp: new Date().toISOString(),
+actor: AppState.currentAdmin ? AppState.currentAdmin.name : 'Sistema/Cliente',
+actorRole: AppState.currentAdmin ? (AppState.currentAdmin.role || 'Administrador') : 'Cliente',
+action: auditAction
+});
+if (AppState.db.auditLog.length > 250) {
+AppState.db.auditLog = AppState.db.auditLog.slice(0, 250);
+}
+}
+AppState.db.updatedAt = new Date().toISOString();
+try {
+localStorage.setItem(STORAGE_KEY_DB, JSON.stringify(AppState.db));
+} catch (e) {
+console.warn('Aviso: limite de armazenamento local atingido.', e);
+}
+const syncPromises = [];
+if (window.ByAngelyCloud && window.ByAngelyCloud.saveStateToSupabase) {
+syncPromises.push(window.ByAngelyCloud.saveStateToSupabase(AppState.db).catch(() => {}));
+}
+const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+syncPromises.push(
+fetch(apiBase + '/api/state', {
+method: 'POST',
+headers: {
+'Content-Type': 'application/json',
+...getAdminRequestHeaders()
+},
+body: JSON.stringify(AppState.db)
+}).catch(() => {})
+);
+await Promise.allSettled(syncPromises);
+}
+normalizeAndRepairDatabase = function (rawDb) {
+const rawPayIn = (rawDb && rawDb.paymentSettings) || {};
+const rawPixIn = rawPayIn.pix || {};
+const repaired = _origNormalizeAndRepairDatabase(rawDb);
+repaired.storeSettings = repaired.storeSettings || {};
+repaired.storeSettings.homeSections = {
+showHero: true,
+showFeatured: true,
+showNewArrivals: true,
+showPromos: true,
+showCategories: true,
+showBestSellers: false,
+showBrandStory: true,
+showContactSection: false,
+...(repaired.storeSettings.homeSections || {})
+};
+repaired.paymentSettings = repaired.paymentSettings || {};
+repaired.paymentSettings.paymentConfigVersion = 4;
+const preservedPixEnabled = typeof rawPixIn.enabled === 'boolean'
+? rawPixIn.enabled
+: (typeof (repaired.paymentSettings.pix && repaired.paymentSettings.pix.enabled) === 'boolean' ? repaired.paymentSettings.pix.enabled : true);
+const preservedPixKey = (rawPixIn.pixKey && !String(rawPixIn.pixKey).toLowerCase().includes('a confirmar'))
+? String(rawPixIn.pixKey).trim()
+: ((repaired.paymentSettings.pix && repaired.paymentSettings.pix.pixKey) || '+5528999871458');
+const preservedKeyType = (rawPixIn.keyType && String(rawPixIn.keyType).trim())
+? String(rawPixIn.keyType).trim().toLowerCase()
+: ((repaired.paymentSettings.pix && repaired.paymentSettings.pix.keyType) || 'telefone');
+const preservedRecipientName = (rawPixIn.recipientName && !String(rawPixIn.recipientName).toLowerCase().includes('a confirmar'))
+? String(rawPixIn.recipientName).trim()
+: ((repaired.paymentSettings.pix && repaired.paymentSettings.pix.recipientName) || 'BY ANGELY');
+const preservedRecipientCity = (rawPixIn.recipientCity && String(rawPixIn.recipientCity).trim())
+? String(rawPixIn.recipientCity).trim()
+: ((repaired.paymentSettings.pix && repaired.paymentSettings.pix.recipientCity) || 'ITAPERUNA');
+const preservedTxidPrefix = (rawPixIn.txidPrefix && String(rawPixIn.txidPrefix).trim())
+? String(rawPixIn.txidPrefix).trim()
+: ((repaired.paymentSettings.pix && repaired.paymentSettings.pix.txidPrefix) || 'BYANGELY');
+repaired.paymentSettings.pix = {
+...(repaired.paymentSettings.pix || {}),
+enabled: preservedPixEnabled,
+keyType: preservedKeyType,
+pixKey: preservedPixKey,
+recipientName: preservedRecipientName,
+recipientCity: preservedRecipientCity,
+txidPrefix: preservedTxidPrefix,
+expirationMinutes: Math.max(1, Number((rawPixIn.expirationMinutes || (repaired.paymentSettings.pix && repaired.paymentSettings.pix.expirationMinutes))) || 15),
+confirmationMode: (rawPixIn.confirmationMode) || (repaired.paymentSettings.pix && repaired.paymentSettings.pix.confirmationMode) || 'webhook_auto',
+pspWebhookConfigured: rawPixIn.pspWebhookConfigured !== undefined ? Boolean(rawPixIn.pspWebhookConfigured) : true
+};
+return repaired;
+};
+}
+if (window.ByAngelyApp) {
+window.ByAngelyApp.loadDatabase = loadDatabase;
+window.ByAngelyApp.saveDatabase = saveDatabase;
+window.ByAngelyApp.isPaymentOptionConfigured = isPaymentOptionConfigured;
+window.ByAngelyApp.getPaymentIntegrationStatus = getPaymentIntegrationStatus;
+}
+const CUSTOMER_CANCELLED_ORDER_EXACT_MSG =
+'Seu pedido foi cancelado. Você poderá continuar navegando pela loja e escolher outros produtos quando quiser.';
+AppState.lastCancelledOrderBannerMessage = AppState.lastCancelledOrderBannerMessage || '';
+AppState.lastCancelledOrderNumber = AppState.lastCancelledOrderNumber || '';
+function isOrderAwaitingPaymentV6(ord) {
+if (!ord) return false;
+const st = String(ord.status || 'awaiting_payment');
+return (
+(st === 'awaiting_payment' || st === 'awaiting_confirmation' || st === 'awaiting_whatsapp') &&
+ord.paymentStatus !== 'paid'
+);
+}
+function isOrderPaidAndEligibleForCancelRequestV6(ord) {
+if (!ord) return false;
+const st = String(ord.status || '');
+if (st === 'cancelled' || st === 'cancelled_expired') return false;
+return (
+ord.paymentStatus === 'paid' ||
+[
+'payment_approved',
+'paid',
+'awaiting_separation',
+'in_separation',
+'preparing',
+'ready_for_shipping',
+'shipped',
+'out_for_delivery',
+'delivered',
+'late_payment_reconciliation'
+].includes(st)
+);
+}
+function renderCancellationRequestBadgeHtmlV6(ord) {
+if (!ord || !ord.cancellationRequest) return '';
+const req = ord.cancellationRequest;
+let bg = '#FFF8EB';
+let border = '#E2B96B';
+let color = '#7A5211';
+if (req.status === 'approved' || req.status === 'refunded') {
+bg = '#EDF7F1';
+border = '#2E6F52';
+color = '#1E4D38';
+} else if (req.status === 'rejected') {
+bg = '#FDF2F2';
+border = '#F2B8B5';
+color = '#8E2626';
+}
+return [
+'<div class="order-cancel-request-box-v6" style="margin-top:12px;padding:12px 14px;border-radius:10px;background:' + bg + ';border:1px solid ' + border + ';font-size:0.82rem;color:' + color + ';">',
+'  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:4px;">',
+'    <strong>Solicitação de Cancelamento (Pedido Pago): ' + escapeHtml(req.statusLabel || 'Em análise pela loja') + '</strong>',
+'    <span style="font-size:0.74rem;opacity:0.85;">' + formatDateBR(req.updatedAt || req.createdAt) + '</span>',
+'  </div>',
 '  <div><strong>Motivo informado:</strong> ' + escapeHtml(req.reason || '') + '</div>',
 (req.adminReason ? '<div style="margin-top:4px;"><strong>Posicionamento da loja:</strong> ' + escapeHtml(req.adminReason) + '</div>' : ''),
 (req.refundReference ? '<div style="margin-top:4px;"><strong>Comprovante / Referência do reembolso:</strong> ' + escapeHtml(req.refundReference) + '</div>' : ''),
