@@ -11,7 +11,7 @@
 
   var SUPABASE_URL = 'https://mhtsubybvriffashamiy.supabase.co';
   var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1odHN1YnlidnJpZmZhc2hhbWl5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ2ODUyNzYsImV4cCI6MjExMDI2MTI3Nn0.j_5mQVbi1qjN-RxlMemwliyBcRQKdXqpZeeenLtpkaM';
-  var RENDER_BACKEND_URL = 'https://by-angely-api.onrender.com';
+  var RENDER_BACKEND_URL = 'https://by-angely.onrender.com';
 
   function getApiBaseUrl() {
     if (typeof window === 'undefined') return '';
