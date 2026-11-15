@@ -5404,12 +5404,12 @@ app.showToast('Erro ao exportar relatório CSV.', 'danger');
 });
   
 // === SAFE PAYMENT INTEGRATION STATUS FALLBACK (V6) ===
-if (window.ByAngelyApp) {
-  const _origStatusV6 = window.ByAngelyApp.getPaymentIntegrationStatus;
-  window.ByAngelyApp.getPaymentIntegrationStatus = function (methodId, paySettings, storeSettings) {
+function ensureSafePaymentDiagV6() { const app = window.ByAngelyApp; if (!app || app.__safeDiagPatchedV6) return; app.__safeDiagPatchedV6 = true;
+  const _origStatusV6 = app.getPaymentIntegrationStatus;
+  app.getPaymentIntegrationStatus = function (methodId, paySettings, storeSettings) {
     if (typeof _origStatusV6 === 'function') {
       try {
-        const res = _origStatusV6(methodId, paySettings, storeSettings);
+        const res = _origStatusV6.call(app, methodId, paySettings, storeSettings);
         if (res && res.badgeClass) return res;
       } catch (_e) {}
     }
@@ -5429,7 +5429,7 @@ if (window.ByAngelyApp) {
   };
 }
 
-renderActiveAdminSection = function () {
+renderActiveAdminSection = function () {   ensureSafePaymentDiagV6();
   switch (AdminState.activeSection) {
     case 'dashboard': return renderDashboardSection();
     
