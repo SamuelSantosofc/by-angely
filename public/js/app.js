@@ -5119,7 +5119,350 @@ showToast('Avaliação registrada com sucesso!', 'success');
 }
 }
 function renderCheckoutView() {
-if (AppState.lastCreatedOrder) {createdOrder.whatsappOrderUrl = getOrderWhatsappUrl(createdOrder);
+
+if (AppState.lastCreatedOrder) {
+  return renderOrderConfirmationScreen(AppState.lastCreatedOrder);
+}
+if (!AppState.currentCustomer || !AppState.currentCustomer.email) {
+  AppState.pendingPurchaseIntent = { type: 'checkout' };
+  AppState.showPurchaseAuthBanner = true;
+  return renderCustomerAuthScreen();
+}
+if (AppState.cart.length === 0) {
+  return `
+    <section class="section-block">
+      <div class="container">
+        <div class="admin-card" style="text-align:center;padding:48px 20px;">
+          <h1 class="section-title" style="margin-bottom:10px;">Sua sacola está vazia</h1>
+          <p style="color:var(--text-secondary);margin-bottom:20px;">Adicione produtos antes de prosseguir para a finalização da compra.</p>
+          <button type="button" class="btn btn-primary" data-action="go-catalog">Voltar para a Loja</button>
+        </div>
+      </div>
+    </section>
+  `;
+}
+const totals = calculateCartTotals();
+const paySettings = AppState.db.paymentSettings;
+const shipMethods = (AppState.db.shippingSettings.methods || []).filter((m) => m.enabled);
+const activePaymentOptions = getAvailableCheckoutPaymentOptions(paySettings);
+if (activePaymentOptions.length > 0 && !activePaymentOptions.some((o) => o.id === AppState.selectedPaymentMethod)) {
+  AppState.selectedPaymentMethod = activePaymentOptions[0].id;
+}
+const isWhatsappSelected = AppState.selectedPaymentMethod === 'whatsapp';
+const cust = AppState.currentCustomer || {};
+const savedAddresses = Array.isArray(cust.addresses) && cust.addresses.length > 0 ? cust.addresses : [];
+const selectedAddrIdx = Math.min(Number(AppState.selectedCheckoutAddressIndex) || 0, Math.max(0, savedAddresses.length - 1));
+const defaultAddr = savedAddresses[selectedAddrIdx] || {};
+const splitCityState = String(defaultAddr.cityState || '').split('-').map((s) => s.trim());
+const addrCity = defaultAddr.city || splitCityState[0] || 'Itaperuna';
+const addrState = defaultAddr.state || splitCityState[1] || 'RJ';
+return `
+  <section class="section-block">
+    <div class="container">
+      <div class="section-header" style="margin-bottom:24px;">
+        <div>
+          <span class="section-eyebrow">BY ANGÉLY • Checkout Seguro</span>
+          <h1 class="section-title">Revisão de Dados, Entrega e Pagamento</h1>
+          <p style="font-size:0.86rem;color:var(--text-secondary);">Logada como <strong>${escapeHtml(cust.name)}</strong> (${escapeHtml(cust.email)}) — seus dados foram preenchidos automaticamente.</p>
+        </div>
+        <button type="button" class="btn btn-outline btn-sm" data-action="go-catalog">← Continuar Comprando</button>
+      </div>
+      <form id="checkout-order-form" class="checkout-layout">
+        <div>
+          <!-- Etapa 1: Dados da Cliente -->
+          <div class="admin-card">
+            <h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:14px;">1. Dados da Cliente</h2>
+            <div class="sac-form-grid">
+              <div>
+                <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Nome Completo *</label>
+                <input type="text" name="customerName" class="form-control" required value="${escapeHtml(cust.name || '')}" />
+              </div>
+              <div>
+                <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">WhatsApp / Telefone com DDD *</label>
+                <input type="tel" name="customerPhone" class="form-control" required value="${escapeHtml(cust.phone || '')}" />
+              </div>
+            </div>
+            <div class="sac-form-grid">
+              <div>
+                <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">E-mail da Conta *</label>
+                <input type="email" name="customerEmail" class="form-control" required readonly value="${escapeHtml(cust.email || '')}" style="background:var(--bg-primary);" />
+              </div>
+              <div>
+                <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">CPF (Para nota / identificação do pagamento)</label>
+                <input type="text" name="customerCpf" class="form-control" value="${escapeHtml(cust.cpf && cust.cpf !== 'Não informado' ? cust.cpf : '')}" placeholder="000.000.000-00" />
+              </div>
+            </div>
+          </div>
+          <!-- Etapa 2: Endereço Permanente e Entrega -->
+          <div class="admin-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+              <h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:0;">2. Endereço de Entrega e Modalidade</h2>
+              ${savedAddresses.length > 1 ? `
+                <select id="checkout-saved-address-select" class="form-control" style="max-width:260px;font-size:0.82rem;">
+                  ${savedAddresses.map((a, idx) => `
+                    <option value="${idx}" ${idx === selectedAddrIdx ? 'selected' : ''}>
+                      ${escapeHtml(a.label || ('Endereço ' + (idx + 1)))}: ${escapeHtml(a.street || '')}, ${escapeHtml(a.number || '')}
+                    </option>
+                  `).join('')}
+                </select>
+              ` : ''}
+            </div>
+            <div style="margin-bottom:16px;">
+              <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:6px;">Modalidade de Recebimento *</label>
+              <div style="display:flex;flex-direction:column;gap:8px;">
+                ${shipMethods.map((m) => `
+                  <label style="display:flex;justify-content:space-between;align-items:center;padding:12px;border:1px solid ${totals.shippingMethod && totals.shippingMethod.id === m.id ? 'var(--accent-gold)' : 'var(--border-subtle)'};border-radius:6px;background:${totals.shippingMethod && totals.shippingMethod.id === m.id ? 'var(--bg-accent-subtle)' : 'var(--bg-surface)'};cursor:pointer;">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                      <input type="radio" name="shippingMethodId" value="${escapeHtml(m.id)}" ${totals.shippingMethod && totals.shippingMethod.id === m.id ? 'checked' : ''} />
+                      <div>
+                        <strong style="font-size:0.9rem;display:block;">${escapeHtml(m.name)}</strong>
+                        <span style="font-size:0.78rem;color:var(--text-secondary);">${escapeHtml(m.estimatedDays)}</span>
+                      </div>
+                    </div>
+                    <span style="font-weight:700;font-size:0.86rem;">
+                      ${m.priceStatus === 'confirmed' ? (m.price === 0 ? 'Grátis' : formatBRL(m.price)) : 'A confirmar'}
+                    </span>
+                  </label>
+                `).join('')}
+              </div>
+            </div>
+            <div class="sac-form-grid">
+              <div>
+                <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">CEP *</label>
+                <input type="text" name="zipCode" id="checkout-cep" class="form-control" required value="${escapeHtml(defaultAddr.zipCode || '28300-000')}" placeholder="28300-000" />
+              </div>
+              <div>
+                <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Endereço (Rua / Avenida) *</label>
+                <input type="text" name="street" id="checkout-street" class="form-control" required value="${escapeHtml(defaultAddr.street || '')}" placeholder="Nome da rua ou avenida" />
+              </div>
+            </div>
+            <div class="sac-form-grid">
+              <div>
+                <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Número *</label>
+                <input type="text" name="number" class="form-control" required value="${escapeHtml(defaultAddr.number || '')}" placeholder="Nº" />
+              </div>
+              <div>
+                <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Complemento</label>
+                <input type="text" name="complement" class="form-control" value="${escapeHtml(defaultAddr.complement || '')}" placeholder="Apto, bloco, casa (opcional)" />
+              </div>
+            </div>
+            <div class="sac-form-grid">
+              <div>
+                <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Bairro *</label>
+                <input type="text" name="neighborhood" id="checkout-neighborhood" class="form-control" required value="${escapeHtml(defaultAddr.neighborhood || '')}" placeholder="Bairro" />
+              </div>
+              <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;">
+                <div>
+                  <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Cidade *</label>
+                  <input type="text" name="city" id="checkout-city" class="form-control" required value="${escapeHtml(addrCity)}" placeholder="Itaperuna" />
+                </div>
+                <div>
+                  <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Estado (UF) *</label>
+                  <input type="text" name="state" id="checkout-state" class="form-control" required maxlength="2" value="${escapeHtml(addrState)}" placeholder="RJ" />
+                </div>
+              </div>
+            </div>
+            <div style="margin-bottom:10px;">
+              <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Referência para entrega (Opcional)</label>
+              <input type="text" name="reference" class="form-control" value="${escapeHtml(defaultAddr.reference || '')}" placeholder="Próximo a..." />
+            </div>
+            <div>
+              <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Observações do Pedido (Opcional)</label>
+              <input type="text" name="customerNotes" class="form-control" placeholder="Alguma observação especial para a separação ou entrega?" />
+            </div>
+          </div>
+          <!-- Etapa 3: Forma de Pagamento (Pix Automático 15 min ou WhatsApp) -->
+          <div class="admin-card" id="checkout-payment-step-card">
+            <h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:14px;">3. Forma de Pagamento</h2>
+            <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;" id="checkout-active-payment-list">
+              ${activePaymentOptions.map((opt) => `
+                <label style="display:flex;align-items:center;gap:10px;padding:12px;border:1px solid ${AppState.selectedPaymentMethod === opt.id ? 'var(--accent-gold)' : 'var(--border-subtle)'};border-radius:6px;background:${AppState.selectedPaymentMethod === opt.id ? 'var(--bg-accent-subtle)' : 'var(--bg-surface)'};cursor:pointer;">
+                  <input type="radio" name="paymentMethod" value="${escapeHtml(opt.id)}" ${AppState.selectedPaymentMethod === opt.id ? 'checked' : ''} />
+                  <strong style="font-size:0.92rem;">${escapeHtml(opt.label)}</strong>
+                </label>
+              `).join('')}
+            </div>
+            ${AppState.selectedPaymentMethod === 'pix' ? `
+              <div class="alert-box alert-info" style="margin-bottom:0;">
+                <p style="margin-bottom:6px;"><strong>⚡ Pagamento via Pix com Confirmação Automática (Prazo de ${Number(paySettings.pix.expirationMinutes) || 15} minutos):</strong></p>
+                <p style="margin-bottom:6px;font-size:0.84rem;">Ao confirmar, o sistema gera o <strong>QR Code Pix</strong> e o código <strong>Pix Copia e Cola</strong> no valor exato de <strong>${formatBRL(totals.total)}</strong>. Assim que o pagamento é concluído no seu banco, o pedido é aprovado automaticamente e enviado para separação — sem precisar enviar comprovante!</p>
+                <p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:0;">
+                  Caso o pagamento não seja realizado em até <strong>${Number(paySettings.pix.expirationMinutes) || 15} minutos</strong>, o QR Code expira e o pedido é cancelado automaticamente.
+                </p>
+              </div>
+            ` : ''}
+            ${AppState.selectedPaymentMethod === 'whatsapp' ? `
+              <div class="alert-box alert-info" style="margin-bottom:0;">
+                <p style="margin-bottom:4px;"><strong>Atendimento e Finalização pelo WhatsApp Oficial:</strong></p>
+                <p style="font-size:0.82rem;">${escapeHtml(paySettings.whatsapp.instructions || 'Seu pedido será registrado e encaminhado para o WhatsApp oficial da BY ANGÉLY.')}</p>
+              </div>
+            ` : ''}
+          </div>
+        </div>
+        <!-- Coluna Lateral: Resumo do Pedido -->
+        <div>
+          <div class="admin-card" style="position:sticky;top:98px;">
+            <h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:14px;">Resumo do Pedido</h2>
+            <div style="display:flex;flex-direction:column;gap:10px;max-height:280px;overflow-y:auto;margin-bottom:14px;padding-right:4px;">
+              ${AppState.cart.map((item) => {
+                const sizePart = isValidClothingSize(item.size) ? `Tam: ${escapeHtml(item.size)} | ` : '';
+                const colorPart = isValidColorName(item.color) ? `Cor: ${escapeHtml(item.color)} | ` : '';
+                return `
+                  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:0.84rem;padding-bottom:8px;border-bottom:1px solid var(--border-subtle);">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                      <img src="${escapeHtml(item.imageUrl || CATEGORY_COVER_FALLBACKS.vestidos)}" alt="${escapeHtml(item.name)}" style="width:44px;height:56px;object-fit:cover;border-radius:6px;flex-shrink:0;" />
+                      <div>
+                        <strong>${escapeHtml(item.name)}</strong>
+                        <div style="font-size:0.75rem;color:var(--text-secondary);">${sizePart}${colorPart}Qtd: ${item.quantity}x (${formatBRL(item.unitPrice)})</div>
+                      </div>
+                    </div>
+                    <span style="font-weight:600;white-space:nowrap;">${formatBRL(item.unitPrice * item.quantity)}</span>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+            <div style="font-size:0.88rem;border-top:1px solid var(--border-subtle);padding-top:12px;margin-bottom:16px;">
+              <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+                <span>Subtotal dos produtos:</span>
+                <span>${formatBRL(totals.subtotal)}</span>
+              </div>
+              ${totals.discount > 0 && AppState.appliedCoupon ? `
+                <div style="display:flex;justify-content:space-between;margin-bottom:6px;color:var(--status-success-text);">
+                  <span>Cupom (${escapeHtml(AppState.appliedCoupon.code)}):</span>
+                  <span>-${formatBRL(totals.discount)}</span>
+                </div>
+              ` : ''}
+              <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                <span>Entrega (${totals.shippingMethod ? escapeHtml(totals.shippingMethod.name) : 'A definir'}):</span>
+                <span>${totals.shippingMethod && totals.shippingMethod.priceStatus === 'confirmed' ? formatBRL(totals.shippingCost) : 'A confirmar'}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:1.2rem;font-weight:700;padding-top:10px;border-top:1px solid var(--border-strong);">
+                <span>Total do Pedido:</span>
+                <span>${formatBRL(totals.total)}</span>
+              </div>
+            </div>
+            <button type="submit" id="btn-submit-checkout" class="btn btn-primary btn-block ${isWhatsappSelected ? 'btn-cart-whatsapp' : ''}">
+              ${isWhatsappSelected
+                ? `${OFFICIAL_ICONS.whatsapp}<span>FINALIZAR PEDIDO PELO WHATSAPP</span>`
+                : `Gerar QR Code Pix (${formatBRL(totals.total)})`}
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </section>
+`;
+}
+function bindCheckoutEvents() {
+  const form = document.getElementById('checkout-order-form');
+  if (!form) return;
+  const savedAddrSelect = document.getElementById('checkout-saved-address-select');
+  if (savedAddrSelect) {
+    savedAddrSelect.addEventListener('change', (e) => {
+      AppState.selectedCheckoutAddressIndex = Number(e.target.value) || 0;
+      renderMainView();
+    });
+  }
+  form.querySelectorAll('input[name="shippingMethodId"]').forEach((radio) => {
+    radio.addEventListener('change', (e) => {
+      AppState.selectedShippingMethodId = e.target.value;
+      renderMainView();
+    });
+  });
+  form.querySelectorAll('input[name="paymentMethod"]').forEach((radio) => {
+    radio.addEventListener('change', (e) => {
+      AppState.selectedPaymentMethod = e.target.value;
+      renderMainView();
+    });
+  });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!AppState.currentCustomer || !AppState.currentCustomer.email) {
+      requireCustomerAuthForPurchase({ type: 'checkout' });
+      return;
+    }
+    const submitBtn = document.getElementById('btn-submit-checkout');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Processando seu pedido...';
+    }
+    const fd = new FormData(form);
+    const totals = calculateCartTotals();
+    const activePaymentOptions = getAvailableCheckoutPaymentOptions(AppState.db.paymentSettings);
+    const chosenMethod = activePaymentOptions.some((o) => o.id === AppState.selectedPaymentMethod)
+      ? AppState.selectedPaymentMethod
+      : (activePaymentOptions[0] ? activePaymentOptions[0].id : 'pix');
+    const cityVal = String(fd.get('city') || 'Itaperuna').trim();
+    const stateVal = String(fd.get('state') || 'RJ').trim().toUpperCase();
+    const addressObj = {
+      label: 'Endereço Principal',
+      zipCode: String(fd.get('zipCode') || '').trim(),
+      street: String(fd.get('street') || '').trim(),
+      number: String(fd.get('number') || '').trim(),
+      complement: String(fd.get('complement') || '').trim(),
+      neighborhood: String(fd.get('neighborhood') || '').trim(),
+      city: cityVal,
+      state: stateVal,
+      cityState: `${cityVal} - ${stateVal}`,
+      reference: String(fd.get('reference') || '').trim()
+    };
+    const pixCfg = (AppState.db.paymentSettings && AppState.db.paymentSettings.pix) || {};
+    const tempTxid = ((pixCfg.txidPrefix || 'BYANGELY') + Date.now()).slice(0, 25);
+    const pixEmvPayload = window.ByAngelyPix
+      ? window.ByAngelyPix.generatePixPayload({
+          pixKey: pixCfg.pixKey || '+5528999871458',
+          keyType: pixCfg.keyType || 'telefone',
+          merchantName: pixCfg.recipientName || 'BY ANGELY',
+          merchantCity: pixCfg.recipientCity || 'ITAPERUNA',
+          amount: totals.total,
+          txid: tempTxid,
+          description: 'PEDIDO BY ANGELY'
+        })
+      : '';
+    const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+    const headers = { 'Content-Type': 'application/json' };
+    if (AppState.currentCustomer.token) {
+      headers['Authorization'] = 'Bearer ' + AppState.currentCustomer.token;
+    }
+    try {
+      const res = await fetch(apiBase + '/api/orders', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          customerId: AppState.currentCustomer.id,
+          items: AppState.cart,
+          shippingMethodId: totals.shippingMethod ? totals.shippingMethod.id : 'pickup_itaperuna',
+          address: addressObj,
+          paymentMethod: chosenMethod,
+          couponCode: AppState.appliedCoupon ? AppState.appliedCoupon.code : null,
+          customerNotes: String(fd.get('customerNotes') || '').trim(),
+          pixPayload: pixEmvPayload
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        showToast(data.error || 'Não foi possível criar o pedido. Verifique os dados.', 'danger');
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Tentar Novamente';
+        }
+        return;
+      }
+      const createdOrder = data.order;
+      if (createdOrder.paymentMethod === 'pix' && createdOrder.pixData && window.ByAngelyPix) {
+        createdOrder.pixData.payload = window.ByAngelyPix.generatePixPayload({
+          pixKey: createdOrder.pixData.pixKey || '+5528999871458',
+          keyType: pixCfg.keyType || 'telefone',
+          merchantName: createdOrder.pixData.recipientName || 'BY ANGELY',
+          merchantCity: createdOrder.pixData.recipientCity || 'ITAPERUNA',
+          amount: createdOrder.total,
+          txid: createdOrder.pixData.txid || tempTxid,
+          description: 'PEDIDO ' + createdOrder.orderNumber
+        });
+      }
+      createdOrder.whatsappMessage = buildOrderWhatsappMessage(createdOrder);
+  
+createdOrder.whatsappOrderUrl = getOrderWhatsappUrl(createdOrder);
 AppState.currentCustomer.name = String(fd.get('customerName') || AppState.currentCustomer.name).trim();
 AppState.currentCustomer.phone = String(fd.get('customerPhone') || AppState.currentCustomer.phone).trim();
 AppState.currentCustomer.cpf = String(fd.get('customerCpf') || AppState.currentCustomer.cpf || '').trim();
