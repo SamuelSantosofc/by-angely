@@ -3958,7 +3958,7 @@ st.textContent = [
 '  .admin-main .data-table.admin-payment-methods-table tbody td.pm-cell-action { padding-top: 8px !important; }',
 '  .admin-main .data-table.admin-payment-methods-table .pm-action-btn, .admin-main .data-table tbody td:last-child .btn { width: 100% !important; min-height: 42px !important; justify-content: center !important; font-size: 0.84rem !important; }',
 '}',
-'].join(`\n`);
+].join(`\n`);
 document.head.appendChild(st);
 }
 if (!document.getElementById('admin-block-customer-modal')) {
