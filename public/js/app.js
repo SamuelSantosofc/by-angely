@@ -9329,7 +9329,6 @@ window.addEventListener('DOMContentLoaded', () => {
   setTimeout(syncViewFromLocationHash, 20);
 });
 window.addEventListener('hashchange', syncViewFromLocationHash);
-})
 
 
 // ============================================================================
