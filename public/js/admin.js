@@ -3786,8 +3786,8 @@ app.showToast(`Bem-vinda ao Painel Administrativo, ${user.name}!`, 'success');
 renderAdminView(containerEl);
 });
 }
-const _v5RenderSalesSettingsSection = renderSalesSettingsSection;
-renderSalesSettingsSection = function () {
+const _v5RenderSalesSettingsSection = typeof renderPaymentsSection === 'function' ? renderPaymentsSection : () => '';
+renderPaymentsSection = window.renderSalesSettingsSection = function () {
 const app = window.ByAngelyApp;
 const db = (app && app.getState && app.getState().db) || {};
 const pay = db.paymentSettings || {};
