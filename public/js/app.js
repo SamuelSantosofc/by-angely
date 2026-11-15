@@ -88,7 +88,7 @@
 
   // Ícones SVG Oficiais (Instagram, WhatsApp, E-mail)
   const OFFICIAL_ICONS = {
-    instagram: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441 1.44-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>',
+    instagram: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>',
     whatsapp: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.031 0C5.385 0 0 5.385 0 12.031c0 2.124.553 4.195 1.604 6.018L.099 23.541l5.631-1.477a11.986 11.986 0 006.301 1.787h.005c6.645 0 12.03-5.385 12.03-12.031 0-3.214-1.252-6.236-3.524-8.508C18.268 1.039 15.245 0 12.031 0zm6.564 17.243c-.277.781-1.613 1.491-2.238 1.588-.578.088-1.309.125-2.115-.131-.491-.156-1.119-.366-1.922-.712-3.379-1.459-5.586-4.863-5.755-5.088-.168-.225-1.375-1.829-1.375-3.489 0-1.66 0.869-2.476 1.178-2.813.309-.338.675-.422.9-.422.225 0 .45.003.647.012.208.01.486-.079.76.579.281.675.956 2.334 1.041 2.503.084.169.141.366.028.591-.113.225-.169.366-.338.563-.169.197-.355.441-.506.591-.169.169-.345.352-.148.69.197.338.874 1.442 1.877 2.337 1.29 1.15 2.378 1.506 2.716 1.675.338.169.534.141.731-.084.197-.225.844-.984 1.069-1.322.225-.338.45-.281.759-.169.309.113 1.969.928 2.306 1.097.338.169.563.253.647.394.084.141.084.816-.193 1.597z"/></svg>',
     email: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>'
   };
@@ -325,18 +325,31 @@
 
   function updateGlobalChrome() {
     const settings = AppState.db.storeSettings;
+    const isAdminLogged = Boolean(AppState.currentAdmin);
 
-    // Barra de anúncio superior
+    // Barra de anúncio superior (sem expor números/dados crus para visitantes)
     const announcementTextEl = document.getElementById('announcement-text');
     if (announcementTextEl) {
-      announcementTextEl.textContent = settings.announcementBar || 'By Angély • Itaperuna, RJ';
+      const rawBar = settings.announcementBar || 'BY ANGÉLY • Moda Feminina Contemporânea • Itaperuna, RJ';
+      announcementTextEl.textContent = isAdminLogged
+        ? rawBar
+        : 'BY ANGÉLY • Moda Feminina Contemporânea • Itaperuna, RJ';
     }
 
-    // Banner de aviso de demonstração
+    // Controles exclusivos do Admin no topo, menu e rodapé
+    const adminTopControls = document.getElementById('admin-top-bar-controls');
+    if (adminTopControls) {
+      adminTopControls.style.display = isAdminLogged ? 'inline-flex' : 'none';
+    }
+    document.querySelectorAll('.admin-only-element').forEach((el) => {
+      el.style.display = isAdminLogged ? '' : 'none';
+    });
+
+    // Banner de aviso de demonstração (visível apenas para Admin logado)
     const demoBannerEl = document.getElementById('demo-disclosure-banner');
     if (demoBannerEl) {
       const hasDemoProducts = AppState.db.products.some((p) => p.isDemo && p.status === 'published');
-      demoBannerEl.style.display = (settings.showDemoBanner && hasDemoProducts) ? 'block' : 'none';
+      demoBannerEl.style.display = (isAdminLogged && settings.showDemoBanner && hasDemoProducts) ? 'block' : 'none';
     }
 
     // Logotipo no Cabeçalho e no Rodapé
@@ -365,27 +378,29 @@
       `;
     }
 
-    // Rodapé com informações oficiais e botões funcionais de contato e redes sociais
+    // Rodapé elegante: apenas botões para visitantes; dados detalhados visíveis apenas para Admin
     const footerStoreInfoEl = document.getElementById('footer-store-info');
     if (footerStoreInfoEl) {
       const contacts = getOfficialContacts();
       footerStoreInfoEl.innerHTML = `
-        <p style="margin-bottom:8px;"><strong>${escapeHtml(contacts.storeName)} — ${escapeHtml(settings.brandSubtitle)}</strong></p>
-        <p style="font-size:0.83rem;color:#C4BCB0;margin-bottom:6px;">Localização: ${escapeHtml(settings.city)} - ${escapeHtml(settings.state)}, Brasil</p>
-        <p style="font-size:0.82rem;color:#E5DACB;margin-bottom:4px;">WhatsApp Oficial: <a href="${escapeHtml(contacts.whatsappUrl)}" target="_blank" rel="noopener noreferrer" style="text-decoration:underline;">${escapeHtml(contacts.whatsappDisplay)}</a></p>
-        <p style="font-size:0.82rem;color:#E5DACB;margin-bottom:4px;">Instagram: <a href="${escapeHtml(contacts.instagramUrl)}" target="_blank" rel="noopener noreferrer" style="text-decoration:underline;">${escapeHtml(contacts.instagramHandle)}</a></p>
-        <p style="font-size:0.82rem;color:#E5DACB;margin-bottom:6px;">E-mail Comercial: <a href="${escapeHtml(contacts.mailtoUrl)}" style="text-decoration:underline;">${escapeHtml(contacts.email)}</a></p>
-        <p style="font-size:0.76rem;color:#9E968B;margin-bottom:4px;">Razão Social / CNPJ: ${escapeHtml(settings.legalName)} (${escapeHtml(settings.cnpj)})</p>
+        <p style="margin-bottom:6px;"><strong>${escapeHtml(contacts.storeName)} — ${escapeHtml(settings.brandSubtitle)}</strong></p>
+        <p style="font-size:0.83rem;color:#C4BCB0;margin-bottom:10px;">${escapeHtml(settings.city)} - ${escapeHtml(settings.state)}, Brasil</p>
+        ${isAdminLogged ? `
+          <div style="padding:8px 10px;background:rgba(255,255,255,0.06);border-radius:6px;margin-bottom:10px;font-size:0.76rem;color:#D6CFC5;">
+            <div><strong>[Visão Admin]</strong> WhatsApp: ${escapeHtml(contacts.whatsappDisplay)}</div>
+            <div>Instagram: ${escapeHtml(contacts.instagramHandle)} | E-mail: ${escapeHtml(contacts.email)}</div>
+          </div>
+        ` : ''}
         <div class="footer-social-buttons" role="group" aria-label="Canais oficiais BY ANGÉLY">
           <a href="${escapeHtml(contacts.whatsappUrl)}" target="_blank" rel="noopener noreferrer" class="footer-social-pill" aria-label="Conversar pelo WhatsApp Oficial BY ANGÉLY">
             ${OFFICIAL_ICONS.whatsapp}
             <span>WhatsApp</span>
           </a>
-          <a href="${escapeHtml(contacts.instagramUrl)}" target="_blank" rel="noopener noreferrer" class="footer-social-pill" aria-label="Abrir perfil oficial no Instagram @_by.angely">
+          <a href="${escapeHtml(contacts.instagramUrl)}" target="_blank" rel="noopener noreferrer" class="footer-social-pill" aria-label="Abrir perfil oficial no Instagram">
             ${OFFICIAL_ICONS.instagram}
             <span>Instagram</span>
           </a>
-          <a href="${escapeHtml(contacts.mailtoUrl)}" class="footer-social-pill" aria-label="Enviar e-mail para byangely1@gmail.com">
+          <a href="${escapeHtml(contacts.mailtoUrl)}" class="footer-social-pill" aria-label="Enviar e-mail comercial">
             ${OFFICIAL_ICONS.email}
             <span>E-mail</span>
           </a>
@@ -430,12 +445,13 @@
       alt: product.name
     };
     const hasVideo = product.media && product.media.some((m) => m.type === 'video');
+    const isAdminLogged = Boolean(AppState.currentAdmin);
 
     return `
       <article class="product-card" data-product-id="${escapeHtml(product.id)}">
         <div class="product-card-media" data-action="open-product" data-product-id="${escapeHtml(product.id)}" role="button" tabindex="0" aria-label="Ver detalhes de ${escapeHtml(product.name)}">
           <div class="product-badges">
-            ${product.isDemo ? '<span class="badge-tag badge-demo" title="Imagem ilustrativa de demonstração">Demonstração</span>' : ''}
+            ${isAdminLogged && product.isDemo ? '<span class="badge-tag badge-demo" title="Visão Admin: Peça demonstrativa">Demo (Admin)</span>' : ''}
             ${hasPromo ? `<span class="badge-tag badge-promo">-${discountPercent}%</span>` : ''}
             ${product.isNew && !hasPromo ? '<span class="badge-tag badge-new">Novidade</span>' : ''}
             ${hasVideo ? '<span class="badge-tag badge-video">Vídeo</span>' : ''}
@@ -463,11 +479,6 @@
             `).join('')}
             <span class="size-chips-mini">Tam: ${(product.sizes || []).join(', ')}</span>
           </div>
-          ${product.isDemo ? `
-            <p style="font-size:0.71rem;color:var(--status-warning-text);background:var(--status-warning-bg);padding:4px 7px;border-radius:4px;margin-bottom:10px;">
-              Imagem ilustrativa (Demonstração)
-            </p>
-          ` : ''}
           <div class="product-card-actions">
             <button type="button" class="btn btn-primary btn-sm" data-action="open-product" data-product-id="${escapeHtml(product.id)}" ${totalStock <= 0 ? 'disabled' : ''}>
               ${totalStock > 0 ? 'Escolher Opções' : 'Esgotado'}
@@ -586,9 +597,9 @@
           </div>
           <div class="hero-media-wrapper">
             <img src="${escapeHtml(hero.imageUrl)}" alt="${escapeHtml(hero.imageAlt || 'Coleção By Angély')}" />
-            ${hero.isDemoImage ? `
+            ${Boolean(AppState.currentAdmin) && hero.isDemoImage ? `
               <div class="media-credit-badge">
-                <span>IMAGEM ILUSTRATIVA DE DEMONSTRAÇÃO</span>
+                <span>VISÃO ADMIN • IMAGEM DEMONSTRATIVA</span>
                 <button type="button" data-action="go-policies" data-tab="references" style="color:#E5DACB;text-decoration:underline;font-size:0.7rem;">Ver Licença</button>
               </div>
             ` : ''}
@@ -678,10 +689,10 @@
         <div class="container">
           <div class="hero-grid" style="min-height:auto;">
             <div class="hero-media-wrapper" style="aspect-ratio: 4 / 3.2;">
-              <img src="${escapeHtml(story.imageUrl)}" alt="Apresentação institucional By Angély — Imagem Ilustrativa" loading="lazy" />
-              ${story.isDemoImage ? `
+              <img src="${escapeHtml(story.imageUrl)}" alt="Apresentação institucional By Angély" loading="lazy" />
+              ${Boolean(AppState.currentAdmin) && story.isDemoImage ? `
                 <div class="media-credit-badge">
-                  <span>IMAGEM ILUSTRATIVA • SUBSTITUÍVEL NO PAINEL</span>
+                  <span>VISÃO ADMIN • SUBSTITUÍVEL NO PAINEL</span>
                 </div>
               ` : ''}
             </div>
@@ -694,21 +705,20 @@
               <p style="color:var(--text-secondary);margin-bottom:24px;">
                 ${escapeHtml(story.body)}
               </p>
-              <div class="alert-box alert-info">
-                <strong>Personalização pela Proprietária:</strong> Todos os textos institucionais, logotipo oficial, fotos, vídeos, chaves de pagamento e dados de contato podem ser atualizados a qualquer momento no <strong>Painel Administrativo</strong>.
-              </div>
               <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
                 <a href="${escapeHtml(getOfficialContacts().instagramUrl)}" target="_blank" rel="noopener noreferrer" class="contact-btn-action instagram-style">
                   ${OFFICIAL_ICONS.instagram}
-                  <span>Seguir no Instagram (${escapeHtml(getOfficialContacts().instagramHandle)})</span>
+                  <span>Seguir no Instagram</span>
                 </a>
                 <a href="${escapeHtml(getOfficialContacts().whatsappUrl)}" target="_blank" rel="noopener noreferrer" class="contact-btn-action whatsapp-style">
                   ${OFFICIAL_ICONS.whatsapp}
-                  <span>Atendimento via WhatsApp</span>
+                  <span>Conversar no WhatsApp</span>
                 </a>
               </div>
               <div style="display:flex;gap:12px;flex-wrap:wrap;">
-                <button type="button" class="btn btn-primary btn-sm" data-action="go-view" data-view="admin">Acessar Painel da Proprietária</button>
+                ${Boolean(AppState.currentAdmin) ? `
+                  <button type="button" class="btn btn-primary btn-sm" data-action="go-view" data-view="admin">🔐 Painel da Proprietária</button>
+                ` : ''}
                 <button type="button" class="btn btn-outline btn-sm" data-action="go-policies" data-tab="privacy">Políticas e Transparência</button>
               </div>
             </div>
@@ -723,6 +733,7 @@
   function renderContactBlockMarkup() {
     const settings = AppState.db.storeSettings;
     const contacts = getOfficialContacts();
+    const isAdminLogged = Boolean(AppState.currentAdmin);
     return `
       <!-- Canais Oficiais de Contato, Redes Sociais e Atendimento ao Cliente (SAC) -->
       <section class="section-block bg-surface" id="contact-section" aria-labelledby="sec-contact-title">
@@ -732,12 +743,12 @@
               <span class="section-eyebrow">Canais Oficiais • ${escapeHtml(contacts.storeName)}</span>
               <h2 id="sec-contact-title" class="section-title">Atendimento ao Cliente &amp; Redes Sociais</h2>
               <p class="section-description">
-                Converse diretamente com a equipe da <strong>${escapeHtml(contacts.storeName)}</strong> pelo WhatsApp, acompanhe as novidades no Instagram oficial ou envie um e-mail comercial.
+                Converse diretamente com a equipe da <strong>${escapeHtml(contacts.storeName)}</strong> pelo WhatsApp, acompanhe as novidades no Instagram oficial ou envie uma mensagem.
               </p>
             </div>
           </div>
 
-          <!-- Cartões de Contato Direto com Botões Funcionais -->
+          <!-- Cartões de Contato Direto com Apenas os Botões Elegantes (Dados camuflados exceto para Admin) -->
           <div class="contact-channels-grid">
             <!-- 1. WhatsApp Oficial -->
             <div class="contact-channel-card">
@@ -749,14 +760,12 @@
                     <strong style="font-family:var(--font-serif);font-size:1.35rem;">WhatsApp Oficial</strong>
                   </div>
                 </div>
-                <p style="font-size:0.9rem;font-weight:600;color:var(--text-primary);margin-bottom:4px;">
-                  ${escapeHtml(contacts.whatsappDisplay)}
-                </p>
-                <p style="font-size:0.82rem;color:var(--text-secondary);">
+                ${isAdminLogged ? `<p style="font-size:0.8rem;color:var(--accent-gold);margin-bottom:4px;">[Admin] ${escapeHtml(contacts.whatsappDisplay)}</p>` : ''}
+                <p style="font-size:0.84rem;color:var(--text-secondary);">
                   Inicie uma conversa direta no WhatsApp para tirar dúvidas sobre peças, tamanhos, disponibilidade e pedidos.
                 </p>
               </div>
-              <a href="${escapeHtml(contacts.whatsappUrl)}" target="_blank" rel="noopener noreferrer" class="contact-btn-action whatsapp-style" aria-label="Conversar no WhatsApp +55 28 99987-1458">
+              <a href="${escapeHtml(contacts.whatsappUrl)}" target="_blank" rel="noopener noreferrer" class="contact-btn-action whatsapp-style" aria-label="Conversar no WhatsApp Oficial BY ANGÉLY">
                 ${OFFICIAL_ICONS.whatsapp}
                 <span>Conversar no WhatsApp</span>
               </a>
@@ -769,13 +778,11 @@
                   <span class="contact-icon-circle">${OFFICIAL_ICONS.instagram}</span>
                   <div>
                     <span style="font-size:0.72rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);display:block;">Rede Social Oficial</span>
-                    <strong style="font-family:var(--font-serif);font-size:1.35rem;">Instagram ${escapeHtml(contacts.instagramHandle)}</strong>
+                    <strong style="font-family:var(--font-serif);font-size:1.35rem;">Instagram Oficial</strong>
                   </div>
                 </div>
-                <p style="font-size:0.9rem;font-weight:600;color:var(--text-primary);margin-bottom:4px;">
-                  ${escapeHtml(contacts.instagramHandle)}
-                </p>
-                <p style="font-size:0.82rem;color:var(--text-secondary);">
+                ${isAdminLogged ? `<p style="font-size:0.8rem;color:var(--accent-gold);margin-bottom:4px;">[Admin] ${escapeHtml(contacts.instagramHandle)}</p>` : ''}
+                <p style="font-size:0.84rem;color:var(--text-secondary);">
                   Acompanhe os lançamentos, provadores, combinações e novidades exclusivas no perfil oficial da ${escapeHtml(contacts.storeName)}.
                 </p>
               </div>
@@ -795,14 +802,12 @@
                     <strong style="font-family:var(--font-serif);font-size:1.35rem;">E-mail Comercial</strong>
                   </div>
                 </div>
-                <p style="font-size:0.9rem;font-weight:600;color:var(--text-primary);margin-bottom:4px;">
-                  ${escapeHtml(contacts.email)}
-                </p>
-                <p style="font-size:0.82rem;color:var(--text-secondary);">
+                ${isAdminLogged ? `<p style="font-size:0.8rem;color:var(--accent-gold);margin-bottom:4px;">[Admin] ${escapeHtml(contacts.email)}</p>` : ''}
+                <p style="font-size:0.84rem;color:var(--text-secondary);">
                   Atendimento para solicitações formais, acompanhamento de pedidos, trocas, devoluções e parcerias comerciais.
                 </p>
               </div>
-              <a href="${escapeHtml(contacts.mailtoUrl)}" class="contact-btn-action" aria-label="Enviar e-mail para byangely1@gmail.com">
+              <a href="${escapeHtml(contacts.mailtoUrl)}" class="contact-btn-action" aria-label="Enviar e-mail comercial para a BY ANGÉLY">
                 ${OFFICIAL_ICONS.email}
                 <span>Enviar E-mail Agora</span>
               </a>
@@ -812,14 +817,30 @@
           <div class="checkout-layout">
             <div>
               <div class="admin-card" style="background:var(--bg-primary);margin-bottom:0;">
-                <h3 style="font-family:var(--font-serif);font-size:1.35rem;margin-bottom:12px;">Resumo de Contatos Oficiais — ${escapeHtml(contacts.storeName)}</h3>
-                <p style="font-size:0.88rem;margin-bottom:8px;"><strong>Nome da Loja:</strong> ${escapeHtml(contacts.storeName)}</p>
-                <p style="font-size:0.88rem;margin-bottom:8px;"><strong>Localidade:</strong> ${escapeHtml(settings.city)} - ${escapeHtml(settings.state)}, Brasil</p>
-                <p style="font-size:0.88rem;margin-bottom:8px;"><strong>WhatsApp:</strong> <a href="${escapeHtml(contacts.whatsappUrl)}" target="_blank" rel="noopener noreferrer" style="color:var(--accent-gold);font-weight:600;text-decoration:underline;">${escapeHtml(contacts.whatsappDisplay)}</a></p>
-                <p style="font-size:0.88rem;margin-bottom:8px;"><strong>Link Direto WhatsApp:</strong> <a href="${escapeHtml(contacts.whatsappBaseUrl)}" target="_blank" rel="noopener noreferrer" style="color:var(--accent-gold);text-decoration:underline;">${escapeHtml(contacts.whatsappBaseUrl)}</a></p>
-                <p style="font-size:0.88rem;margin-bottom:8px;"><strong>Instagram Oficial:</strong> <a href="${escapeHtml(contacts.instagramUrl)}" target="_blank" rel="noopener noreferrer" style="color:var(--accent-gold);font-weight:600;text-decoration:underline;">${escapeHtml(contacts.instagramHandle)}</a></p>
-                <p style="font-size:0.88rem;margin-bottom:8px;"><strong>E-mail Comercial:</strong> <a href="${escapeHtml(contacts.mailtoUrl)}" style="color:var(--accent-gold);font-weight:600;text-decoration:underline;">${escapeHtml(contacts.email)}</a></p>
-                <p style="font-size:0.88rem;"><strong>Horário de Atendimento:</strong> ${escapeHtml(settings.businessHours)}</p>
+                <h3 style="font-family:var(--font-serif);font-size:1.4rem;margin-bottom:10px;">Atendimento Personalizado — ${escapeHtml(contacts.storeName)}</h3>
+                <p style="font-size:0.88rem;color:var(--text-secondary);margin-bottom:16px;">
+                  Nossa equipe em <strong>${escapeHtml(settings.city)} - ${escapeHtml(settings.state)}</strong> oferece consultoria de estilo, medidas e acompanhamento completo do seu pedido. Escolha seu canal preferido abaixo:
+                </p>
+                <div style="display:flex;flex-direction:column;gap:10px;">
+                  <a href="${escapeHtml(contacts.whatsappUrl)}" target="_blank" rel="noopener noreferrer" class="contact-btn-action whatsapp-style">
+                    ${OFFICIAL_ICONS.whatsapp}
+                    <span>Atendimento via WhatsApp</span>
+                  </a>
+                  <a href="${escapeHtml(contacts.instagramUrl)}" target="_blank" rel="noopener noreferrer" class="contact-btn-action instagram-style">
+                    ${OFFICIAL_ICONS.instagram}
+                    <span>Visitar Perfil no Instagram</span>
+                  </a>
+                  <a href="${escapeHtml(contacts.mailtoUrl)}" class="contact-btn-action">
+                    ${OFFICIAL_ICONS.email}
+                    <span>Entrar em Contato por E-mail</span>
+                  </a>
+                </div>
+                ${isAdminLogged ? `
+                  <div style="margin-top:16px;padding-top:12px;border-top:1px dashed var(--border-strong);font-size:0.78rem;color:var(--text-secondary);">
+                    <strong>🔒 Dados Internos (Visíveis apenas para Admin):</strong><br/>
+                    WhatsApp: ${escapeHtml(contacts.whatsappDisplay)} | Instagram: ${escapeHtml(contacts.instagramHandle)} | E-mail: ${escapeHtml(contacts.email)}
+                  </div>
+                ` : ''}
               </div>
             </div>
 
@@ -1159,9 +1180,9 @@
               </button>
             `}
           </div>
-          ${activeMedia.credit ? `
+          ${Boolean(AppState.currentAdmin) && activeMedia.credit ? `
             <p style="font-size:0.72rem;color:var(--text-muted);margin-top:6px;">
-              Fonte / Licença da mídia: ${escapeHtml(activeMedia.credit)}
+              [Admin] Fonte / Licença da mídia: ${escapeHtml(activeMedia.credit)}
             </p>
           ` : ''}
           <div class="pdp-thumbs" role="tablist" aria-label="Galeria de fotos e vídeos do produto">
@@ -1179,9 +1200,9 @@
 
         <!-- Coluna Direita: Informações, Variações, Estoque e Medidas -->
         <div>
-          ${product.isDemo ? `
+          ${Boolean(AppState.currentAdmin) && product.isDemo ? `
             <div class="alert-box alert-warning" style="padding:10px 14px;font-size:0.78rem;">
-              <strong>PRODUTO DEMONSTRATIVO (IMAGEM ILUSTRATIVA):</strong> ${escapeHtml(product.demoNotice || 'Peça de exemplo para visualização da estrutura da loja. A proprietária pode editar ou remover no painel.')}
+              <strong>[VISÃO ADMIN] PRODUTO DEMONSTRATIVO:</strong> ${escapeHtml(product.demoNotice || 'Peça de exemplo. Você pode editar ou remover no painel.')}
             </div>
           ` : ''}
 
@@ -2960,15 +2981,26 @@
     initCustomCursor();
     initCookieBanner();
     updateGlobalChrome();
-    renderMainView();
 
-    // Se a URL contiver ?produto=ID (vindo de um link compartilhado ou WhatsApp), abre o produto automaticamente
+    // Suporte a acesso camuflado ao painel administrativo via URL (#admin ou ?admin)
     try {
       const params = new URLSearchParams(window.location.search);
+      if (window.location.hash === '#admin' || params.has('admin')) {
+        AppState.currentView = 'admin';
+      }
+      renderMainView();
       const prodParam = params.get('produto');
       if (prodParam) {
         openProductModal(prodParam);
       }
-    } catch (e) {}
+    } catch (e) {
+      renderMainView();
+    }
+
+    window.addEventListener('hashchange', () => {
+      if (window.location.hash === '#admin') {
+        navigateTo('admin');
+      }
+    });
   });
 })();
