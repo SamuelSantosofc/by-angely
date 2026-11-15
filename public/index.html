@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="By Angély — Loja de Moda Feminina Contemporânea em Itaperuna, Rio de Janeiro. Vestidos, conjuntos, alfaiataria, blusas, calças, saias e acessórios." />
+  <meta name="theme-color" content="#161514" />
+  <title>By Angély — Moda Feminina | Itaperuna, RJ</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <!-- Link de Pulo para Navegação por Teclado (Acessibilidade) -->
+  <a href="#app-main-content" class="skip-link">Pular para o conteúdo principal</a>
+
+  <!-- Cursor Personalizado Editorial Discreto (Somente Desktop, desativado em inputs e quando reduz movimento) -->
+  <div id="custom-cursor-ring" class="custom-cursor-ring" aria-hidden="true"></div>
+
+  <!-- Barra Superior Institucional -->
+  <div class="announcement-bar" role="region" aria-label="Avisos da loja">
+    <div class="announcement-bar-inner">
+      <p id="announcement-text" class="announcement-text">
+        By Angély • Itaperuna, RJ — Moda feminina elegante e atemporal
+      </p>
+      <div class="announcement-links">
+        <button type="button" data-action="toggle-a11y-modal" aria-label="Preferências de Acessibilidade">
+          ♿ Acessibilidade
+        </button>
+        <button type="button" data-action="go-policies" data-tab="references">
+          Licenças &amp; Legislação
+        </button>
+        <button type="button" data-nav-view="admin">
+          🔐 Painel da Proprietária
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Aviso Ostensivo sobre Produtos e Imagens Demonstrativas -->
+  <div id="demo-disclosure-banner" class="demo-disclosure-banner" role="region" aria-label="Aviso de modo demonstrativo">
+    <div class="demo-disclosure-inner">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span class="demo-badge-pill">Modo Demonstração</span>
+        <span>
+          As peças e fotografias iniciais são <strong>meramente ilustrativas</strong> (licenciadas para demonstração) e não representam estoque real. A proprietária pode substituí-las ou removê-las a qualquer momento no Painel.
+        </span>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button type="button" data-action="go-policies" data-tab="references" style="font-weight:700;text-decoration:underline;">
+          Fontes das Imagens
+        </button>
+        <button type="button" data-nav-view="admin" style="font-weight:700;text-decoration:underline;">
+          Gerenciar no Painel →
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cabeçalho Principal -->
+  <header class="site-header" id="site-header">
+    <div class="container header-main">
+      <!-- Esquerda: Menu Mobile + Navegação Desktop -->
+      <div class="header-left">
+        <button type="button" class="mobile-menu-btn" data-action="open-mobile-menu" aria-label="Abrir menu de navegação">
+          ☰
+        </button>
+        <nav class="desktop-nav" aria-label="Navegação principal">
+          <a href="#home" class="nav-link active" data-nav-view="home">Início</a>
+          <a href="#catalog" class="nav-link" data-nav-view="catalog">Catálogo</a>
+          <a href="#contact" class="nav-link" data-nav-view="contact">Contato</a>
+          <a href="#policies" class="nav-link" data-nav-view="policies">Políticas</a>
+          <a href="#admin" class="nav-link" data-nav-view="admin">Painel Admin</a>
+        </nav>
+      </div>
+
+      <!-- Centro: Apresentação Tipográfica Elegante "BY ANGÉLY" (ou Logotipo Enviado) -->
+      <div class="header-center">
+        <a href="#home" id="header-brand-link" data-nav-view="home" aria-label="By Angély — Página Inicial">
+          <span class="brand-wordmark">
+            <span class="brand-by">BY</span>
+            <span class="brand-angely">ANGÉLY</span>
+          </span>
+        </a>
+      </div>
+
+      <!-- Direita: Busca, Conta, Favoritos e Sacola -->
+      <div class="header-right">
+        <button type="button" class="icon-action-btn" data-action="go-catalog" aria-label="Buscar produtos no catálogo" title="Buscar no catálogo">
+          <span>🔍</span>
+          <span class="btn-label-desktop">Buscar</span>
+        </button>
+        <button type="button" class="icon-action-btn" data-nav-view="account" aria-label="Minha Conta e Pedidos" title="Minha Conta">
+          <span>👤</span>
+          <span class="btn-label-desktop" id="header-account-label">Conta</span>
+        </button>
+        <button type="button" class="icon-action-btn" data-nav-view="favorites" aria-label="Peças Favoritas" title="Meus Favoritos">
+          <span>♡</span>
+          <span class="badge-counter" id="header-wishlist-count">0</span>
+        </button>
+        <button type="button" class="icon-action-btn" data-action="open-cart" aria-label="Abrir sacola de compras" title="Sacola de Compras">
+          <span>🛍️</span>
+          <span class="btn-label-desktop">Sacola</span>
+          <span class="badge-counter" id="header-cart-count">0</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Faixa de Categorias Editáveis -->
+    <nav class="category-strip" aria-label="Categorias de produtos">
+      <div class="category-strip-inner" id="header-category-strip"></div>
+    </nav>
+  </header>
+
+  <!-- Conteúdo Principal Dinâmico -->
+  <main id="app-main-content" tabindex="-1"></main>
+
+  <!-- Rodapé Institucional Completo -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <div id="footer-brand-logo" style="margin-bottom:16px;">
+            <span class="brand-wordmark stacked">
+              <span class="brand-by">BY</span>
+              <span class="brand-angely">ANGÉLY</span>
+            </span>
+          </div>
+          <div id="footer-store-info"></div>
+        </div>
+
+        <div>
+          <h2 class="footer-heading">Categorias</h2>
+          <ul class="footer-links">
+            <li><button type="button" data-action="filter-category" data-category="vestidos">Vestidos</button></li>
+            <li><button type="button" data-action="filter-category" data-category="conjuntos">Conjuntos</button></li>
+            <li><button type="button" data-action="filter-category" data-category="blusas">Blusas &amp; Camisas</button></li>
+            <li><button type="button" data-action="filter-category" data-category="calcas">Calças</button></li>
+            <li><button type="button" data-action="filter-category" data-category="saias">Saias</button></li>
+            <li><button type="button" data-action="filter-category" data-category="acessorios">Acessórios</button></li>
+          </ul>
+        </div>
+
+        <div>
+          <h2 class="footer-heading">Atendimento &amp; Área da Cliente</h2>
+          <ul class="footer-links">
+            <li><button type="button" data-nav-view="account">Minha Conta / Login</button></li>
+            <li><button type="button" data-nav-view="account">Acompanhar Pedidos e Rastreio</button></li>
+            <li><button type="button" data-nav-view="favorites">Lista de Favoritos</button></li>
+            <li><button type="button" data-nav-view="contact">Canais Oficiais de Contato</button></li>
+            <li><a href="https://wa.me/5528999871458?text=Ol%C3%A1!%20Vim%20pelo%20site%20da%20BY%20ANG%C3%89LY%20e%20gostaria%20de%20conhecer%20os%20produtos." target="_blank" rel="noopener noreferrer">WhatsApp: +55 28 99987-1458 ↗</a></li>
+            <li><a href="https://www.instagram.com/_by.angely?dlrf=OXJrN2EwdHNka21x" target="_blank" rel="noopener noreferrer">Instagram: @_by.angely ↗</a></li>
+            <li><a href="mailto:byangely1@gmail.com">E-mail: byangely1@gmail.com</a></li>
+            <li><button type="button" data-action="open-return-request">Solicitar Troca ou Devolução</button></li>
+            <li><button type="button" data-action="toggle-a11y-modal">Preferências de Acessibilidade</button></li>
+          </ul>
+        </div>
+
+        <div>
+          <h2 class="footer-heading">Políticas, Segurança &amp; Gestão</h2>
+          <ul class="footer-links">
+            <li><button type="button" data-action="go-policies" data-tab="privacy">Política de Privacidade (LGPD)</button></li>
+            <li><button type="button" data-action="go-policies" data-tab="terms">Termos de Uso</button></li>
+            <li><button type="button" data-action="go-policies" data-tab="shipping">Política de Entrega e Retirada</button></li>
+            <li><button type="button" data-action="go-policies" data-tab="returns">Trocas, Devoluções e CDC (Art. 49)</button></li>
+            <li><button type="button" data-action="go-policies" data-tab="references">Licenças das Imagens &amp; Fontes Legais</button></li>
+            <li><button type="button" data-nav-view="admin" style="color:#E5DACB;font-weight:600;">🔐 Acessar Painel da Proprietária</button></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <p>© 2026 By Angély — Itaperuna, Rio de Janeiro. Loja exclusiva da marca (sem marketplace ou vendedores terceiros).</p>
+        <p>Pagamentos seguros (Pix EMV Banco Central &amp; Checkout Externo PCI-DSS) • Conformidade LGPD e Decreto nº 7.962/2013.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Modal de Detalhes do Produto -->
+  <div class="modal-backdrop" id="product-detail-modal" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Detalhes do Produto">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <span style="font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--accent-gold);">
+          Ficha Completa da Peça • By Angély
+        </span>
+        <button type="button" class="modal-close-btn" data-action="close-product-modal" aria-label="Fechar detalhes do produto">✕</button>
+      </div>
+      <div id="product-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Lightbox para Ampliar Foto em Alta Resolução -->
+  <div class="lightbox-overlay" id="lightbox-overlay" role="dialog" aria-modal="true" aria-label="Imagem ampliada">
+    <button type="button" class="modal-close-btn" data-action="close-lightbox" aria-label="Fechar zoom" style="position:fixed;top:24px;right:24px;background:#FFF;">✕</button>
+    <img src="" alt="" id="lightbox-img" />
+  </div>
+
+  <!-- Gaveta Lateral da Sacola de Compras -->
+  <div class="drawer-backdrop" id="cart-drawer-backdrop" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Sacola de Compras">
+    <div class="drawer-panel">
+      <div class="drawer-header">
+        <h2 style="font-family:var(--font-serif);font-size:1.55rem;">Minha Sacola</h2>
+        <button type="button" class="modal-close-btn" data-action="close-cart" aria-label="Fechar sacola">✕</button>
+      </div>
+      <div class="drawer-body" id="cart-drawer-body"></div>
+      <div class="drawer-footer" id="cart-drawer-footer"></div>
+    </div>
+  </div>
+
+  <!-- Menu Mobile Responsivo (Drawer Esquerdo) -->
+  <div class="drawer-backdrop" id="mobile-menu-backdrop" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Menu principal celular">
+    <div class="drawer-panel left">
+      <div class="drawer-header">
+        <span class="brand-wordmark">
+          <span class="brand-by">BY</span>
+          <span class="brand-angely" style="font-size:1.45rem;">ANGÉLY</span>
+        </span>
+        <button type="button" class="modal-close-btn" data-action="close-mobile-menu" aria-label="Fechar menu">✕</button>
+      </div>
+      <div class="drawer-body" style="display:flex;flex-direction:column;gap:10px;">
+        <button type="button" class="btn btn-subtle btn-block" style="justify-content:flex-start;" data-nav-view="home">🏠 Página Inicial</button>
+        <button type="button" class="btn btn-subtle btn-block" style="justify-content:flex-start;" data-action="go-catalog">👗 Catálogo Completo</button>
+        <button type="button" class="btn btn-subtle btn-block" style="justify-content:flex-start;" data-action="filter-promo">🏷️ Promoções</button>
+        <button type="button" class="btn btn-subtle btn-block" style="justify-content:flex-start;" data-nav-view="favorites">♡ Meus Favoritos</button>
+        <button type="button" class="btn btn-subtle btn-block" style="justify-content:flex-start;" data-nav-view="account">👤 Minha Conta &amp; Pedidos</button>
+        <button type="button" class="btn btn-subtle btn-block" style="justify-content:flex-start;" data-nav-view="contact">💬 Contato &amp; Redes Sociais</button>
+        <button type="button" class="btn btn-subtle btn-block" style="justify-content:flex-start;" data-nav-view="policies">⚖️ Políticas, Trocas &amp; LGPD</button>
+        <a href="https://wa.me/5528999871458?text=Ol%C3%A1!%20Vim%20pelo%20site%20da%20BY%20ANG%C3%89LY%20e%20gostaria%20de%20conhecer%20os%20produtos." target="_blank" rel="noopener noreferrer" class="contact-btn-action whatsapp-style" style="width:100%;margin-top:6px;">
+          WhatsApp +55 28 99987-1458
+        </a>
+        <a href="https://www.instagram.com/_by.angely?dlrf=OXJrN2EwdHNka21x" target="_blank" rel="noopener noreferrer" class="contact-btn-action instagram-style" style="width:100%;">
+          Instagram @_by.angely
+        </a>
+        <a href="mailto:byangely1@gmail.com" class="contact-btn-action" style="width:100%;">
+          E-mail: byangely1@gmail.com
+        </a>
+        <button type="button" class="btn btn-gold btn-block" style="justify-content:flex-start;margin-top:12px;" data-nav-view="admin">🔐 Painel da Proprietária</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Preferências de Acessibilidade -->
+  <div class="modal-backdrop" id="a11y-modal-backdrop" role="dialog" aria-modal="true" aria-label="Opções de Acessibilidade">
+    <div class="modal-dialog" style="max-width:480px;">
+      <div class="modal-header">
+        <h2 style="font-family:var(--font-serif);font-size:1.45rem;">♿ Acessibilidade e Conforto Visual</h2>
+        <button type="button" class="modal-close-btn" data-action="toggle-a11y-modal" aria-label="Fechar acessibilidade">✕</button>
+      </div>
+      <div style="padding:22px;display:flex;flex-direction:column;gap:14px;">
+        <label style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;">
+          <span><strong>Reduzir Animações e Movimento</strong><br /><small style="color:var(--text-secondary);">Desativa transições visuais suaves</small></span>
+          <input type="checkbox" id="a11y-reduce-motion" />
+        </label>
+        <label style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;">
+          <span><strong>Modo de Alto Contraste</strong><br /><small style="color:var(--text-secondary);">Reforça bordas e contraste de leitura</small></span>
+          <input type="checkbox" id="a11y-high-contrast" />
+        </label>
+        <label style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;">
+          <span><strong>Aumentar Tamanho dos Textos</strong><br /><small style="color:var(--text-secondary);">Amplia a fonte em toda a loja</small></span>
+          <input type="checkbox" id="a11y-large-text" />
+        </label>
+        <label style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;">
+          <span><strong>Usar Apenas Cursor Padrão do Sistema</strong><br /><small style="color:var(--text-secondary);">Oculta o anel decorativo em computadores</small></span>
+          <input type="checkbox" id="a11y-disable-cursor" />
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Banner de Consentimento de Cookies (Guia Orientativo ANPD / LGPD) -->
+  <aside class="cookie-banner" id="cookie-consent-banner" role="region" aria-label="Preferências de Privacidade e Cookies">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:18px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:260px;">
+        <strong style="font-size:0.92rem;display:block;margin-bottom:4px;">Privacidade e Cookies (LGPD / Guia ANPD)</strong>
+        <p style="font-size:0.8rem;color:var(--text-secondary);">
+          Utilizamos cookies estritamente necessários para o funcionamento da sua sacola de compras e segurança da sessão. Cookies analíticos ou de marketing vêm desativados por padrão. Consulte nossa <button type="button" data-action="go-policies" data-tab="privacy" style="text-decoration:underline;font-weight:600;">Política de Privacidade</button>.
+        </p>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button type="button" class="btn btn-outline btn-sm" id="btn-cookies-essential">Aceitar Apenas Necessários</button>
+        <button type="button" class="btn btn-primary btn-sm" id="btn-cookies-all">Aceitar Todos</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Botão Flutuante de Atendimento WhatsApp BY ANGÉLY -->
+  <a
+    href="https://wa.me/5528999871458?text=Ol%C3%A1!%20Vim%20pelo%20site%20da%20BY%20ANG%C3%89LY%20e%20gostaria%20de%20conhecer%20os%20produtos."
+    target="_blank"
+    rel="noopener noreferrer"
+    class="floating-whatsapp-concierge"
+    aria-label="Conversar pelo WhatsApp Oficial da BY ANGÉLY"
+    title="Falar com a BY ANGÉLY no WhatsApp (+55 28 99987-1458)"
+  >
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.031 0C5.385 0 0 5.385 0 12.031c0 2.124.553 4.195 1.604 6.018L.099 23.541l5.631-1.477a11.986 11.986 0 006.301 1.787h.005c6.645 0 12.03-5.385 12.03-12.031 0-3.214-1.252-6.236-3.524-8.508C18.268 1.039 15.245 0 12.031 0zm6.564 17.243c-.277.781-1.613 1.491-2.238 1.588-.578.088-1.309.125-2.115-.131-.491-.156-1.119-.366-1.922-.712-3.379-1.459-5.586-4.863-5.755-5.088-.168-.225-1.375-1.829-1.375-3.489 0-1.66 0.869-2.476 1.178-2.813.309-.338.675-.422.9-.422.225 0 .45.003.647.012.208.01.486-.079.76.579.281.675.956 2.334 1.041 2.503.084.169.141.366.028.591-.113.225-.169.366-.338.563-.169.197-.355.441-.506.591-.169.169-.345.352-.148.69.197.338.874 1.442 1.877 2.337 1.29 1.15 2.378 1.506 2.716 1.675.338.169.534.141.731-.084.197-.225.844-.984 1.069-1.322.225-.338.45-.281.759-.169.309.113 1.969.928 2.306 1.097.338.169.563.253.647.394.084.141.084.816-.193 1.597z"/></svg>
+    <span>Atendimento WhatsApp</span>
+  </a>
+
+  <!-- Container de Notificações Visuais (Toasts) -->
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <!-- Scripts da Aplicação -->
+  <script src="js/cloud-config.js"></script>
+  <script src="js/pix-qrcode.js"></script>
+  <script src="js/store-data.js"></script>
+  <script src="js/admin.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
