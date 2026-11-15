@@ -5402,5 +5402,227 @@ app.showToast('Erro ao exportar relatório CSV.', 'danger');
 }
 }
 });
-})();
+  
+// === V6 ADMIN COMPLETE FIX (ANALYTICS TAB + V3 HANDLERS + MOBILE PAYMENT CARDS) ===
+renderActiveAdminSection = function () {
+  switch (AdminState.activeSection) {
+    case 'dashboard': return renderDashboardSection();
+    case 'analytics': return renderAnalyticsSection();
+    case 'products': return renderProductsSection();
+    case 'categories': return renderCategoriesBannersCouponsSection();
+    case 'orders': return renderOrdersSection();
+    case 'customers': return renderCustomersSection();
+    case 'payments': return renderPaymentsSection();
+    case 'shipping': return renderShippingSection();
+    case 'branding': return renderBrandingSection();
+    case 'policies': return renderPoliciesEditorSection();
+    case 'users': return renderUsersSection();
+    default: return renderDashboardSection();
+  }
+};
 
+const _prevApplyMobileCardLabelsV6Fix = applyMobileCardLabelsToAdminTables;
+applyMobileCardLabelsToAdminTables = function (rootEl) {
+  if (!rootEl) return;
+  rootEl.querySelectorAll('table.data-table').forEach((tbl) => {
+    const firstTh = tbl.querySelector('thead th');
+    if (firstTh && (firstTh.textContent || '').toUpperCase().includes('FORMA DE VENDA')) {
+      tbl.classList.add('admin-payment-methods-table');
+      const card = tbl.closest('.admin-card');
+      if (card) card.id = 'admin-payment-methods-activation-card';
+      if (tbl.parentElement) tbl.parentElement.classList.add('admin-table-responsive-wrap');
+      tbl.querySelectorAll('tbody tr').forEach((tr) => {
+        tr.classList.add('admin-payment-method-row');
+        const tds = tr.querySelectorAll('td');
+        if (tds[0]) {
+          tds[0].classList.add('pm-cell-title');
+          tds[0].setAttribute('data-label', 'Configuração');
+          const st = tds[0].querySelector('strong');
+          if (st) st.classList.add('pm-method-name');
+          const dv = tds[0].querySelector('div');
+          if (dv) dv.classList.add('pm-method-desc');
+        }
+        if (tds[1]) {
+          tds[1].classList.add('pm-cell-state');
+          tds[1].setAttribute('data-label', 'Estado Atual');
+        }
+        if (tds[2]) {
+          tds[2].classList.add('pm-cell-integration');
+          tds[2].setAttribute('data-label', 'Status da Integração');
+          const dv2 = tds[2].querySelector('div');
+          if (dv2) dv2.classList.add('pm-integration-detail');
+        }
+        if (tds[3]) {
+          tds[3].classList.add('pm-cell-action');
+          tds[3].setAttribute('data-label', 'Ação');
+          const bt = tds[3].querySelector('button');
+          if (bt) bt.classList.add('pm-action-btn');
+        }
+      });
+    }
+  });
+  _prevApplyMobileCardLabelsV6Fix(rootEl);
+};
+
+const _prevBindAdminWorkspaceEventsV6Fix = bindAdminWorkspaceEvents;
+bindAdminWorkspaceEvents = function (containerEl) {
+  _prevBindAdminWorkspaceEventsV6Fix(containerEl);
+  const app = window.ByAngelyApp;
+  if (!app || !app.getState().currentAdmin) return;
+  const db = app.getState().db;
+  const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+
+  async function updateOrderStatusOnServer(orderId, newStatus, trackingCode) {
+    try {
+      const res = await fetch(apiBase + '/api/admin/orders/' + encodeURIComponent(orderId) + '/status', {
+        method: 'POST',
+        headers: getAdminHeadersV6(app),
+        body: JSON.stringify({
+          status: newStatus,
+          trackingCode,
+          actorName: app.getState().currentAdmin ? app.getState().currentAdmin.name : 'Proprietária BY ANGÉLY'
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data && data.ok && data.order) {
+        const idx = (db.orders || []).findIndex((o) => o.id === orderId);
+        if (idx >= 0) db.orders[idx] = data.order;
+        app.saveDatabase('Pedido ' + data.order.orderNumber + ' atualizado para ' + data.order.statusLabel);
+        app.showToast('Status do pedido ' + data.order.orderNumber + ' atualizado para "' + data.order.statusLabel + '"!', 'success');
+        renderAdminView(containerEl);
+        return;
+      }
+    } catch (e) {}
+    const ord = (db.orders || []).find((o) => o.id === orderId);
+    if (ord) {
+      const opt = (typeof FULL_ORDER_STATUS_OPTIONS !== 'undefined' ? FULL_ORDER_STATUS_OPTIONS : []).find((x) => x.value === newStatus);
+      ord.status = newStatus;
+      ord.statusLabel = opt ? opt.label : newStatus;
+      if (trackingCode !== undefined && ord.shipping) ord.shipping.trackingCode = trackingCode;
+      app.saveDatabase('Pedido ' + ord.orderNumber + ' atualizado para ' + ord.statusLabel);
+      app.showToast('Pedido ' + ord.orderNumber + ' atualizado!', 'success');
+      renderAdminView(containerEl);
+    }
+  }
+
+  containerEl.querySelectorAll('[data-admin-quick-status]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const oid = btn.getAttribute('data-order-id');
+      const nextSt = btn.getAttribute('data-admin-quick-status');
+      const trInp = containerEl.querySelector('#ord-track-' + oid);
+      const trVal = trInp ? trInp.value.trim() : undefined;
+      updateOrderStatusOnServer(oid, nextSt, trVal);
+    });
+  });
+  containerEl.querySelectorAll('[data-action-admin="save-order-update"]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      const oid = btn.getAttribute('data-order-id');
+      const stSel = containerEl.querySelector('#ord-status-' + oid);
+      const trInp = containerEl.querySelector('#ord-track-' + oid);
+      if (oid && stSel) {
+        updateOrderStatusOnServer(oid, stSel.value, trInp ? trInp.value.trim() : undefined);
+      }
+    }, true);
+  });
+
+  const pixExpForm = containerEl.querySelector('#admin-pix-expiration-form');
+  if (pixExpForm) {
+    pixExpForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(pixExpForm);
+      const mins = Math.max(1, Math.min(120, Number(fd.get('expirationMinutes')) || 15));
+      db.paymentSettings.pix.expirationMinutes = mins;
+      await app.saveDatabase('Prazo de expiração do QR Code Pix ajustado para ' + mins + ' minutos.');
+      app.showToast('Prazo de expiração do Pix salvo (' + mins + ' minutos)!', 'success');
+      renderAdminView(containerEl);
+    });
+  }
+
+  containerEl.querySelectorAll('[data-admin-review-action]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const act = btn.getAttribute('data-admin-review-action');
+      const rid = btn.getAttribute('data-review-id');
+      const rev = (db.reviews || []).find((r) => r.id === rid);
+      if (!rev) return;
+      if (act === 'toggle') {
+        rev.status = rev.status === 'hidden' ? 'approved' : 'hidden';
+        await app.saveDatabase('Avaliação de ' + rev.customerName + ' ' + (rev.status === 'hidden' ? 'ocultada' : 'aprovada') + '.');
+        app.showToast('Visibilidade da avaliação atualizada!', 'success');
+        renderAdminView(containerEl);
+      } else if (act === 'delete') {
+        db.reviews = (db.reviews || []).filter((r) => r.id !== rid);
+        await app.saveDatabase('Avaliação de ' + rev.customerName + ' removida.');
+        app.showToast('Avaliação excluída.');
+        renderAdminView(containerEl);
+      }
+    });
+  });
+
+  const homeSecForm = containerEl.querySelector('#admin-home-sections-form');
+  if (homeSecForm) {
+    homeSecForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(homeSecForm);
+      db.storeSettings.homeSections = {
+        hero: fd.get('hero') === 'on',
+        featured: fd.get('featured') === 'on',
+        newArrivals: fd.get('newArrivals') === 'on',
+        promotions: fd.get('promotions') === 'on',
+        categories: fd.get('categories') === 'on',
+        brandStory: fd.get('brandStory') === 'on'
+      };
+      await app.saveDatabase('Seções visíveis da Página Inicial atualizadas.');
+      app.showToast('Organização da Página Inicial salva com sucesso!', 'success');
+      renderAdminView(containerEl);
+    });
+  }
+};
+
+const _prevRenderAdminViewV6Fix = renderAdminView;
+renderAdminView = function (containerEl) {
+  const desiredSection = AdminState.activeSection;
+  _prevRenderAdminViewV6Fix(containerEl);
+  const app = window.ByAngelyApp;
+  const state = app && app.getState ? app.getState() : {};
+  if (!state.currentAdmin) return;
+
+  const sidebar = containerEl.querySelector('.admin-sidebar');
+  if (sidebar && !sidebar.querySelector('[data-admin-section="analytics"]')) {
+    const dashBtn = sidebar.querySelector('[data-admin-section="dashboard"]');
+    if (dashBtn) {
+      const anBtn = document.createElement('button');
+      anBtn.type = 'button';
+      anBtn.className = 'admin-nav-btn ' + (desiredSection === 'analytics' ? 'active' : '');
+      anBtn.setAttribute('data-admin-section', 'analytics');
+      anBtn.innerHTML = (typeof ADMIN_ICONS !== 'undefined' && ADMIN_ICONS.dashboard ? ADMIN_ICONS.dashboard : '') + '<span>ANÁLISE DA LOJA</span>';
+      dashBtn.insertAdjacentElement('afterend', anBtn);
+      anBtn.addEventListener('click', () => {
+        AdminState.activeSection = 'analytics';
+        AdminState.mobileMenuOpen = false;
+        renderAdminView(containerEl);
+      });
+    }
+  }
+
+  if (desiredSection === 'analytics') {
+    AdminState.activeSection = 'analytics';
+    containerEl.querySelectorAll('[data-admin-section]').forEach((b) => {
+      b.classList.toggle('active', b.getAttribute('data-admin-section') === 'analytics');
+    });
+    containerEl.querySelectorAll('[data-admin-top-nav]').forEach((b) => {
+      b.classList.toggle('active', b.getAttribute('data-admin-top-nav') === 'analytics');
+    });
+    const ws = containerEl.querySelector('#admin-section-workspace');
+    if (ws) {
+      ws.innerHTML = renderAnalyticsSection();
+      applyMobileCardLabelsToAdminTables(ws);
+    }
+  } else {
+    const ws = containerEl.querySelector('#admin-section-workspace');
+    if (ws) applyMobileCardLabelsToAdminTables(ws);
+  }
+};
+window.ByAngelyAdmin.renderAdminView = renderAdminView;
+})();
