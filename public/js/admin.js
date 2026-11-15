@@ -5650,14 +5650,7 @@ renderAdminView = function (containerEl) {
     if (ws) applyMobileCardLabelsToAdminTables(ws);
   }
 };
-window.ByAngelyAdmin.renderAdminView = renderAdminView;
-function getAdminHeadersV6(app) {
-  const currentAdmin = (app && app.getState && app.getState().currentAdmin) || {};
-  const token = currentAdmin.token || currentAdmin.sessionToken || 'by-angely-admin-token';
-  return {
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer ' + token,
-    'x-admin-token': token
+    window.ByAngelyAdmin.renderAdminView = renderAdminView;
   function getAdminHeadersV6(app) {
   const currentAdmin = (app && app.getState && app.getState().currentAdmin) || {};
   const token = currentAdmin.token || currentAdmin.sessionToken || 'by-angely-admin-token';
