@@ -4058,3 +4058,196 @@
     }
   });
 })();
+
+  // =========================================================================
+  // PATCH DE REESTRUTURAÇÃO DA SACOLA MOBILE E SANITIZAÇÃO DE TAMANHOS (V3.1)
+  // =========================================================================
+  Object.assign(OFFICIAL_ICONS, {
+    instagram: '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="width:18px;height:18px;flex-shrink:0;" aria-hidden="true"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>',
+    whatsapp: '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="width:18px;height:18px;flex-shrink:0;" aria-hidden="true"><path d="M12.031 0C5.385 0 0 5.385 0 12.031c0 2.124.553 4.195 1.604 6.018L.099 23.541l5.631-1.477a11.986 11.986 0 006.301 1.787h.005c6.645 0 12.03-5.385 12.03-12.031 0-3.214-1.252-6.236-3.524-8.508C18.268 1.039 15.245 0 12.031 0zm6.564 17.243c-.277.781-1.613 1.491-2.238 1.588-.578.088-1.309.125-2.115-.131-.491-.156-1.119-.366-1.922-.712-3.379-1.459-5.586-4.863-5.755-5.088-.168-.225-1.375-1.829-1.375-3.489 0-1.66 0.869-2.476 1.178-2.813.309-.338.675-.422.9-.422.225 0 .45.003.647.012.208.01.486-.079.76.579.281.675.956 2.334 1.041 2.503.084.169.141.366.028.591-.113.225-.169.366-.338.563-.169.197-.355.441-.506.591-.169.169-.345.352-.148.69.197.338.874 1.442 1.877 2.337 1.29 1.15 2.378 1.506 2.716 1.675.338.169.534.141.731-.084.197-.225.844-.984 1.069-1.322.225-.338.45-.281.759-.169.309.113 1.969.928 2.306 1.097.338.169.563.253.647.394.084.141.084.816-.193 1.597z"/></svg>',
+    email: '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="width:18px;height:18px;flex-shrink:0;" aria-hidden="true"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>'
+  });
+
+  function isValidClothingSize(sz) {
+    if (sz === null || sz === undefined) return false;
+    const s = String(sz).trim();
+    if (!s) return false;
+    return !['0', '00', 'null', 'undefined', 'nan', '-', 'nenhum', 'n/a'].includes(s.toLowerCase());
+  }
+
+  function isValidColorName(clr) {
+    if (clr === null || clr === undefined) return false;
+    const s = String(clr).trim();
+    if (!s) return false;
+    return !['0', '00', 'null', 'undefined', 'nan', '-'].includes(s.toLowerCase());
+  }
+
+  function sanitizeCartItems() {
+    if (AppState.db && Array.isArray(AppState.db.products)) {
+      AppState.db.products.forEach((p) => {
+        if (!p) return;
+        const cleaned = Array.isArray(p.sizes) ? p.sizes.filter(isValidClothingSize) : [];
+        p.sizes = cleaned.length > 0 ? cleaned : ['P', 'M', 'G'];
+        if (Array.isArray(p.variations)) {
+          p.variations.forEach((v) => {
+            if (v && !isValidClothingSize(v.size)) v.size = p.sizes[0] || 'M';
+            if (v && !isValidColorName(v.color)) v.color = (p.colors && p.colors[0] && p.colors[0].name) || 'Padrão';
+          });
+        }
+      });
+    }
+    if (!Array.isArray(AppState.cart) || AppState.cart.length === 0) return;
+    let changed = false;
+    AppState.cart = AppState.cart.map((item) => {
+      if (!item) return item;
+      const prod = AppState.db && Array.isArray(AppState.db.products)
+        ? AppState.db.products.find((p) => p.id === item.productId || p.sku === item.sku || p.name === item.name)
+        : null;
+      let cleanSize = isValidClothingSize(item.size) ? String(item.size).trim() : '';
+      if (!cleanSize && prod && Array.isArray(prod.sizes)) {
+        const firstValid = prod.sizes.find(isValidClothingSize);
+        if (firstValid) cleanSize = firstValid;
+      }
+      let cleanColor = isValidColorName(item.color) ? String(item.color).trim() : '';
+      if (!cleanColor && prod && Array.isArray(prod.colors) && prod.colors[0]) {
+        cleanColor = prod.colors[0].name || '';
+      }
+      const newKey = item.productId + '__' + cleanSize + '__' + cleanColor;
+      if (cleanSize !== item.size || cleanColor !== item.color || newKey !== item.key) {
+        changed = true;
+        return { ...item, size: cleanSize, color: cleanColor, key: newKey };
+      }
+      return item;
+    });
+    if (changed) saveCart();
+  }
+
+  function addToCart(productId, size, color, quantity = 1) {
+    sanitizeCartItems();
+    const qty = Math.max(1, Number(quantity) || 1);
+    const product = AppState.db.products.find((p) => p.id === productId);
+    if (!product) return false;
+    const cleanSize = isValidClothingSize(size)
+      ? String(size).trim()
+      : (Array.isArray(product.sizes) ? (product.sizes.find(isValidClothingSize) || '') : '');
+    const cleanColor = isValidColorName(color)
+      ? String(color).trim()
+      : (Array.isArray(product.colors) && product.colors[0] ? (product.colors[0].name || '') : '');
+    const available = getVariationStock(product, cleanSize, cleanColor);
+    if (available <= 0) {
+      showToast('Esta variação de tamanho e cor está sem estoque.', 'danger');
+      return false;
+    }
+    const key = productId + '__' + cleanSize + '__' + cleanColor;
+    const existing = AppState.cart.find((item) => item.key === key);
+    if (existing) {
+      if (existing.quantity + qty > available) {
+        showToast('Estoque máximo atingido (' + available + ' un. disponíveis).', 'warning');
+        return false;
+      }
+      existing.quantity += qty;
+    } else {
+      const firstImg = (product.media || []).find((m) => m.type === 'image') || { url: '' };
+      AppState.cart.push({
+        key,
+        productId: product.id,
+        sku: product.sku,
+        name: product.name,
+        size: cleanSize,
+        color: cleanColor,
+        unitPrice: getEffectivePrice(product),
+        imageUrl: firstImg.url,
+        isDemo: !!product.isDemo,
+        quantity: Math.min(qty, available)
+      });
+    }
+    saveCart();
+    updateGlobalChrome();
+    renderCartDrawer();
+    showToast('"' + product.name + '" adicionado à sacola!', 'success');
+    return true;
+  }
+
+  function renderCartDrawer() {
+    const bodyEl = document.getElementById('cart-drawer-body');
+    const footerEl = document.getElementById('cart-drawer-footer');
+    if (!bodyEl || !footerEl) return;
+    sanitizeCartItems();
+    if (AppState.cart.length === 0) {
+      bodyEl.innerHTML = '<div class="cart-empty-state"><p class="cart-empty-title">Sua sacola está vazia</p><p class="cart-empty-sub">Adicione peças da coleção BY ANGÉLY para iniciar seu pedido.</p><button type="button" class="btn btn-primary btn-sm" data-action="close-cart-go-catalog">Explorar Peças</button></div>';
+      footerEl.innerHTML = '';
+      return;
+    }
+    const totals = calculateCartTotals();
+    const shippingMethods = (AppState.db.shippingSettings.methods || []).filter((m) => m.enabled);
+    bodyEl.innerHTML = '<div class="cart-items-list">' + AppState.cart.map((item) => {
+      const itemSubtotal = (Number(item.unitPrice) || 0) * (Number(item.quantity) || 1);
+      const metaParts = [];
+      if (isValidClothingSize(item.size)) metaParts.push('Tamanho: <strong>' + escapeHtml(item.size) + '</strong>');
+      if (isValidColorName(item.color)) metaParts.push('Cor: <strong>' + escapeHtml(item.color) + '</strong>');
+      const metaHtml = metaParts.length > 0 ? '<div class="cart-item-meta">' + metaParts.join(' <span aria-hidden="true">•</span> ') + '</div>' : '';
+      const imgUrl = escapeHtml(item.imageUrl || CATEGORY_COVER_FALLBACKS.vestidos);
+      const fallbackUrl = escapeHtml(CATEGORY_COVER_FALLBACKS.vestidos);
+      return '<article class="cart-item-card">' +
+        '<img src="' + imgUrl + '" alt="' + escapeHtml(item.name) + '" class="cart-item-thumb" onerror="this.onerror=null;this.src=\'' + fallbackUrl + '\';" />' +
+        '<div class="cart-item-info">' +
+          '<strong class="cart-item-title">' + escapeHtml(item.name) + '</strong>' +
+          metaHtml +
+          '<div class="cart-item-prices"><span>Unitário: ' + formatBRL(item.unitPrice) + '</span><span aria-hidden="true">•</span><strong class="cart-item-subtotal">Subtotal: ' + formatBRL(itemSubtotal) + '</strong></div>' +
+          '<div class="cart-item-actions-row">' +
+            '<div class="qty-stepper cart-qty-stepper" role="group" aria-label="Quantidade de ' + escapeHtml(item.name) + '">' +
+              '<button type="button" class="qty-stepper-btn" data-action="cart-qty-dec" data-key="' + escapeHtml(item.key) + '" aria-label="Diminuir quantidade">−</button>' +
+              '<span class="qty-stepper-val">' + item.quantity + '</span>' +
+              '<button type="button" class="qty-stepper-btn" data-action="cart-qty-inc" data-key="' + escapeHtml(item.key) + '" aria-label="Aumentar quantidade">+</button>' +
+            '</div>' +
+            '<button type="button" class="cart-item-remove-btn" data-action="cart-remove" data-key="' + escapeHtml(item.key) + '" aria-label="Remover ' + escapeHtml(item.name) + ' da sacola" title="Remover produto">' +
+              '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>' +
+              '<span>Remover</span>' +
+            '</button>' +
+          '</div>' +
+        '</div>' +
+      '</article>';
+    }).join('') + '</div>' +
+    '<div class="cart-section-box">' +
+      '<label for="cart-coupon-input" class="cart-section-label">Cupom de Desconto</label>' +
+      '<div class="cart-coupon-row">' +
+        '<input type="text" id="cart-coupon-input" class="form-control cart-coupon-input" placeholder="Ex.: BEMVINDO10" value="' + (AppState.appliedCoupon ? escapeHtml(AppState.appliedCoupon.code) : '') + '" />' +
+        '<button type="button" class="btn btn-outline btn-sm cart-coupon-btn" data-action="apply-coupon">Aplicar</button>' +
+      '</div>' +
+      (AppState.appliedCoupon ? '<p class="cart-coupon-feedback">✓ Cupom <strong>' + escapeHtml(AppState.appliedCoupon.code) + '</strong> aplicado (-' + formatBRL(totals.discount) + ')</p>' : '') +
+    '</div>' +
+    '<div class="cart-section-box">' +
+      '<label for="cart-shipping-select" class="cart-section-label">Modalidade de Entrega / Retirada</label>' +
+      '<select id="cart-shipping-select" class="form-control cart-shipping-select">' +
+        shippingMethods.map((m) => '<option value="' + escapeHtml(m.id) + '" ' + (totals.shippingMethod && totals.shippingMethod.id === m.id ? 'selected' : '') + '>' + escapeHtml(m.name) + ' (' + (m.priceStatus === 'confirmed' ? (m.price === 0 ? 'Grátis' : formatBRL(m.price)) : 'A confirmar') + ')</option>').join('') +
+      '</select>' +
+      (totals.shippingMethod ? '<div class="cart-shipping-note"><span><strong>Status do frete:</strong> ' + (totals.shippingMethod.priceStatus === 'confirmed' ? (totals.shippingMethod.price === 0 ? 'Grátis' : formatBRL(totals.shippingMethod.price)) : 'Valor a confirmar') + '</span><span>' + escapeHtml(totals.shippingMethod.estimatedDays) + '</span></div>' : '') +
+    '</div>';
+
+    const activePayOpts = getAvailableCheckoutPaymentOptions();
+    const isOnlyWhatsapp = activePayOpts.length === 1 && activePayOpts[0].id === 'whatsapp';
+    footerEl.innerHTML =
+      '<div class="cart-summary-list">' +
+        '<div class="cart-summary-row"><span>Subtotal dos itens</span><strong>' + formatBRL(totals.subtotal) + '</strong></div>' +
+        (totals.discount > 0 && AppState.appliedCoupon ? '<div class="cart-summary-row discount"><span>Desconto (' + escapeHtml(AppState.appliedCoupon.code) + ')</span><strong>-' + formatBRL(totals.discount) + '</strong></div>' : '') +
+        '<div class="cart-summary-row"><span>Entrega</span><span>' + (totals.shippingMethod ? (totals.shippingMethod.priceStatus === 'confirmed' ? formatBRL(totals.shippingCost) : 'A confirmar pela proprietária') : 'A confirmar') + '</span></div>' +
+        '<div class="cart-summary-total"><span>Total do Pedido</span><strong>' + formatBRL(totals.total) + '</strong></div>' +
+      '</div>' +
+      '<button type="button" class="btn btn-primary btn-block ' + (isOnlyWhatsapp ? 'btn-cart-whatsapp' : '') + '" data-action="proceed-to-checkout" id="btn-cart-proceed-checkout">' +
+        (isOnlyWhatsapp ? OFFICIAL_ICONS.whatsapp + '<span>FINALIZAR PEDIDO PELO WHATSAPP</span>' : '<span>FINALIZAR COMPRA COM SEGURANÇA</span>') +
+      '</button>';
+
+    document.getElementById('cart-shipping-select')?.addEventListener('change', (e) => {
+      AppState.selectedShippingMethodId = e.target.value;
+      renderCartDrawer();
+    });
+  }
+
+  window.ByAngelyApp.openCartDrawer = openCartDrawer;
+  window.ByAngelyApp.renderCartDrawer = renderCartDrawer;
+  window.ByAngelyApp.addToCart = addToCart;
+  window.addEventListener('DOMContentLoaded', () => {
+    sanitizeCartItems();
+    setTimeout(sanitizeCartItems, 1200);
+  });
+})();
