@@ -3613,10 +3613,10 @@ Escolha quais seções aparecem na Página Inicial da loja sem precisar editar c
 return _origRenderCategoriesBannersCouponsSection() + homeVisibilityCard;
 }
 bindAdminWorkspaceEvents = function (containerEl) {
-if (db && db.paymentSettings) db.paymentSettings.paymentConfigVersion = 3;
-_origBindAdminWorkspaceEvents(containerEl);
-const app = window.ByAngelyApp;
-const db = app.getState().db;
+    const app = window.ByAngelyApp;
+    const db = app.getState().db;
+    if (db && db.paymentSettings) db.paymentSettings.paymentConfigVersion = 3;
+    _origBindAdminWorkspaceEvents(containerEl);
 const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
 async function updateOrderStatusOnServer(orderId, newStatus, trackingCode) {
 try {
