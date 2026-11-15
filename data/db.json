@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "updatedAt": "2026-11-15T00:20:32.118Z",
+  "updatedAt": "2026-11-15T01:28:22.897Z",
   "storeSettings": {
     "brandName": "BY ANGÉLY",
     "brandSubtitle": "Moda Feminina Contemporânea",
@@ -11,7 +11,7 @@
     "logoUrl": "",
     "logoAlt": "BY ANGÉLY — Moda Feminina",
     "typographyStyle": "editorial-serif",
-    "announcementBar": "BY ANGÉLY • Moda Feminina • Atendimento exclusivo via WhatsApp +55 28 99987-1458 e Instagram @_by.angely",
+    "announcementBar": "BY ANGÉLY • Moda Feminina Contemporânea • Itaperuna, RJ",
     "showDemoBanner": true,
     "legalName": "A confirmar pela proprietária",
     "cnpj": "A confirmar pela proprietária",
@@ -801,6 +801,7 @@
           "stock": 2
         }
       ],
+    ],
       "media": [
         {
           "type": "image",
@@ -1467,8 +1468,28 @@
   ],
   "adminUsers": [
     {
+      "id": "admin-owner-official",
+      "name": "Proprietária BY ANGÉLY",
+      "email": "byangely1@gmail.com",
+      "role": "owner",
+      "roleLabel": "Proprietária (Acesso Total)",
+      "permissions": [
+        "products",
+        "categories",
+        "orders",
+        "customers",
+        "payments",
+        "shipping",
+        "branding",
+        "policies",
+        "users"
+      ],
+      "active": true,
+      "passwordHash": "f62888a1f73f6dde6326891c5850f908787cc27aafa01af424d05b8f2752644b"
+    },
+    {
       "id": "admin-owner",
-      "name": "Proprietária By Angély",
+      "name": "Admin BY ANGÉLY",
       "email": "proprietaria@byangely.local",
       "role": "owner",
       "roleLabel": "Proprietária (Acesso Total)",
@@ -1507,7 +1528,7 @@
   "auditLog": [
     {
       "id": "log-init",
-      "timestamp": "2026-11-15T00:20:32.128Z",
+      "timestamp": "2026-11-15T01:28:22.908Z",
       "actor": "Sistema",
       "action": "Inicialização da loja demonstrativa By Angély com dados pendentes sinalizados para revisão da proprietária."
     }
