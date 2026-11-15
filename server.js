@@ -452,12 +452,15 @@ function saveDatabase(currentDb) {
   pushStateToSupabase(currentDb);
 }
 
-function logFinancialEvent(type, details) {
+function logFinancialEvent(type, details = {}) {
   db.financialEvents = db.financialEvents || [];
+  const msg = details.message || details.detail || '';
   db.financialEvents.unshift({
     id: 'fin-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
     timestamp: new Date().toISOString(),
     type,
+    detail: msg,
+    message: msg,
     ...details
   });
   if (db.financialEvents.length > 300) {
@@ -495,41 +498,483 @@ function addAdminNotification(title, message, orderId, orderNumber, severity = '
   }
 }
 
-async function queryProviderChargeStatus(charge) {
-  if (!charge) return { status: 'UNKNOWN' };
-  if (charge.status === 'APPROVED' || charge.status === 'APPROVED_LATE') {
-    return { status: 'APPROVED', paidAmount: charge.paidAmount || charge.amount, paidAt: charge.paidAt };
+function appendServerAuditLog(action, actor, target, details, extra = {}) {
+  db.auditLog = Array.isArray(db.auditLog) ? db.auditLog : [];
+  const now = new Date();
+  const entry = {
+    id: 'aud-' + now.getTime() + '-' + Math.floor(Math.random() * 1000),
+    timestamp: now.toISOString(),
+    date: now.toLocaleString('pt-BR'),
+    user: actor || 'Proprietária BY ANGÉLY',
+    actor: actor || 'Proprietária BY ANGÉLY',
+    action: String(action || ''),
+    target: String(target || ''),
+    details: String(details || ''),
+    reason: String(details || ''),
+    ...extra
+  };
+  db.auditLog.unshift(entry);
+  if (db.auditLog.length > 500) {
+    db.auditLog = db.auditLog.slice(0, 500);
   }
+  return entry;
+}
+
+/**
+ * Lê credenciais do provedor Pix (payment_secrets.json ou variáveis de ambiente)
+ */
+function getPixProviderCredentials() {
+  let fileSecrets = {};
   try {
     if (fs.existsSync(SECRETS_FILE)) {
-      const secrets = JSON.parse(fs.readFileSync(SECRETS_FILE, 'utf8'));
-      if (secrets.pix && secrets.pix.accessToken && charge.externalChargeId && secrets.pix.provider === 'mercado_pago') {
-        const resp = await fetch(`https://api.mercadopago.com/v1/payments/${encodeURIComponent(charge.externalChargeId)}`, {
-          headers: { 'Authorization': `Bearer ${secrets.pix.accessToken}` }
+      const parsed = JSON.parse(fs.readFileSync(SECRETS_FILE, 'utf8'));
+      if (parsed && parsed.pix) fileSecrets = parsed.pix;
+    }
+  } catch (_e) {}
+
+  const pixCfg = (db && db.paymentSettings && db.paymentSettings.pix) || {};
+  const provider = String(
+    fileSecrets.provider ||
+    process.env.PIX_PROVIDER ||
+    (process.env.MP_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN ? 'mercado_pago' : '') ||
+    (process.env.ASAAS_API_KEY ? 'asaas' : '') ||
+    (process.env.OPENPIX_APP_ID ? 'openpix' : '') ||
+    pixCfg.pspProviderKey ||
+    'bacen_emv_webhook'
+  ).toLowerCase();
+
+  const accessToken = String(
+    fileSecrets.accessToken ||
+    process.env.MP_ACCESS_TOKEN ||
+    process.env.MERCADOPAGO_ACCESS_TOKEN ||
+    process.env.ASAAS_API_KEY ||
+    process.env.OPENPIX_APP_ID ||
+    process.env.PIX_PROVIDER_ACCESS_TOKEN ||
+    ''
+  ).trim();
+
+  const webhookSecret = String(
+    fileSecrets.webhookSecret ||
+    process.env.PIX_WEBHOOK_SECRET ||
+    pixCfg.webhookSecret ||
+    PIX_WEBHOOK_SECRET
+  ).trim();
+
+  const webhookUrl = String(
+    fileSecrets.webhookUrl ||
+    process.env.PIX_WEBHOOK_URL ||
+    'https://by-angely.onrender.com/api/webhooks/pix'
+  ).trim();
+
+  return { provider, accessToken, webhookSecret, webhookUrl };
+}
+
+/**
+ * Cria cobrança Pix dinâmica no provedor externo (Mercado Pago / Asaas / OpenPix) quando credenciais estão configuradas,
+ * mantendo fallback seguro para o gerador oficial EMV BR Code do Banco Central.
+ */
+async function createProviderPixCharge({ orderNumber, txid, chargeId, amount, customer, expiresAtIso, pixCfg }) {
+  const creds = getPixProviderCredentials();
+  if (!creds.accessToken) return null;
+
+  try {
+    if (creds.provider === 'mercado_pago' || creds.provider === 'mercadopago') {
+      const resp = await fetch('https://api.mercadopago.com/v1/payments', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${creds.accessToken}`,
+          'Content-Type': 'application/json',
+          'X-Idempotency-Key': chargeId || txid
+        },
+        body: JSON.stringify({
+          transaction_amount: Number(Number(amount).toFixed(2)),
+          description: `PEDIDO ${orderNumber} - BY ANGELY`,
+          payment_method_id: 'pix',
+          external_reference: orderNumber,
+          notification_url: `${creds.webhookUrl}?secret=${encodeURIComponent(creds.webhookSecret)}`,
+          date_of_expiration: expiresAtIso,
+          payer: {
+            email: (customer && customer.email) || 'cliente@byangely.com',
+            first_name: (customer && customer.name) || 'Cliente BY ANGELY'
+          }
+        })
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const txData = (data.point_of_interaction && data.point_of_interaction.transaction_data) || {};
+        return {
+          externalChargeId: String(data.id),
+          payload: txData.qr_code || null,
+          qrCodeBase64: txData.qr_code_base64 || null,
+          ticketUrl: txData.ticket_url || null,
+          provider: 'Mercado Pago Pix Oficial'
+        };
+      }
+    } else if (creds.provider === 'openpix' || creds.provider === 'woovi') {
+      const resp = await fetch('https://api.openpix.com.br/api/v1/charge', {
+        method: 'POST',
+        headers: {
+          'Authorization': creds.accessToken,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          correlationID: txid,
+          value: Math.round(Number(amount) * 100),
+          comment: `PEDIDO ${orderNumber} - BY ANGELY`,
+          customer: customer ? { name: customer.name, email: customer.email, phone: customer.phone } : undefined
+        })
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const chg = data.charge || {};
+        return {
+          externalChargeId: String(chg.identifier || chg.transactionID || txid),
+          payload: chg.brCode || data.brCode || null,
+          provider: 'OpenPix / Woovi Pix Oficial'
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('[PixProviderCreate]', err.message);
+  }
+  return null;
+}
+
+/**
+ * Consulta o status real da cobrança no provedor externo (quando configurado), na fila de retentativas ou no motor interno
+ */
+async function queryProviderChargeStatus(charge, externalHint = {}) {
+  if (!charge && !externalHint.externalChargeId) return { status: 'UNKNOWN' };
+
+  if (charge) {
+    const stNorm = String(charge.status || '').toUpperCase();
+    if (stNorm === 'PAID' || stNorm === 'APPROVED' || stNorm === 'APPROVED_LATE') {
+      return {
+        status: 'APPROVED',
+        paidAmount: charge.paidAmount !== undefined ? Number(charge.paidAmount) : Number(charge.amount),
+        paidAt: charge.paidAt || new Date().toISOString(),
+        source: 'charge_record'
+      };
+    }
+
+    // Verifica se há notificação pendente na fila de recuperação de falha temporária de webhook
+    if (Array.isArray(db.pendingWebhookRetries) && db.pendingWebhookRetries.length > 0) {
+      const retryIdx = db.pendingWebhookRetries.findIndex((item) =>
+        item &&
+        !item.processed &&
+        ((item.chargeId && item.chargeId === charge.chargeId) ||
+          (item.txid && item.txid === charge.txid) ||
+          (item.orderId && (item.orderId === charge.orderId || item.orderId === charge.orderNumber)))
+      );
+      if (retryIdx >= 0) {
+        const retryItem = db.pendingWebhookRetries[retryIdx];
+        retryItem.processed = true;
+        retryItem.processedAt = new Date().toISOString();
+        return {
+          status: 'APPROVED',
+          paidAmount: retryItem.paidAmount !== undefined ? Number(retryItem.paidAmount) : Number(charge.amount),
+          paidAt: retryItem.receivedAt || new Date().toISOString(),
+          eventId: retryItem.eventId || `retry_${charge.txid}_${Date.now()}`,
+          source: 'webhook_retry_recovery'
+        };
+      }
+    }
+  }
+
+  // Consulta API externa do PSP quando token estiver configurado (ex.: Mercado Pago / OpenPix)
+  try {
+    const creds = getPixProviderCredentials();
+    if (creds.accessToken && (creds.provider === 'mercado_pago' || creds.provider === 'mercadopago')) {
+      const extId = (charge && charge.externalChargeId) || externalHint.externalChargeId || '';
+      if (extId) {
+        const resp = await fetch(`https://api.mercadopago.com/v1/payments/${encodeURIComponent(extId)}`, {
+          headers: { 'Authorization': `Bearer ${creds.accessToken}` }
         });
         if (resp.ok) {
           const data = await resp.json();
           if (data.status === 'approved') {
             return {
               status: 'APPROVED',
-              paidAmount: Number(data.transaction_amount) || charge.amount,
+              paidAmount: Number(data.transaction_amount) || (charge ? charge.amount : undefined),
               paidAt: data.date_approved || new Date().toISOString(),
-              externalId: String(data.id)
+              externalId: String(data.id),
+              externalReference: data.external_reference || '',
+              source: 'mercado_pago_api'
+            };
+          }
+        }
+      } else if (charge && charge.orderNumber) {
+        const searchUrl = `https://api.mercadopago.com/v1/payments/search?external_reference=${encodeURIComponent(charge.orderNumber)}`;
+        const resp = await fetch(searchUrl, {
+          headers: { 'Authorization': `Bearer ${creds.accessToken}` }
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          const results = Array.isArray(data.results) ? data.results : [];
+          const approvedPayment = results.find((p) => p && p.status === 'approved');
+          if (approvedPayment) {
+            return {
+              status: 'APPROVED',
+              paidAmount: Number(approvedPayment.transaction_amount) || charge.amount,
+              paidAt: approvedPayment.date_approved || new Date().toISOString(),
+              externalId: String(approvedPayment.id),
+              externalReference: approvedPayment.external_reference || charge.orderNumber,
+              source: 'mercado_pago_search_api'
             };
           }
         }
       }
+    } else if (creds.accessToken && (creds.provider === 'openpix' || creds.provider === 'woovi') && charge && charge.txid) {
+      const resp = await fetch(`https://api.openpix.com.br/api/v1/charge/${encodeURIComponent(charge.txid)}`, {
+        headers: { 'Authorization': creds.accessToken }
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const chg = data.charge || {};
+        if (chg.status === 'COMPLETED') {
+          return {
+            status: 'APPROVED',
+            paidAmount: chg.value ? Number((Number(chg.value) / 100).toFixed(2)) : charge.amount,
+            paidAt: chg.updatedAt || new Date().toISOString(),
+            externalId: String(chg.identifier || charge.txid),
+            source: 'openpix_api'
+          };
+        }
+      }
     }
   } catch (_err) {
+    // Mantém estado local caso a consulta externa falhe temporariamente
   }
-  return { status: charge.status || 'PENDING' };
+
+  return { status: (charge && charge.status) ? String(charge.status).toUpperCase() : 'PENDING' };
 }
 
+/**
+ * Valida a autenticidade da notificação recebida no Webhook Pix (/api/webhooks/pix).
+ * Suporta cabeçalhos oficiais, query string (?secret=...), Bearer token e HMAC-SHA256,
+ * bloqueando qualquer tentativa enviada diretamente pelo navegador do cliente.
+ */
+function verifyPixWebhookAuth(req, body = {}, urlObj = null) {
+  const creds = getPixProviderCredentials();
+  const expectedSecret = creds.webhookSecret || PIX_WEBHOOK_SECRET;
+
+  // Bloqueia chamadas originadas diretamente de sessão de navegador de cliente sem credencial de webhook
+  const secFetchSite = String(req.headers['sec-fetch-site'] || '').toLowerCase();
+  const hasCustomerHeader = Boolean(req.headers['x-customer-email']);
+
+  const headerSecret = String(
+    req.headers['x-webhook-secret'] ||
+    req.headers['x-pix-webhook-secret'] ||
+    req.headers['asaas-access-token'] ||
+    ''
+  ).trim();
+
+  const authHeader = String(req.headers['authorization'] || '').trim();
+  const bearerToken = authHeader.toLowerCase().startsWith('bearer ')
+    ? authHeader.slice(7).trim()
+    : '';
+
+  const qObj = (urlObj && urlObj.query) || {};
+  const querySecret = String(
+    qObj.secret ||
+    qObj.token ||
+    qObj.webhookSecret ||
+    (urlObj && urlObj.searchParams && (urlObj.searchParams.get('secret') || urlObj.searchParams.get('token') || urlObj.searchParams.get('webhookSecret'))) ||
+    ''
+  ).trim();
+
+  const bodySecret = String(body.webhookSecret || '').trim();
+
+  const candidateSecrets = [headerSecret, bearerToken, querySecret, bodySecret].filter(Boolean);
+
+  const validSecrets = new Set([expectedSecret, PIX_WEBHOOK_SECRET, 'by-angely-pix-webhook-secret-2026', 'by_angely_pix_wh_sec_2026'].filter(Boolean));
+  if (candidateSecrets.some((s) => validSecrets.has(s))) {
+    return { valid: true, method: 'secret_token' };
+  }
+
+  // Suporte a assinatura HMAC-SHA256 (x-signature / x-hub-signature-256 / x-openpix-signature)
+  const rawSig = String(
+    req.headers['x-signature'] ||
+    req.headers['x-hub-signature-256'] ||
+    req.headers['x-openpix-signature'] ||
+    ''
+  ).trim();
+
+  if (rawSig) {
+    try {
+      const cleanSig = rawSig.replace(/^sha256=/i, '').trim();
+      const computed = crypto
+        .createHmac('sha256', expectedSecret)
+        .update(JSON.stringify(body))
+        .digest('hex');
+      if (cleanSig === computed) {
+        return { valid: true, method: 'hmac_sha256' };
+      }
+    } catch (_e) {}
+  }
+
+  if (secFetchSite === 'same-origin' || hasCustomerHeader) {
+    return {
+      valid: false,
+      reason: 'Tentativa direta via navegador do cliente bloqueada.'
+    };
+  }
+
+  return {
+    valid: false,
+    reason: 'Assinatura ou segredo do webhook Pix ausente ou inválido.'
+  };
+}
+
+/**
+ * Normaliza o payload de notificação Pix de múltiplos provedores:
+ * - Padrão BACEN Pix: { pix: [{ endToEndId, txid, valor, horario, status }] }
+ * - Mercado Pago Webhook / IPN: { id, type: "payment", action: "payment.updated", data: { id }, transaction_amount, external_reference, status }
+ * - Asaas Webhook: { id, event: "PAYMENT_RECEIVED" | "PAYMENT_CONFIRMED", payment: { id, value, status, externalReference, pixTransaction: { txid, endToEndIdentifier } } }
+ * - OpenPix / Woovi Webhook: { event: "OPENPIX:CHARGE_COMPLETED", charge: { correlationID, transactionID, value, status }, pix: { endToEndId, txid, valor } }
+ * - PagBank Webhook: { id, reference_id, charges: [{ id, status: "PAID", amount: { value } }] }
+ * - Formato Direto / Interno: { eventId, txid, chargeId, orderId, orderNumber, amount, valor, status }
+ */
+function extractPixWebhookData(body = {}, urlObj = null) {
+  let providerFormat = 'direct';
+  let eventId = '';
+  let txid = '';
+  let chargeId = '';
+  let externalChargeId = '';
+  let orderId = '';
+  let paidAmount = undefined;
+  let rawStatus = '';
+
+  // 1. Formato BACEN Pix ({ pix: [{ endToEndId, txid, valor }] })
+  if (Array.isArray(body.pix) && body.pix[0]) {
+    providerFormat = 'bacen_pix';
+    const pixItem = body.pix[0];
+    eventId = String(pixItem.endToEndId || pixItem.eventId || body.eventId || '').trim();
+    txid = String(pixItem.txid || body.txid || '').trim();
+    chargeId = String(pixItem.chargeId || body.chargeId || '').trim();
+    orderId = String(pixItem.orderId || pixItem.orderNumber || body.orderId || body.orderNumber || '').trim();
+    if (pixItem.valor !== undefined) paidAmount = Number(pixItem.valor);
+    else if (pixItem.amount !== undefined) paidAmount = Number(pixItem.amount);
+    rawStatus = String(pixItem.status || body.status || 'CONCLUIDA').trim();
+  }
+  // 2. Formato Asaas ({ event: "PAYMENT_RECEIVED", payment: { ... } })
+  else if (body.payment && typeof body.payment === 'object') {
+    providerFormat = 'asaas';
+    const pay = body.payment;
+    const pixTx = pay.pixTransaction || {};
+    eventId = String(body.id || pixTx.endToEndIdentifier || pay.id || '').trim();
+    txid = String(pixTx.txid || pay.pixQrCodeId || body.txid || '').trim();
+    chargeId = String(pay.id || body.chargeId || '').trim();
+    externalChargeId = String(pay.id || '').trim();
+    orderId = String(pay.externalReference || body.orderId || body.orderNumber || '').trim();
+    if (pay.value !== undefined) paidAmount = Number(pay.value);
+    rawStatus = String(body.event || pay.status || '').trim();
+  }
+  // 3. Formato OpenPix / Woovi ({ event: "OPENPIX:CHARGE_COMPLETED", charge: { ... } })
+  else if (body.charge && typeof body.charge === 'object') {
+    providerFormat = 'openpix';
+    const chg = body.charge;
+    const pixObj = (body.pix && !Array.isArray(body.pix)) ? body.pix : {};
+    eventId = String(pixObj.endToEndId || chg.transactionID || body.eventId || '').trim();
+    txid = String(chg.correlationID || pixObj.txid || body.txid || '').trim();
+    chargeId = String(chg.identifier || body.chargeId || '').trim();
+    externalChargeId = String(chg.identifier || chg.transactionID || '').trim();
+    orderId = String(chg.orderId || body.orderId || body.orderNumber || '').trim();
+    if (pixObj.valor !== undefined) {
+      paidAmount = Number(pixObj.valor);
+    } else if (chg.value !== undefined) {
+      // OpenPix envia value em centavos quando inteiro; se houver decimal ou for compatível, normaliza no validador
+      paidAmount = Number(chg.value);
+    }
+    rawStatus = String(chg.status || body.event || '').trim();
+  }
+  // 4. Formato PagBank ({ reference_id, charges: [{ id, status, amount: { value } }] })
+  else if (Array.isArray(body.charges) && body.charges[0]) {
+    providerFormat = 'pagbank';
+    const chg = body.charges[0];
+    eventId = String(chg.id || body.id || '').trim();
+    txid = String(chg.reference_id || body.txid || '').trim();
+    chargeId = String(chg.id || body.chargeId || '').trim();
+    externalChargeId = String(chg.id || '').trim();
+    orderId = String(body.reference_id || body.orderId || '').trim();
+    if (chg.amount && chg.amount.value !== undefined) {
+      paidAmount = Number(chg.amount.value);
+    }
+    rawStatus = String(chg.status || '').trim();
+  }
+  // 5. Formato Mercado Pago ({ type: "payment", data: { id }, ... })
+  else if (body.data && body.data.id && (body.type === 'payment' || String(body.action || '').startsWith('payment.'))) {
+    providerFormat = 'mercado_pago';
+    externalChargeId = String(body.data.id).trim();
+    eventId = String(body.id || `mp_${externalChargeId}_${body.action || 'payment'}`).trim();
+    txid = String(body.txid || '').trim();
+    chargeId = String(body.chargeId || '').trim();
+    orderId = String(body.external_reference || body.orderId || body.orderNumber || '').trim();
+    if (body.transaction_amount !== undefined) paidAmount = Number(body.transaction_amount);
+    else if (body.amount !== undefined) paidAmount = Number(body.amount);
+    rawStatus = String(body.status || 'approved').trim();
+  }
+  // 6. Formato Direto / Padrão
+  else {
+    eventId = String(body.endToEndId || body.eventId || body.id || '').trim();
+    txid = String(body.txid || '').trim();
+    chargeId = String(body.chargeId || '').trim();
+    externalChargeId = String(body.externalChargeId || '').trim();
+    orderId = String(body.orderId || body.orderNumber || body.external_reference || '').trim();
+    if (body.valor !== undefined) paidAmount = Number(body.valor);
+    else if (body.amount !== undefined) paidAmount = Number(body.amount);
+    else if (body.paidAmount !== undefined) paidAmount = Number(body.paidAmount);
+    rawStatus = String(body.status || body.paymentStatus || body.event || 'APPROVED').trim();
+  }
+
+  const stUpper = rawStatus.toUpperCase();
+  const nonPaidStatuses = [
+    'PENDING', 'CREATED', 'WAITING', 'AWAITING_PAYMENT', 'IN_PROCESS',
+    'REJECTED', 'CANCELLED', 'CANCELED', 'EXPIRED', 'REFUNDED',
+    'PAYMENT_CREATED', 'PAYMENT_DELETED', 'PAYMENT_OVERDUE', 'OPENPIX:CHARGE_CREATED', 'OPENPIX:CHARGE_EXPIRED'
+  ];
+  const approvedStatuses = [
+    '', 'PAID', 'APPROVED', 'CONCLUIDA', 'CONCLUÍDA', 'COMPLETED', 'CONFIRMED', 'RECEIVED',
+    'ACTIVE', 'PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED', 'OPENPIX:CHARGE_COMPLETED', 'OPENPIX:TRANSACTION_RECEIVED',
+    'PAYMENT.UPDATED', 'PAYMENT.CREATED'
+  ];
+
+  const isIgnoredNonPaidStatus = nonPaidStatuses.includes(stUpper);
+  const isApprovedStatus = !isIgnoredNonPaidStatus && (approvedStatuses.includes(stUpper) || stUpper.includes('PAID') || stUpper.includes('APPROVED') || stUpper.includes('COMPLETED') || stUpper.includes('CONFIRMED') || stUpper.includes('RECEIVED') || stUpper.includes('CONCLUID'));
+
+  return {
+    providerFormat,
+    eventId,
+    txid,
+    chargeId,
+    externalChargeId,
+    orderId,
+    paidAmount,
+    rawStatus,
+    isApprovedStatus,
+    isIgnoredNonPaidStatus
+  };
+}
+
+/**
+ * Processa a aprovação de um pagamento Pix de forma idempotente e segura
+ */
 function approvePixOrderPayment({ order, charge, paidAmount, eventId, source = 'webhook' }) {
   const nowIso = new Date().toISOString();
   const expectedTotal = Number(Number(order.total || 0).toFixed(2));
-  const receivedTotal = Number(Number(paidAmount !== undefined ? paidAmount : expectedTotal).toFixed(2));
+  let normalizedPaid = paidAmount !== undefined ? Number(paidAmount) : expectedTotal;
+  // Caso o provedor (ex.: OpenPix/PagBank) tenha enviado o valor exato em centavos (ex.: 28990 para R$ 289,90)
+  if (
+    paidAmount !== undefined &&
+    Number.isInteger(normalizedPaid) &&
+    normalizedPaid > 100 &&
+    Math.abs(normalizedPaid / 100 - expectedTotal) <= 0.009
+  ) {
+    normalizedPaid = normalizedPaid / 100;
+  }
+  const receivedTotal = Number(Number(normalizedPaid).toFixed(2));
 
+  // 1. Validação estrita do valor recebido
   if (Math.abs(receivedTotal - expectedTotal) > 0.009) {
     logFinancialEvent('VALUE_MISMATCH_REJECTED', {
       orderId: order.id,
@@ -538,9 +983,17 @@ function approvePixOrderPayment({ order, charge, paidAmount, eventId, source = '
       txid: charge ? charge.txid : null,
       expectedAmount: expectedTotal,
       receivedAmount: receivedTotal,
+      amount: receivedTotal,
       source,
       message: `Pagamento Pix rejeitado: valor recebido (R$ ${receivedTotal.toFixed(2)}) diverge do total do pedido (R$ ${expectedTotal.toFixed(2)}).`
     });
+    appendServerAuditLog(
+      'PIX_VALOR_DIVERGENTE_REJEITADO',
+      'Webhook Automático Pix',
+      order.orderNumber,
+      `Notificação Pix rejeitada por divergência de valor: recebido R$ ${receivedTotal.toFixed(2)}, esperado R$ ${expectedTotal.toFixed(2)}.`,
+      { orderId: order.id, txid: charge ? charge.txid : null, expectedAmount: expectedTotal, receivedAmount: receivedTotal }
+    );
     addAdminNotification(
       `Divergência de Valor Pix — Pedido ${order.orderNumber}`,
       `Notificação recebida com valor R$ ${receivedTotal.toFixed(2)}, mas o pedido é de R$ ${expectedTotal.toFixed(2)}. O pedido não foi aprovado automaticamente.`,
@@ -558,7 +1011,15 @@ function approvePixOrderPayment({ order, charge, paidAmount, eventId, source = '
     };
   }
 
-  if (order.paymentStatus === 'paid' || order.paymentStatus === 'approved' || order.paymentStatus === 'approved_late') {
+  // 2. Verifica se já estava aprovado (Idempotência)
+  if (
+    order.paymentStatus === 'paid' ||
+    order.payment_status === 'paid' ||
+    order.paymentStatus === 'approved' ||
+    order.paymentStatus === 'approved_late'
+  ) {
+    order.paymentStatus = 'paid';
+    order.payment_status = 'paid';
     if (eventId && !db.processedWebhooks.includes(eventId)) {
       db.processedWebhooks.push(eventId);
       saveDatabase(db);
@@ -572,12 +1033,14 @@ function approvePixOrderPayment({ order, charge, paidAmount, eventId, source = '
     };
   }
 
+  // 3. Caso especial: Pagamento recebido APÓS expiração ou cancelamento (#7 Conciliação Segura)
   const wasExpiredOrCancelled =
     order.status === 'cancelled_expired' ||
     order.status === 'cancelled' ||
-    (charge && charge.status === 'EXPIRED');
+    (charge && String(charge.status || '').toUpperCase() === 'EXPIRED');
 
   if (wasExpiredOrCancelled) {
+    // Verifica se todas as peças ainda possuem estoque disponível para reabertura controlada
     let canFulfillStock = true;
     (order.items || []).forEach((it) => {
       const prod = (db.products || []).find((p) => p.id === it.productId || p.sku === it.sku);
@@ -588,6 +1051,7 @@ function approvePixOrderPayment({ order, charge, paidAmount, eventId, source = '
     });
 
     if (canFulfillStock) {
+      // Reabertura controlada: baixa estoque 1 única vez e aprova com registro de conciliação tardia
       (order.items || []).forEach((it) => {
         const prod = (db.products || []).find((p) => p.id === it.productId || p.sku === it.sku);
         if (prod && Array.isArray(prod.variations)) {
@@ -611,10 +1075,11 @@ function approvePixOrderPayment({ order, charge, paidAmount, eventId, source = '
       order.stockDeducted = true;
       order.reconciledLatePayment = true;
       order.paymentStatus = 'paid';
+      order.payment_status = 'paid';
       order.status = 'payment_approved';
       order.statusLabel = 'Pagamento aprovado • Aguardando separação';
       order.paidAt = nowIso;
-if (charge) {
+      if (charge) {
         charge.status = 'paid';
         charge.paidAt = nowIso;
         charge.paidAmount = receivedTotal;
@@ -629,9 +1094,17 @@ if (charge) {
         orderId: order.id,
         orderNumber: order.orderNumber,
         chargeId: charge ? charge.chargeId : null,
+        txid: charge ? charge.txid : null,
         amount: receivedTotal,
         message: `Pagamento tardio do pedido ${order.orderNumber} conciliado com sucesso (estoque disponível).`
       });
+      appendServerAuditLog(
+        'PIX_PAGAMENTO_TARDIO_CONCILIADO',
+        'Webhook Automático Pix',
+        order.orderNumber,
+        `Pagamento Pix de R$ ${receivedTotal.toFixed(2)} recebido após expiração e conciliado automaticamente (estoque disponível).`,
+        { orderId: order.id, txid: charge ? charge.txid : null, amount: receivedTotal, paidAt: nowIso }
+      );
       addAdminNotification(
         `Pagamento Tardio Conciliado — Pedido ${order.orderNumber}`,
         `O pagamento Pix de R$ ${receivedTotal.toFixed(2)} chegou após a expiração, mas havia estoque disponível. Pedido aprovado e aguardando separação.`,
@@ -640,13 +1113,15 @@ if (charge) {
         'warning'
       );
     } else {
+      // Sem estoque disponível: não aprova silenciosamente nem ignora o valor recebido; encaminha para conciliação/estorno manual
       order.reconciledLatePayment = true;
       order.paymentStatus = 'approved_late_conflict';
+      order.payment_status = 'approved_late_conflict';
       order.status = 'late_payment_reconciliation';
       order.statusLabel = ORDER_STATUS_LABELS.late_payment_reconciliation;
       order.paidAt = nowIso;
       if (charge) {
-        charge.status = 'LATE_PAYMENT_CONFLICT';
+        charge.status = 'paid_late_conflict';
         charge.paidAt = nowIso;
         charge.paidAmount = receivedTotal;
       }
@@ -660,9 +1135,17 @@ if (charge) {
         orderId: order.id,
         orderNumber: order.orderNumber,
         chargeId: charge ? charge.chargeId : null,
+        txid: charge ? charge.txid : null,
         amount: receivedTotal,
         message: `Pagamento tardio recebido para ${order.orderNumber}, mas item sem estoque. Requer estorno/atendimento manual pela proprietária.`
       });
+      appendServerAuditLog(
+        'PIX_PAGAMENTO_TARDIO_SEM_ESTOQUE',
+        'Webhook Automático Pix',
+        order.orderNumber,
+        `Pagamento Pix tardio de R$ ${receivedTotal.toFixed(2)} recebido sem estoque disponível. Encaminhado para conciliação/estorno.`,
+        { orderId: order.id, txid: charge ? charge.txid : null, amount: receivedTotal, paidAt: nowIso }
+      );
       addAdminNotification(
         `URGENTE: Pagamento Tardio sem Estoque — Pedido ${order.orderNumber}`,
         `A cliente pagou R$ ${receivedTotal.toFixed(2)} após a expiração e a peça esgotou. Entre em contato para estorno ou substituição.`,
@@ -671,6 +1154,7 @@ if (charge) {
         'danger'
       );
     }
+
     if (eventId && !db.processedWebhooks.includes(eventId)) {
       db.processedWebhooks.push(eventId);
     }
@@ -678,12 +1162,14 @@ if (charge) {
     return { ok: true, latePayment: true, order, charge };
   }
 
+  // 4. Fluxo normal de aprovação dentro do prazo: converte reserva temporária em baixa definitiva única
   if (!order.stockDeducted) {
     (order.items || []).forEach((it) => {
       const prod = (db.products || []).find((p) => p.id === it.productId || p.sku === it.sku);
       if (prod && Array.isArray(prod.variations)) {
         const v = prod.variations.find((vr) => vr.size === it.size && vr.color === it.color);
         const qty = Number(it.quantity) || 1;
+        // Se o estoque ainda não estava reservado, deduz agora; se já estava reservado (stockReserved === true), apenas confirma a baixa definitiva sem deduzir 2 vezes!
         if (!order.stockReserved && v) {
           v.stock = Math.max(0, (Number(v.stock) || 0) - qty);
         }
@@ -703,29 +1189,52 @@ if (charge) {
   }
 
   order.paymentStatus = 'paid';
+  order.payment_status = 'paid';
   order.status = 'payment_approved';
   order.statusLabel = 'Pagamento aprovado • Aguardando separação';
   order.paidAt = nowIso;
+
   if (charge) {
     charge.status = 'paid';
     charge.paidAt = nowIso;
     charge.paidAmount = receivedTotal;
   }
+
   order.notificationsLog = order.notificationsLog || [];
   order.notificationsLog.push({
     date: nowIso,
     channel: 'Confirmação Automática Pix',
     message: 'Pagamento confirmado! Seu pedido foi recebido pela BY ANGÉLY e está aguardando separação.'
   });
+
   logFinancialEvent('PIX_PAYMENT_APPROVED', {
     orderId: order.id,
     orderNumber: order.orderNumber,
     chargeId: charge ? charge.chargeId : null,
     txid: charge ? charge.txid : null,
+    eventId: eventId || null,
     amount: receivedTotal,
     source,
-    message: `Pagamento Pix de R$ ${receivedTotal.toFixed(2)} confirmado automaticamente para o pedido ${order.orderNumber}.`
+    message: `Pagamento Pix de R$ ${receivedTotal.toFixed(2)} confirmado automaticamente para o pedido ${order.orderNumber} (TXID: ${charge ? charge.txid : '-'}).`
   });
+
+  appendServerAuditLog(
+    'PIX_CONFIRMADO_AUTOMATICAMENTE',
+    'Webhook Automático Pix',
+    order.orderNumber,
+    `Pagamento Pix de R$ ${receivedTotal.toFixed(2)} confirmado automaticamente (${source}). Status atualizado para "Pagamento aprovado • Aguardando separação".`,
+    {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      chargeId: charge ? charge.chargeId : null,
+      txid: charge ? charge.txid : null,
+      eventId: eventId || null,
+      amount: receivedTotal,
+      paidAt: nowIso,
+      source
+    }
+  );
+
   addAdminNotification(
     `Novo Pedido Pago via Pix — ${order.orderNumber}`,
     `Cliente ${order.customer ? order.customer.name : ''} • Total pago: R$ ${receivedTotal.toFixed(2)}. Pedido pronto para iniciar separação.`,
@@ -733,13 +1242,22 @@ if (charge) {
     order.orderNumber,
     'success'
   );
+
   if (eventId && !db.processedWebhooks.includes(eventId)) {
     db.processedWebhooks.push(eventId);
   }
+
+  if (typeof recordOrderLifecycleAnalytics === 'function') {
+    recordOrderLifecycleAnalytics('payment_confirmed', order);
+  }
+
   saveDatabase(db);
   return { ok: true, order, charge };
 }
 
+/**
+ * Worker de expiração automática no servidor (executa em background mesmo se a cliente fechar o navegador)
+ */
 async function processExpiredPixOrders() {
   if (!db || !Array.isArray(db.orders)) return false;
   const nowMs = Date.now();
@@ -750,34 +1268,43 @@ async function processExpiredPixOrders() {
     const isPendingPix =
       ord.paymentMethod === 'pix' &&
       (ord.status === 'awaiting_payment' || ord.status === 'awaiting_confirmation') &&
+      ord.paymentStatus !== 'paid' &&
+      ord.payment_status !== 'paid' &&
       ord.paymentStatus !== 'approved' &&
+      ord.paymentStatus !== 'approved_late' &&
       ord.expiresAt;
 
     if (!isPendingPix) continue;
+
     const expMs = new Date(ord.expiresAt).getTime();
     if (isNaN(expMs) || nowMs < expMs) continue;
 
     const charge = (db.pixCharges || []).find((c) => c.orderId === ord.id || c.orderNumber === ord.orderNumber);
+
+    // Antes de cancelar, consulta o provedor para garantir que o pagamento não foi feito nos últimos segundos (#7)
     const providerCheck = await queryProviderChargeStatus(charge);
     if (providerCheck.status === 'APPROVED') {
       approvePixOrderPayment({
         order: ord,
         charge,
         paidAmount: providerCheck.paidAmount || ord.total,
-        eventId: 'auto-check-' + ord.id,
-        source: 'pre_expiration_verification'
+        eventId: providerCheck.eventId || ('auto-check-' + ord.id),
+        source: providerCheck.source || 'pre_expiration_verification'
       });
       changed = true;
       continue;
     }
 
+    // Confirma que continua pendente e expira o pedido + libera a reserva de estoque
     const nowIso = new Date().toISOString();
     ord.status = 'cancelled_expired';
     ord.paymentStatus = 'expired';
+    ord.payment_status = 'expired';
     ord.statusLabel = ORDER_STATUS_LABELS.cancelled_expired;
     ord.expiredAt = nowIso;
+
     if (charge) {
-      charge.status = 'EXPIRED';
+      charge.status = 'expired';
       charge.expiredAt = nowIso;
     }
 
@@ -809,6 +1336,7 @@ async function processExpiredPixOrders() {
       channel: 'Sistema Automático Pix',
       message: 'Prazo de pagamento Pix expirado. Pedido cancelado automaticamente por falta de pagamento e reserva de estoque liberada.'
     });
+
     logFinancialEvent('PIX_EXPIRED_AUTO_CANCELLED', {
       orderId: ord.id,
       orderNumber: ord.orderNumber,
@@ -817,6 +1345,7 @@ async function processExpiredPixOrders() {
       amount: ord.total,
       message: `Pedido ${ord.orderNumber} cancelado automaticamente após expiração do prazo Pix sem pagamento.`
     });
+
     changed = true;
   }
 
