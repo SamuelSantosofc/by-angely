@@ -1968,19 +1968,34 @@ const server = http.createServer(async (req, res) => {
         const randSuffix = crypto.randomBytes(3).toString('hex').toUpperCase();
         const txid = (`${pixCfg.txidPrefix || 'BYA'}${nextIndex}${randSuffix}`).replace(/[^A-Z0-9]/gi, '').slice(0, 25);
         const chargeId = 'chg_' + crypto.randomBytes(10).toString('hex');
-        const payload = Pix.generatePixPayload({
-          pixKey: keyToUse,
-          keyType: pixCfg.keyType || 'telefone',
-          merchantName: nameToUse,
-          merchantCity: pixCfg.recipientCity || 'ITAPERUNA',
-          amount: total,
+
+        // Caso haja provedor PSP externo configurado com credenciais, cria a cobrança dinâmica no provedor
+        const extPix = await createProviderPixCharge({
+          orderNumber,
           txid,
-          description: 'PEDIDO ' + orderNumber
+          chargeId,
+          amount: total,
+          customer: cust,
+          expiresAtIso,
+          pixCfg
         });
+
+        const payload = (extPix && extPix.payload)
+          ? extPix.payload
+          : Pix.generatePixPayload({
+              pixKey: keyToUse,
+              keyType: pixCfg.keyType || 'telefone',
+              merchantName: nameToUse,
+              merchantCity: pixCfg.recipientCity || 'ITAPERUNA',
+              amount: total,
+              txid,
+              description: 'PEDIDO ' + orderNumber
+            });
         const qrSvg = Pix.renderQrSvg(payload);
 
         pixData = {
           chargeId,
+          externalChargeId: extPix ? extPix.externalChargeId : null,
           payload,
           qrSvg,
           txid,
@@ -1995,15 +2010,16 @@ const server = http.createServer(async (req, res) => {
 
         newCharge = {
           chargeId,
+          externalChargeId: extPix ? extPix.externalChargeId : null,
           txid,
-          orderId: 'ord-' + now.getTime(),
+          orderId: 'ord-' + now.getTime() + '-' + crypto.randomBytes(2).toString('hex'),
           orderNumber,
           customerId: cust.id,
           customerEmail: cust.email,
           customerName: cust.name,
           amount: total,
-          status: 'PENDING',
-          provider: pixCfg.pspProviderName || 'Pix EMV + Webhook Automático',
+          status: 'pending',
+          provider: (extPix && extPix.provider) || pixCfg.pspProviderName || 'Pix EMV + Webhook Automático',
           payload,
           createdAt: nowIso,
           expiresAt: expiresAtIso,
@@ -2019,7 +2035,7 @@ const server = http.createServer(async (req, res) => {
         payOnPickup: 'Pagamento na Retirada (Itaperuna - RJ)'
       };
 
-      const orderId = newCharge ? newCharge.orderId : 'ord-' + now.getTime();
+      const orderId = newCharge ? newCharge.orderId : 'ord-' + now.getTime() + '-' + crypto.randomBytes(2).toString('hex');
       const newOrder = {
         id: orderId,
         orderNumber,
@@ -2030,6 +2046,7 @@ const server = http.createServer(async (req, res) => {
         status: isWhatsappOrder ? 'awaiting_whatsapp' : 'awaiting_payment',
         statusLabel: isWhatsappOrder ? ORDER_STATUS_LABELS.awaiting_whatsapp : ORDER_STATUS_LABELS.awaiting_payment,
         paymentStatus: 'pending',
+        payment_status: 'pending',
         paymentMethod: chosenMethod,
         paymentMethodLabel: methodLabels[chosenMethod] || chosenMethod,
         stockReserved: isPixOrder,
@@ -2081,7 +2098,16 @@ const server = http.createServer(async (req, res) => {
         });
       }
 
+      newOrder.analyticsSessionId = String(body.sessionId || body.analyticsSessionId || '');
+      newOrder.analyticsVisitorId = String(body.visitorId || body.analyticsVisitorId || '');
       db.orders.unshift(newOrder);
+      if (typeof recordOrderLifecycleAnalytics === 'function') {
+        recordOrderLifecycleAnalytics('order_created', newOrder, {
+          sessionId: newOrder.analyticsSessionId,
+          visitorId: newOrder.analyticsVisitorId,
+          chargeGenerated: Boolean(newCharge || isPixOrder)
+        });
+      }
       saveDatabase(db);
 
       return sendJson(res, 201, {
@@ -2096,6 +2122,7 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // 6. Consulta de Status do Pagamento, Conciliação Ativa no Provedor e Cronômetro Sincronizado (#5 e #6)
   const paymentStatusMatch = pathname.match(/^\/api\/orders\/([^\/]+)\/payment-status$/);
   if (paymentStatusMatch && req.method === 'GET') {
     await processExpiredPixOrders();
@@ -2106,6 +2133,26 @@ const server = http.createServer(async (req, res) => {
     }
 
     const charge = (db.pixCharges || []).find((c) => c.orderId === ord.id || c.orderNumber === ord.orderNumber);
+
+    // Se o pedido Pix ainda estiver aguardando pagamento, consulta ativamente o provedor / fila de recuperação
+    if (
+      ord.paymentMethod === 'pix' &&
+      ord.paymentStatus !== 'paid' &&
+      ord.payment_status !== 'paid' &&
+      (ord.status === 'awaiting_payment' || ord.status === 'awaiting_confirmation')
+    ) {
+      const providerCheck = await queryProviderChargeStatus(charge);
+      if (providerCheck && providerCheck.status === 'APPROVED') {
+        approvePixOrderPayment({
+          order: ord,
+          charge,
+          paidAmount: providerCheck.paidAmount !== undefined ? providerCheck.paidAmount : ord.total,
+          eventId: providerCheck.eventId || ('poll_' + ord.id + '_' + Date.now()),
+          source: providerCheck.source || 'provider_status_verification'
+        });
+      }
+    }
+
     const nowMs = Date.now();
     const expMs = ord.expiresAt ? new Date(ord.expiresAt).getTime() : nowMs;
     const remainingSeconds = ord.status === 'awaiting_payment'
@@ -2120,6 +2167,7 @@ const server = http.createServer(async (req, res) => {
       status: ord.status,
       statusLabel: ord.statusLabel,
       paymentStatus: ord.paymentStatus,
+      payment_status: ord.payment_status || ord.paymentStatus,
       chargeId: charge ? charge.chargeId : null,
       txid: charge ? charge.txid : null,
       chargeStatus: charge ? charge.status : null,
@@ -2132,27 +2180,138 @@ const server = http.createServer(async (req, res) => {
     });
   }
 
+  // 6.1 Endpoint de Sincronização em Tempo Real do Painel Administrativo (Atualização Automática de Pedidos Pix)
+  if (pathname === '/api/admin/pix-sync' && req.method === 'GET') {
+    await processExpiredPixOrders();
+
+    // Também verifica se há retentativas de webhook pendentes na fila para aprovar automaticamente
+    if (Array.isArray(db.pendingWebhookRetries) && db.pendingWebhookRetries.some((r) => r && !r.processed)) {
+      for (const ord of db.orders || []) {
+        if (
+          ord &&
+          ord.paymentMethod === 'pix' &&
+          ord.paymentStatus !== 'paid' &&
+          (ord.status === 'awaiting_payment' || ord.status === 'awaiting_confirmation')
+        ) {
+          const chg = (db.pixCharges || []).find((c) => c.orderId === ord.id || c.orderNumber === ord.orderNumber);
+          const check = await queryProviderChargeStatus(chg);
+          if (check && check.status === 'APPROVED') {
+            approvePixOrderPayment({
+              order: ord,
+              charge: chg,
+              paidAmount: check.paidAmount !== undefined ? check.paidAmount : ord.total,
+              eventId: check.eventId || ('admin_sync_' + ord.id),
+              source: check.source || 'admin_realtime_reconciliation'
+            });
+          }
+        }
+      }
+    }
+
+    const creds = getPixProviderCredentials();
+    return sendJson(res, 200, {
+      ok: true,
+      serverNow: new Date().toISOString(),
+      updatedAt: db.updatedAt,
+      webhookUrl: creds.webhookUrl,
+      provider: creds.provider,
+      orders: db.orders || [],
+      pixCharges: db.pixCharges || [],
+      financialEvents: (db.financialEvents || []).slice(0, 80),
+      adminNotifications: (db.adminNotifications || []).slice(0, 60),
+      auditLog: (db.auditLog || []).slice(0, 100)
+    });
+  }
+
+  // 7. Webhook Oficial de Confirmação Automática Pix (#6, #7, #8)
   if (pathname === '/api/webhooks/pix' && req.method === 'POST') {
     try {
       const body = await parseBody(req);
-      const headerSecret = req.headers['x-webhook-secret'] || body.webhookSecret || '';
-      if (headerSecret !== PIX_WEBHOOK_SECRET) {
+      const authCheck = verifyPixWebhookAuth(req, body, parsedUrl);
+
+      // 1. Valida autenticidade do Webhook e bloqueia chamadas diretas do navegador do cliente
+      if (!authCheck.valid) {
         logFinancialEvent('WEBHOOK_AUTH_FAILED', {
           ip: req.socket.remoteAddress,
-          message: 'Tentativa de notificação no webhook Pix com assinatura/segredo inválido.'
+          reason: authCheck.reason,
+          message: `Tentativa de notificação no webhook Pix rejeitada: ${authCheck.reason}`
         });
+        appendServerAuditLog(
+          'PIX_WEBHOOK_NAO_AUTORIZADO',
+          'Segurança Webhook Pix',
+          'Webhook /api/webhooks/pix',
+          `Notificação Pix rejeitada por falha de autenticação: ${authCheck.reason}`,
+          { ip: req.socket.remoteAddress }
+        );
         saveDatabase(db);
-        return sendJson(res, 401, { ok: false, error: 'Assinatura de webhook inválida.' });
+        return sendJson(res, 401, {
+          ok: false,
+          code: 'INVALID_WEBHOOK_AUTH',
+          error: 'Assinatura ou credencial de webhook inválida.'
+        });
       }
 
-      const pixItem = Array.isArray(body.pix) && body.pix[0] ? body.pix[0] : body;
-      const eventId = String(pixItem.endToEndId || pixItem.eventId || body.eventId || '').trim();
-      const txid = String(pixItem.txid || body.txid || '').trim();
-      const chargeId = String(pixItem.chargeId || body.chargeId || '').trim();
-      const orderId = String(pixItem.orderId || body.orderId || '').trim();
-      const paidAmount = pixItem.valor !== undefined ? Number(pixItem.valor) : (pixItem.amount !== undefined ? Number(pixItem.amount) : undefined);
+      // 2. Extrai e normaliza os dados da notificação (BACEN, Mercado Pago, Asaas, OpenPix, PagBank ou Direto)
+      const whData = extractPixWebhookData(body, parsedUrl);
+      let {
+        providerFormat,
+        eventId,
+        txid,
+        chargeId,
+        externalChargeId,
+        orderId,
+        paidAmount,
+        rawStatus,
+        isApprovedStatus,
+        isIgnoredNonPaidStatus
+      } = whData;
 
+      // 3. Tratamento de falha temporária do webhook (com fila de recuperação automática para retentativa/polling)
+      const simulateTempFailure =
+        String(req.headers['x-simulate-temp-failure'] || '').toLowerCase() === 'true' ||
+        body.simulateTemporaryFailure === true;
+
+      if (simulateTempFailure) {
+        db.pendingWebhookRetries = Array.isArray(db.pendingWebhookRetries) ? db.pendingWebhookRetries : [];
+        db.pendingWebhookRetries.push({
+          id: 'wh_retry_' + Date.now(),
+          receivedAt: new Date().toISOString(),
+          eventId: eventId || `evt_retry_${txid || chargeId || orderId}_${Date.now()}`,
+          txid,
+          chargeId,
+          externalChargeId,
+          orderId,
+          paidAmount,
+          processed: false
+        });
+        logFinancialEvent('WEBHOOK_TEMPORARY_FAILURE', {
+          eventId,
+          txid,
+          chargeId,
+          orderId,
+          amount: paidAmount,
+          message: `Falha temporária no processamento do webhook Pix (TXID: ${txid || '-'}). Evento enfileirado para retentativa/conciliação automática.`
+        });
+        saveDatabase(db);
+        return sendJson(res, 503, {
+          ok: false,
+          code: 'WEBHOOK_TEMPORARY_FAILURE',
+          retryable: true,
+          error: 'Falha temporária no processamento do webhook. O provedor pode reenviar a notificação ou o sistema conciliará automaticamente.'
+        });
+      }
+
+      // 4. Verificação de Idempotência (#8) — impede processamento duplicado do mesmo eventId
       if (eventId && (db.processedWebhooks || []).includes(eventId)) {
+        logFinancialEvent('WEBHOOK_DUPLICATE_IGNORED', {
+          eventId,
+          txid,
+          chargeId,
+          orderId,
+          amount: paidAmount,
+          message: `Notificação Pix duplicada ignorada com segurança (eventId: ${eventId}).`
+        });
+        saveDatabase(db);
         return sendJson(res, 200, {
           ok: true,
           idempotent: true,
@@ -2161,39 +2320,183 @@ const server = http.createServer(async (req, res) => {
         });
       }
 
-      const charge = (db.pixCharges || []).find(
-        (c) =>
-          (chargeId && c.chargeId === chargeId) ||
-          (txid && c.txid === txid) ||
-          (orderId && (c.orderId === orderId || c.orderNumber === orderId))
-      );
+      // 5. Se a notificação for apenas de criação/pendência/cancelamento, ignora sem aprovar o pedido
+      if (isIgnoredNonPaidStatus || !isApprovedStatus) {
+        logFinancialEvent('WEBHOOK_NON_PAID_STATUS_IGNORED', {
+          eventId,
+          txid,
+          chargeId,
+          orderId,
+          status: rawStatus,
+          message: `Notificação de webhook recebida com status "${rawStatus}" (não é confirmação de pagamento aprovado).`
+        });
+        saveDatabase(db);
+        return sendJson(res, 200, {
+          ok: true,
+          ignored: true,
+          status: rawStatus,
+          message: `Status "${rawStatus}" registrado sem aprovar pagamento.`
+        });
+      }
 
+      // 6. Localiza a cobrança registrada em db.pixCharges
+      let charge = null;
+      if (chargeId || txid || externalChargeId) {
+        charge = (db.pixCharges || []).find(
+          (c) =>
+            (chargeId && c.chargeId === chargeId) ||
+            (txid && c.txid === txid) ||
+            (externalChargeId && c.externalChargeId === externalChargeId)
+        );
+      } else if (orderId) {
+        charge = (db.pixCharges || []).find(
+          (c) => c.orderId === orderId || c.orderNumber === orderId
+        );
+      }
+
+      // 7. Quando o provedor envia apenas o ID externo (ex.: IPN Mercado Pago), consulta a cobrança na API do provedor
+      if ((externalChargeId && (!paidAmount || !charge)) || body.verifyWithProvider === true) {
+        const providerDetails = await queryProviderChargeStatus(charge, { externalChargeId });
+        if (providerDetails && providerDetails.status === 'APPROVED') {
+          if (paidAmount === undefined && providerDetails.paidAmount !== undefined) {
+            paidAmount = providerDetails.paidAmount;
+          }
+          if (!orderId && providerDetails.externalReference) {
+            orderId = providerDetails.externalReference;
+          }
+          if (!charge && orderId) {
+            charge = (db.pixCharges || []).find((c) => c.orderId === orderId || c.orderNumber === orderId);
+          }
+        }
+      }
+
+      // 8. Validação estrita da cobrança: não confia em TXID não registrado
+      if (!charge) {
+        logFinancialEvent('WEBHOOK_CHARGE_NOT_FOUND', {
+          eventId,
+          txid,
+          chargeId,
+          externalChargeId,
+          orderId,
+          paidAmount,
+          message: `Notificação Pix rejeitada: cobrança não localizada para TXID "${txid || '-'}" / ChargeID "${chargeId || '-'}".`
+        });
+        saveDatabase(db);
+        return sendJson(res, 404, {
+          ok: false,
+          code: 'CHARGE_NOT_FOUND',
+          error: 'Cobrança Pix não localizada ou não registrada no sistema para o TXID informado.'
+        });
+      }
+
+      // 9. Proteção contra colisão ou tentativa de usar a cobrança de um pedido para aprovar outro pedido!
+      if (txid && charge.txid && charge.txid !== txid) {
+        logFinancialEvent('WEBHOOK_TXID_MISMATCH', {
+          eventId,
+          txid,
+          expectedTxid: charge.txid,
+          chargeId: charge.chargeId,
+          orderNumber: charge.orderNumber,
+          message: ` Divergência de TXID na cobrança ${charge.chargeId}: recebido "${txid}", esperado "${charge.txid}".`
+        });
+        saveDatabase(db);
+        return sendJson(res, 409, {
+          ok: false,
+          code: 'TXID_MISMATCH',
+          error: 'O TXID recebido não corresponde ao TXID oficial registrado para esta cobrança.'
+        });
+      }
+
+      if (chargeId && charge.chargeId && charge.chargeId !== chargeId) {
+        logFinancialEvent('WEBHOOK_CHARGE_ID_MISMATCH', {
+          eventId,
+          chargeId,
+          expectedChargeId: charge.chargeId,
+          txid: charge.txid,
+          orderNumber: charge.orderNumber,
+          message: `Divergência de ChargeID: recebido "${chargeId}", esperado "${charge.chargeId}".`
+        });
+        saveDatabase(db);
+        return sendJson(res, 409, {
+          ok: false,
+          code: 'CHARGE_ID_MISMATCH',
+          error: 'O identificador da cobrança não corresponde ao registro oficial.'
+        });
+      }
+
+      if (orderId && charge.orderId !== orderId && charge.orderNumber !== orderId) {
+        logFinancialEvent('WEBHOOK_CROSS_ORDER_MISMATCH', {
+          eventId,
+          txid: charge.txid,
+          chargeId: charge.chargeId,
+          chargeOrderId: charge.orderId,
+          chargeOrderNumber: charge.orderNumber,
+          requestedOrderId: orderId,
+          amount: paidAmount,
+          message: `Tentativa bloqueada: a cobrança ${charge.txid} pertence ao pedido ${charge.orderNumber}, mas a notificação tentou referenciar o pedido ${orderId}.`
+        });
+        appendServerAuditLog(
+          'PIX_WEBHOOK_PEDIDO_DIVERGENTE_BLOQUEADO',
+          'Segurança Webhook Pix',
+          charge.orderNumber,
+          `Bloqueada tentativa de vincular a cobrança ${charge.txid} (do pedido ${charge.orderNumber}) ao pedido divergente ${orderId}.`,
+          { chargeId: charge.chargeId, txid: charge.txid, chargeOrderNumber: charge.orderNumber, requestedOrderId: orderId }
+        );
+        saveDatabase(db);
+        return sendJson(res, 409, {
+          ok: false,
+          code: 'ORDER_CHARGE_MISMATCH',
+          error: `A cobrança Pix informada (${charge.txid}) pertence ao pedido ${charge.orderNumber} e não pode alterar outro pedido (${orderId}).`
+        });
+      }
+
+      // 10. Localiza o pedido exato vinculado à cobrança validada
       const order = (db.orders || []).find(
-        (o) =>
-          (charge && (o.id === charge.orderId || o.orderNumber === charge.orderNumber)) ||
-          (orderId && (o.id === orderId || o.orderNumber === orderId)) ||
-          (txid && o.pixData && o.pixData.txid === txid)
+        (o) => o && (o.id === charge.orderId || o.orderNumber === charge.orderNumber)
       );
 
       if (!order) {
         logFinancialEvent('WEBHOOK_ORDER_NOT_FOUND', {
           eventId,
-          txid,
-          chargeId,
-          orderId,
+          txid: charge.txid,
+          chargeId: charge.chargeId,
+          orderId: charge.orderId,
           paidAmount,
-          message: 'Notificação Pix recebida para cobrança/pedido não localizado.'
+          message: 'Notificação Pix recebida para pedido não localizado.'
         });
         saveDatabase(db);
-        return sendJson(res, 404, { ok: false, error: 'Cobrança ou pedido não localizado para o TXID informado.' });
+        return sendJson(res, 404, {
+          ok: false,
+          code: 'ORDER_NOT_FOUND',
+          error: 'Pedido vinculado à cobrança Pix não foi localizado.'
+        });
+      }
+
+      // Confere vínculo bilateral entre pedido e cobrança
+      if (order.pixData && order.pixData.txid && charge.txid && order.pixData.txid !== charge.txid) {
+        return sendJson(res, 409, {
+          ok: false,
+          code: 'ORDER_PIXDATA_MISMATCH',
+          error: 'O TXID da cobrança não corresponde ao TXID gravado no pedido.'
+        });
+      }
+
+      // Marca como processado qualquer eventual item pendente na fila de retentativas para esta cobrança
+      if (Array.isArray(db.pendingWebhookRetries)) {
+        db.pendingWebhookRetries.forEach((r) => {
+          if (r && (r.txid === charge.txid || r.chargeId === charge.chargeId)) {
+            r.processed = true;
+            r.processedAt = new Date().toISOString();
+          }
+        });
       }
 
       const result = approvePixOrderPayment({
         order,
         charge,
         paidAmount,
-        eventId: eventId || `evt_${txid || order.id}_${Date.now()}`,
-        source: 'pix_webhook'
+        eventId: eventId || `evt_${charge.txid || order.id}_${Date.now()}`,
+        source: `pix_webhook_${providerFormat}`
       });
 
       if (!result.ok) {
@@ -2209,16 +2512,16 @@ const server = http.createServer(async (req, res) => {
         orderId: order.id,
         orderNumber: order.orderNumber,
         status: order.status,
+        orderStatus: order.status,
         statusLabel: order.statusLabel,
         paymentStatus: order.paymentStatus,
+        payment_status: order.payment_status || order.paymentStatus,
         paidAt: order.paidAt
       });
     } catch (err) {
       return sendJson(res, 400, { ok: false, error: err.message });
     }
   }
-
-  if (pathname === '/api/pix/sandbox-simulate-payment' && req.method === 'POST') {
     try {
       const body = await parseBody(req);
       const orderId = String(body.orderId || body.orderNumber || '').trim();
