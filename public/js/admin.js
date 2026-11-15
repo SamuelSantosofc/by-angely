@@ -5775,3 +5775,135 @@ bindAdminWorkspaceEvents = function (containerEl) {
   }
 };
 })();
+  // Webhook copy button handler
+  document.addEventListener('click', async (e) => {
+    const copyWhBtn = e.target.closest('#btn-copy-pix-webhook-url');
+    if (copyWhBtn) {
+      const whUrl = copyWhBtn.getAttribute('data-webhook-url') || (window.location.origin + '/api/webhooks/pix');
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(whUrl);
+        }
+        if (window.ByAngelyApp) {
+          window.ByAngelyApp.showToast('URL oficial do Webhook Pix copiada para a área de transferência!', 'success');
+        }
+      } catch (_e) {}
+    }
+  });
+
+  // ============================================================================
+  // ATUALIZAÇÃO AUTOMÁTICA EM TEMPO REAL DO PAINEL ADMINISTRATIVO (POLLING PIX)
+  // Atualiza automaticamente os pedidos e indicadores quando um Pix é aprovado
+  // pelo provedor sem exigir que a proprietária recarregue ou altere manualmente.
+  // ============================================================================
+  let _adminPixSyncInterval = null;
+  let _lastOrdersFingerprint = '';
+  let _syncInFlight = false;
+
+  function computeOrdersAndChargesFingerprint(orders, charges) {
+    const ordPart = (orders || [])
+      .map((o) => `${o.id}:${o.status}:${o.paymentStatus || o.payment_status || ''}:${o.paidAt || ''}:${(o.cancellationRequest && o.cancellationRequest.status) || ''}`)
+      .join('|');
+    const chgPart = (charges || [])
+      .map((c) => `${c.chargeId || c.txid}:${String(c.status || '').toLowerCase()}`)
+      .join('|');
+    return `${ordPart}##${chgPart}`;
+  }
+
+  async function runAdminRealtimePixSyncTick() {
+    if (_syncInFlight) return;
+    const app = window.ByAngelyApp;
+    if (!app || typeof app.getState !== 'function') return;
+    const state = app.getState();
+    if (!state || !state.currentAdmin || !state.db) return;
+
+    // Só executa enquanto o painel administrativo estiver aberto
+    const isAdminViewActive =
+      state.currentView === 'admin' ||
+      String(window.location.hash || '').startsWith('#admin') ||
+      document.body.classList.contains('admin-page-active');
+    if (!isAdminViewActive) return;
+
+    _syncInFlight = true;
+    try {
+      const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+      const prevOrders = Array.isArray(state.db.orders) ? state.db.orders : [];
+      const prevCharges = Array.isArray(state.db.pixCharges) ? state.db.pixCharges : [];
+      if (!_lastOrdersFingerprint) {
+        _lastOrdersFingerprint = computeOrdersAndChargesFingerprint(prevOrders, prevCharges);
+      }
+
+      const prevPaidMap = new Map(
+        prevOrders.map((o) => [
+          o.id,
+          o.paymentStatus === 'paid' || o.payment_status === 'paid' || o.paymentStatus === 'approved'
+        ])
+      );
+
+      const res = await fetch(apiBase + '/api/admin/pix-sync', {
+        method: 'GET',
+        headers: getAdminHeadersV6(app),
+        cache: 'no-store'
+      });
+      if (!res.ok) {
+        _syncInFlight = false;
+        return;
+      }
+      const data = await res.json();
+      if (!data || !data.ok || !Array.isArray(data.orders)) {
+        _syncInFlight = false;
+        return;
+      }
+
+      const newFp = computeOrdersAndChargesFingerprint(data.orders, data.pixCharges || []);
+      if (newFp !== _lastOrdersFingerprint) {
+        const newlyPaidOrders = data.orders.filter((o) => {
+          const isNowPaid = o && (o.paymentStatus === 'paid' || o.payment_status === 'paid' || o.paymentStatus === 'approved');
+          const wasPaid = prevPaidMap.get(o.id);
+          return isNowPaid && !wasPaid;
+        });
+
+        state.db.orders = data.orders;
+        if (Array.isArray(data.pixCharges)) state.db.pixCharges = data.pixCharges;
+        if (Array.isArray(data.financialEvents)) state.db.financialEvents = data.financialEvents;
+        if (Array.isArray(data.adminNotifications)) state.db.adminNotifications = data.adminNotifications;
+        if (Array.isArray(data.auditLog)) state.db.auditLog = data.auditLog;
+        _lastOrdersFingerprint = newFp;
+
+        newlyPaidOrders.forEach((ord) => {
+          if (app.showToast) {
+            app.showToast(
+              `⚡ Pagamento Pix confirmado automaticamente! Pedido ${ord.orderNumber} atualizado para "${ord.statusLabel || 'Pagamento aprovado • Aguardando separação'}".`,
+              'success'
+            );
+          }
+        });
+
+        if (AdminState.activeSection === 'analytics' && typeof fetchAdminAnalyticsReport === 'function') {
+          await fetchAdminAnalyticsReport(true);
+        } else {
+          const activeEl = document.activeElement;
+          const isTyping =
+            activeEl &&
+            (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT') &&
+            activeEl.id !== 'admin-order-search';
+
+          const mainEl = document.getElementById('app-main-content');
+          if (mainEl && !isTyping) {
+            renderAdminView(mainEl);
+          }
+        }
+      }
+    } catch (_err) {
+    } finally {
+      _syncInFlight = false;
+    }
+  }
+
+  function startAdminRealtimePixSync() {
+    if (_adminPixSyncInterval) clearInterval(_adminPixSyncInterval);
+    _adminPixSyncInterval = setInterval(runAdminRealtimePixSyncTick, 3500);
+  }
+
+  startAdminRealtimePixSync();
+})();
