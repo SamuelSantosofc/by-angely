@@ -3721,4 +3721,1686 @@ renderAdminView(containerEl);
 });
 }
 }
+
+  
+function bindAdminLoginEvents(containerEl) {
+const form = containerEl.querySelector('#admin-login-form');
+if (!form) return;
+form.addEventListener('submit', async (e) => {
+e.preventDefault();
+const app = window.ByAngelyApp;
+const db = app.getState().db;
+const fd = new FormData(form);
+const email = String(fd.get('email') || '').trim().toLowerCase();
+const password = String(fd.get('password') || '');
+const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+try {
+const res = await fetch(apiBase + '/api/admin/login', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({ email, password })
+});
+const data = await res.json();
+if (res.ok && data && data.ok && data.admin) {
+const safeSessionUser = { ...data.admin, token: data.token };
+app.getState().currentAdmin = safeSessionUser;
+sessionStorage.setItem(STORAGE_KEY_ADMIN_SESSION, JSON.stringify(safeSessionUser));
+if (app.loadDatabase) await app.loadDatabase();
+app.updateGlobalChrome();
+app.showToast(`Bem-vinda ao Painel Administrativo, ${safeSessionUser.name}!`, 'success');
+renderAdminView(containerEl);
+return;
+}
+} catch (err) {}
+db.adminUsers = (db.adminUsers || []).filter(
+(u) => u && u.email !== 'proprietaria@byangely.local' && u.email !== 'equipe@byangely.local'
+);
+if (!db.adminUsers.some((u) => u.email.toLowerCase() === 'byangely1@gmail.com')) {
+db.adminUsers.unshift({
+id: 'admin-owner-official',
+name: 'Proprietária BY ANGÉLY',
+email: 'byangely1@gmail.com',
+role: 'owner',
+roleLabel: 'Proprietária (Acesso Total)',
+permissions: ROLE_DEFINITIONS.owner.permissions,
+active: true
+});
+}
+const user = (db.adminUsers || []).find((u) => u.email.toLowerCase() === email && u.active !== false);
+const validPass =
+(user && user.customPassword && user.customPassword === password) ||
+(user && !user.customPassword && user.role === 'owner' && password === 'Angely@2026') ||
+(user && !user.customPassword && user.role !== 'owner' && password === 'Equipe@2026');
+if (!user || !validPass) {
+app.showToast('Credenciais administrativas inválidas ou acesso revogado.', 'danger');
+return;
+}
+const safeSessionUser = { ...user };
+delete safeSessionUser.customPassword;
+delete safeSessionUser.passwordHash;
+app.getState().currentAdmin = safeSessionUser;
+sessionStorage.setItem(STORAGE_KEY_ADMIN_SESSION, JSON.stringify(safeSessionUser));
+app.updateGlobalChrome();
+app.saveDatabase(`Login administrativo realizado por ${user.name}`);
+app.showToast(`Bem-vinda ao Painel Administrativo, ${user.name}!`, 'success');
+renderAdminView(containerEl);
+});
+}
+const _v5RenderSalesSettingsSection = renderSalesSettingsSection;
+renderSalesSettingsSection = function () {
+const app = window.ByAngelyApp;
+const db = (app && app.getState && app.getState().db) || {};
+const pay = db.paymentSettings || {};
+const kType = (pay.pix && pay.pix.keyType) || 'telefone';
+let html = _v5RenderSalesSettingsSection();
+html = html.replace(
+'<div class="admin-card">\n          <h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:12px;">Controles Individuais de Ativação & Diagnóstico</h2>\n          <div style="overflow-x:auto;">\n            <table class="data-table">',
+'<div class="admin-card" id="admin-payment-methods-activation-card"><h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:12px;">Controles Individuais de Ativação & Diagnóstico</h2><div class="admin-table-responsive-wrap"><table class="data-table admin-payment-methods-table">'
+);
+html = html.replace(
+'<select name="pixKeyType" class="form-control">',
+'<select name="pixKeyType" id="admin-pix-key-type-select" class="form-control"><option value="numero" ' + (kType === 'numero' || kType === 'direta' ? 'selected' : '') + '>Apenas Número / Identificador Direto</option>'
+);
+html = html.replace(
+'<input type="text" name="pixKey" class="form-control"',
+'<input type="text" name="pixKey" id="admin-pix-key-input" class="form-control" placeholder="Digite a chave Pix ou apenas o número"'
+);
+html = html.replace(
+'<input type="checkbox" name="pixEnabled"',
+'<input type="checkbox" name="pixEnabled" id="admin-pix-enabled-checkbox"'
+);
+return html;
+};
+bindAdminWorkspaceEvents = function (containerEl) {
+_origBindAdminWorkspaceEvents(containerEl);
+const app = window.ByAngelyApp;
+const db = app.getState().db;
+if (db && db.paymentSettings) db.paymentSettings.paymentConfigVersion = 4;
+const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+containerEl.querySelectorAll('[data-action-admin="toggle-payment-method"]').forEach((btn) => {
+btn.addEventListener('click', async (e) => {
+e.preventDefault();
+e.stopImmediatePropagation();
+const methodKey = btn.getAttribute('data-method');
+if (methodKey && db.paymentSettings && db.paymentSettings[methodKey]) {
+db.paymentSettings.paymentConfigVersion = 4;
+const willEnable = !db.paymentSettings[methodKey].enabled;
+db.paymentSettings[methodKey].enabled = willEnable;
+const stateStr = willEnable ? 'ATIVADA' : 'DESATIVADA';
+const currAdm = app.getState().currentAdmin || {};
+const reqHeaders = {
+'Content-Type': 'application/json',
+'X-Admin-Role': currAdm.role || 'owner',
+'X-Admin-Email': currAdm.email || 'byangely1@gmail.com'
+};
+if (currAdm.token) reqHeaders['X-Admin-Token'] = currAdm.token;
+try {
+await fetch(apiBase + '/api/admin/payment-settings', {
+method: 'POST',
+headers: reqHeaders,
+body: JSON.stringify({
+paymentSettings: db.paymentSettings,
+actorName: currAdm.name || 'Proprietária BY ANGÉLY',
+actorRole: currAdm.role || 'owner',
+actorEmail: currAdm.email || 'byangely1@gmail.com'
+})
+});
+} catch (err) {}
+await app.saveDatabase('Forma de pagamento "' + methodKey + '" ' + stateStr + ' pela proprietária.');
+app.showToast('Forma de pagamento ' + (willEnable ? 'ativada' : 'desativada') + ' com sucesso!', 'success');
+renderAdminView(containerEl);
+}
+}, true);
+});
+const payForm = containerEl.querySelector('#admin-payment-settings-form');
+if (payForm) {
+payForm.addEventListener('submit', async (e) => {
+e.preventDefault();
+e.stopImmediatePropagation();
+const fd = new FormData(payForm);
+db.paymentSettings.paymentConfigVersion = 4;
+db.paymentSettings.whatsapp = db.paymentSettings.whatsapp || {};
+db.paymentSettings.whatsapp.enabled = fd.get('whatsappEnabled') === 'on';
+db.paymentSettings.whatsapp.displayName = fd.get('whatsappDisplayName') || 'Atendimento e Finalização pelo WhatsApp';
+db.paymentSettings.whatsapp.instructions = fd.get('whatsappInstructions') || '';
+const pixKeyType = String(fd.get('pixKeyType') || 'telefone').trim().toLowerCase();
+const pixKeyVal = String(fd.get('pixKey') || '').trim();
+db.paymentSettings.pix = db.paymentSettings.pix || {};
+db.paymentSettings.pix.enabled = fd.get('pixEnabled') === 'on';
+db.paymentSettings.pix.keyType = pixKeyType;
+db.paymentSettings.pix.pixKey = pixKeyVal;
+db.paymentSettings.pix.recipientName = String(fd.get('pixRecipientName') || 'BY ANGELY').trim();
+db.paymentSettings.pix.recipientCity = String(fd.get('pixRecipientCity') || 'ITAPERUNA').trim();
+db.paymentSettings.pix.txidPrefix = String(fd.get('pixTxidPrefix') || 'BYANGELY').trim();
+db.paymentSettings.pix.instructions = fd.get('pixInstructions') || '';
+const currAdm = app.getState().currentAdmin || {};
+const reqHeaders = {
+'Content-Type': 'application/json',
+'X-Admin-Role': currAdm.role || 'owner',
+'X-Admin-Email': currAdm.email || 'byangely1@gmail.com'
+};
+if (currAdm.token) reqHeaders['X-Admin-Token'] = currAdm.token;
+try {
+await fetch(apiBase + '/api/admin/payment-settings', {
+method: 'POST',
+headers: reqHeaders,
+body: JSON.stringify({
+paymentSettings: db.paymentSettings,
+actorName: currAdm.name || 'Proprietária BY ANGÉLY',
+actorRole: currAdm.role || 'owner',
+actorEmail: currAdm.email || 'byangely1@gmail.com'
+})
+});
+} catch (err) {}
+await app.saveDatabase('Configurações de venda e pagamento atualizadas pela proprietária (Pix: ' + (db.paymentSettings.pix.enabled ? 'Ativo' : 'Desativado') + ', Chave: ' + db.paymentSettings.pix.pixKey + ').');
+app.showToast('Configurações de Venda e Pagamento salvas com sucesso!', 'success');
+renderAdminView(containerEl);
+}, true);
+}
+};
+AdminState.customerSearchTerm = AdminState.customerSearchTerm || '';
+AdminState.customerStatusFilter = AdminState.customerStatusFilter || 'all';
+function getAdminHeadersV6(app) {
+const curr = (app && app.getState && app.getState().currentAdmin) || {};
+const headers = {
+'Content-Type': 'application/json',
+'X-Admin-Role': curr.role || 'owner',
+'X-Admin-Email': curr.email || 'byangely1@gmail.com'
+};
+if (curr.token) {
+headers['X-Admin-Token'] = curr.token;
+headers['Authorization'] = 'Bearer ' + curr.token;
+}
+return headers;
+}
+function ensureV6AdminStylesAndModals() {
+if (!document.getElementById('by-angely-v6-admin-styles')) {
+const st = document.createElement('style');
+st.id = 'by-angely-v6-admin-styles';
+st.textContent = [
+'body.admin-page-active #category-strip-nav, body.admin-page-active .category-strip { display: none !important; }',
+'body.admin-page-active .floating-whatsapp-concierge { display: none !important; }',
+'.admin-compact-header-v6 { background: #292522; color: #FAF8F5; border-bottom: 1px solid rgba(233,223,212,0.18); padding: 10px 16px; position: sticky; top: 0; z-index: 90; }',
+'.admin-compact-header-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; max-width: 1440px; margin: 0 auto 8px; }',
+'.admin-compact-brand { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }',
+'.admin-compact-brand-title { font-family: var(--font-serif); font-size: 1.25rem; color: #FAF8F5; letter-spacing: 0.06em; font-weight: 700; }',
+'.admin-compact-badge { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; padding: 3px 8px; border-radius: 999px; background: rgba(201,157,145,0.22); color: #F8F5F0; font-weight: 600; }',
+'.admin-compact-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }',
+'.admin-compact-nav-strip { display: flex; align-items: center; gap: 6px; overflow-x: auto; padding-bottom: 4px; max-width: 1440px; margin: 0 auto; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }',
+'.admin-compact-nav-pill { display: inline-flex; align-items: center; gap: 6px; padding: 8px 13px; border-radius: 999px; border: 1px solid rgba(233,223,212,0.22); background: rgba(255,255,255,0.06); color: #E9DFD4; font-size: 0.76rem; font-weight: 600; white-space: nowrap; cursor: pointer; transition: all 0.18s ease; min-height: 36px; }',
+'.admin-compact-nav-pill:hover { background: rgba(255,255,255,0.14); color: #FFFFFF; }',
+'.admin-compact-nav-pill.active { background: #806044; border-color: #C99D91; color: #FFFFFF; box-shadow: 0 2px 8px rgba(0,0,0,0.22); }',
+'.admin-config-subbar-v6 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 14px; background: #F8F5F0; border: 1px solid #D5C7B8; border-radius: 10px; margin-bottom: 16px; }',
+'.admin-config-subpill { padding: 7px 14px; border-radius: 8px; border: 1px solid #D5C7B8; background: #FFFFFF; color: #5C5346; font-size: 0.78rem; font-weight: 600; cursor: pointer; min-height: 36px; }',
+'.admin-config-subpill.active { background: #806044; border-color: #806044; color: #FFFFFF; }',
+'.pm-method-name { display: block; font-size: 0.96rem; color: #292522; margin-bottom: 4px; line-height: 1.35; }',
+'.pm-method-desc { font-size: 0.8rem; color: #5C5346; line-height: 1.45; white-space: normal; word-break: normal; overflow-wrap: break-word; }',
+'.pm-integration-detail { font-size: 0.75rem; color: #5C5346; margin-top: 4px; line-height: 1.4; white-space: normal; word-break: normal; overflow-wrap: break-word; }',
+'@media (max-width: 768px) {',
+'  .admin-mobile-topbar { display: none !important; }',
+'  .admin-shell { display: block !important; padding: 0 !important; }',
+'  .admin-sidebar { display: none !important; }',
+'  .admin-sidebar.mobile-open { display: flex !important; position: fixed !important; inset: 0 !important; z-index: 9990 !important; width: 100% !important; max-width: 320px !important; overflow-y: auto !important; }',
+'  .admin-main { padding: 14px 12px 36px !important; width: 100% !important; max-width: 100% !important; box-sizing: border-box !important; overflow-x: hidden !important; }',
+'  .admin-card { padding: 16px 14px !important; border-radius: 12px !important; margin-bottom: 16px !important; box-sizing: border-box !important; width: 100% !important; overflow: hidden !important; }',
+'  .admin-main h1 { font-size: 1.48rem !important; line-height: 1.25 !important; }',
+'  .admin-main h2 { font-size: 1.24rem !important; line-height: 1.3 !important; }',
+'  .admin-form-grid-2, .admin-form-grid-3, .admin-form-grid-4, .admin-product-split { display: flex !important; flex-direction: column !important; gap: 12px !important; width: 100% !important; }',
+'  .admin-main .data-table, .admin-main .data-table tbody { display: block !important; width: 100% !important; min-width: 0 !important; }',
+'  .admin-main .data-table thead { display: none !important; }',
+'  .admin-main .data-table tbody tr { display: flex !important; flex-direction: column !important; gap: 10px !important; background: #FFFFFF !important; border: 1px solid #D5C7B8 !important; border-radius: 12px !important; padding: 15px 14px !important; margin-bottom: 12px !important; box-shadow: 0 3px 10px rgba(41,37,34,0.05) !important; width: 100% !important; box-sizing: border-box !important; }',
+'  .admin-main .data-table tbody td { display: block !important; width: 100% !important; min-width: 0 !important; max-width: 100% !important; padding: 0 !important; border: none !important; text-align: left !important; white-space: normal !important; word-break: normal !important; overflow-wrap: break-word !important; font-size: 0.86rem !important; line-height: 1.45 !important; box-sizing: border-box !important; }',
+'  .admin-main .data-table tbody td[data-label]::before { content: attr(data-label); display: block; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #806044; margin-bottom: 3px; }',
+'  .admin-main .data-table.admin-payment-methods-table tbody td.pm-cell-title::before { display: none !important; }',
+'  .admin-main .data-table.admin-payment-methods-table .pm-method-name { font-size: 1.04rem !important; font-weight: 700 !important; color: #292522 !important; margin-bottom: 5px !important; }',
+'  .admin-main .data-table.admin-payment-methods-table .pm-method-desc { font-size: 0.85rem !important; color: #5C5346 !important; line-height: 1.48 !important; }',
+'  .admin-main .data-table.admin-payment-methods-table tbody td.pm-cell-state, .admin-main .data-table.admin-payment-methods-table tbody td.pm-cell-integration { padding-top: 8px !important; border-top: 1px dashed #E9DFD4 !important; }',
+'  .admin-main .data-table.admin-payment-methods-table tbody td.pm-cell-action { padding-top: 8px !important; }',
+'  .admin-main .data-table.admin-payment-methods-table .pm-action-btn, .admin-main .data-table tbody td:last-child .btn { width: 100% !important; min-height: 42px !important; justify-content: center !important; font-size: 0.84rem !important; }',
+'}',
+'].join(`\n`);
+document.head.appendChild(st);
+}
+if (!document.getElementById('admin-block-customer-modal')) {
+const mBlock = document.createElement('div');
+mBlock.id = 'admin-block-customer-modal';
+mBlock.className = 'v6-modal-backdrop';
+mBlock.setAttribute('aria-hidden', 'true');
+mBlock.innerHTML = [
+'<div class="v6-modal-card" role="dialog" aria-modal="true" aria-labelledby="admin-block-cust-title">',
+'  <span class="section-eyebrow" style="color:#8E2626;">Segurança e Gerenciamento de Contas</span>',
+'  <h2 id="admin-block-cust-title" style="font-family:var(--font-serif);font-size:1.5rem;margin-bottom:6px;color:#292522;">Bloquear Conta de Cliente</h2>',
+'  <p id="admin-block-cust-desc" style="font-size:0.84rem;color:#5C5346;line-height:1.45;margin-bottom:12px;">A conta bloqueada ficará impedida de realizar login e novas compras. O histórico de pedidos será preservado e você poderá desbloqueá-la quando desejar.</p>',
+'  <form id="admin-block-customer-form" novalidate>',
+'    <input type="hidden" id="admin-block-cust-id-input" value="" />',
+'    <div class="form-field-group" style="margin-bottom:14px;">',
+'      <label class="form-field-label" for="admin-block-cust-reason-input">Motivo do bloqueio (registrado na auditoria) <span class="req-star">*</span></label>',
+'      <textarea id="admin-block-cust-reason-input" class="form-control" rows="2" required placeholder="Informe o motivo administrativo para o bloqueio desta conta..."></textarea>',
+'    </div>',
+'    <div id="admin-block-cust-error" style="display:none;padding:10px 12px;border-radius:8px;background:#FDF2F2;border:1px solid #F2B8B5;color:#8E2626;font-size:0.8rem;margin-bottom:12px;"></div>',
+'    <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">',
+'      <button type="button" class="btn btn-outline btn-sm" data-action-admin="close-block-customer-modal" style="min-height:40px;">Cancelar</button>',
+'      <button type="submit" id="btn-confirm-block-customer" class="btn btn-danger btn-sm" style="min-height:40px;">Confirmar Bloqueio</button>',
+'    </div>',
+'  </form>',
+'</div>'
+].join('');
+document.body.appendChild(mBlock);
+}
+if (!document.getElementById('admin-delete-customer-modal')) {
+const mDel = document.createElement('div');
+mDel.id = 'admin-delete-customer-modal';
+mDel.className = 'v6-modal-backdrop';
+mDel.setAttribute('aria-hidden', 'true');
+mDel.innerHTML = [
+'<div class="v6-modal-card" role="dialog" aria-modal="true" aria-labelledby="admin-del-cust-title">',
+'  <span class="section-eyebrow" style="color:#8E2626;">Ação Irreversível • Confirmação Reforçada</span>',
+'  <h2 id="admin-del-cust-title" style="font-family:var(--font-serif);font-size:1.5rem;margin-bottom:6px;color:#292522;">Excluir ou Anonimizar Conta</h2>',
+'  <div style="background:#FDF2F2;border:1px solid #F2B8B5;border-radius:10px;padding:12px 14px;font-size:0.8rem;color:#6E2828;line-height:1.45;margin-bottom:12px;">',
+'    <strong>Atenção Administradora:</strong>',
+'    <ul style="margin:4px 0 0 18px;">',
+'      <li>Os dados pessoais da cliente (nome, e-mail, telefone, CPF e endereços) serão <strong>anonimizados permanentemente</strong>.</li>',
+'      <li>Pedidos anteriores, registros financeiros e histórico de transações serão <strong>preservados</strong> para integridade contábil e fiscal.</li>',
+'      <li>Pedidos em aberto não pagos serão cancelados e terão seu estoque liberado.</li>',
+'    </ul>',
+'  </div>',
+'  <form id="admin-delete-customer-form" novalidate>',
+'    <input type="hidden" id="admin-del-cust-id-input" value="" />',
+'    <div class="form-field-group" style="margin-bottom:12px;">',
+'      <label class="form-field-label" for="admin-del-cust-reason-input">Motivo da exclusão / anonimização <span class="req-star">*</span></label>',
+'      <input type="text" id="admin-del-cust-reason-input" class="form-control" required placeholder="Ex.: Solicitação titular LGPD / Encerramento administrativo" />',
+'    </div>',
+'    <div class="form-field-group" style="margin-bottom:12px;">',
+'      <label class="form-field-label" for="admin-del-cust-password-input">Reautenticação: Digite sua senha administrativa <span class="req-star">*</span></label>',
+'      <input type="password" id="admin-del-cust-password-input" class="form-control" required placeholder="Sua senha de administradora" />',
+'    </div>',
+'    <label style="display:flex;align-items:flex-start;gap:8px;font-size:0.8rem;color:#292522;margin-bottom:14px;cursor:pointer;">',
+'      <input type="checkbox" id="admin-del-cust-confirm-chk" required style="margin-top:3px;" />',
+'      <span>Confirmo que revisei os dados da conta e autorizo a exclusão/anonimização definitiva desta conta de cliente.</span>',
+'    </label>',
+'    <div id="admin-del-cust-error" style="display:none;padding:10px 12px;border-radius:8px;background:#FDF2F2;border:1px solid #F2B8B5;color:#8E2626;font-size:0.8rem;margin-bottom:12px;"></div>',
+'    <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">',
+'      <button type="button" class="btn btn-outline btn-sm" data-action-admin="close-delete-customer-modal" style="min-height:40px;">Cancelar</button>',
+'      <button type="submit" id="btn-confirm-admin-delete-customer" class="btn btn-danger btn-sm" style="min-height:40px;">Confirmar Exclusão / Anonimização</button>',
+'    </div>',
+'  </form>',
+'</div>'
+].join('');
+document.body.appendChild(mDel);
+}
+}
+function applyMobileCardLabelsToAdminTables(rootEl) {
+if (!rootEl) return;
+rootEl.querySelectorAll('table.data-table').forEach((table) => {
+const headers = Array.from(table.querySelectorAll('thead th')).map((th) => th.textContent.trim());
+if (headers.length === 0) return;
+table.querySelectorAll('tbody tr').forEach((tr) => {
+Array.from(tr.children).forEach((td, idx) => {
+if (td.tagName === 'TD' && !td.hasAttribute('data-label') && headers[idx]) {
+td.setAttribute('data-label', headers[idx]);
+}
+});
+});
+});
+}
+function renderPaidOrderCancellationRequestsCardV6(orders, app, canManageOrders) {
+const reqOrders = (orders || []).filter((o) => o && o.cancellationRequest);
+if (reqOrders.length === 0) return '';
+return [
+'<div class="admin-card" id="admin-paid-cancellation-requests-card" style="border:1.5px solid #806044;margin-bottom:20px;background:#FFFDF9;">',
+'  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;">',
+'    <div>',
+'      <span class="section-eyebrow" style="color:#806044;">Pós-Venda Financeiro • Pedidos Pagos</span>',
+'      <h2 style="font-family:var(--font-serif);font-size:1.5rem;margin-bottom:2px;">Solicitações de Cancelamento e Reembolso (' + reqOrders.length + ')</h2>',
+'      <p style="font-size:0.82rem;color:var(--text-secondary);margin:0;">Analise os pedidos pagos cujo cancelamento foi solicitado pela cliente. O reembolso só é marcado como concluído mediante confirmação real do provedor/comprovante.</p>',
+'    </div>',
+'  </div>',
+'  <div style="display:flex;flex-direction:column;gap:12px;">',
+reqOrders.map((ord) => {
+const req = ord.cancellationRequest || {};
+const badgeClass = (req.status === 'approved' || req.status === 'refunded') ? 'confirmed' : req.status === 'rejected' ? 'danger' : 'pending';
+return [
+'<div class="admin-cancel-request-item" data-cancel-req-order-id="' + app.escapeHtml(ord.id) + '" style="padding:14px;border:1px solid #D5C7B8;border-radius:10px;background:#FFFFFF;">',
+'  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:8px;">',
+'    <div>',
+'      <strong style="font-size:1rem;color:#292522;">Pedido ' + app.escapeHtml(ord.orderNumber) + ' • ' + app.escapeHtml((ord.customer && ord.customer.name) || 'Cliente') + '</strong>',
+'      <div style="font-size:0.78rem;color:var(--text-secondary);">Valor pago: <strong>' + app.formatBRL(ord.total) + '</strong> • Solicitado em: ' + app.formatDateBR(req.createdAt) + '</div>',
+'    </div>',
+'    <span class="status-pill ' + badgeClass + '">' + app.escapeHtml(req.statusLabel || req.status) + '</span>',
+'  </div>',
+'  <div style="font-size:0.84rem;color:#292522;margin-bottom:10px;padding:8px 10px;background:#F8F5F0;border-radius:6px;">',
+'    <div><strong>Motivo informado pela cliente:</strong> ' + app.escapeHtml(req.reason || '-') + '</div>',
+(req.adminReason ? '<div style="margin-top:4px;"><strong>Justificativa / Nota Administrativa:</strong> ' + app.escapeHtml(req.adminReason) + '</div>' : ''),
+(req.refundReference ? '<div style="margin-top:4px;color:#1E4D38;"><strong>Comprovante / ID do Reembolso:</strong> ' + app.escapeHtml(req.refundReference) + '</div>' : ''),
+'  </div>',
+(canManageOrders ? [
+'  <div class="admin-form-grid-2" style="margin-bottom:10px;">',
+'    <div>',
+'      <label style="display:block;font-size:0.74rem;font-weight:600;margin-bottom:3px;">Justificativa ou Observação para a Cliente</label>',
+'      <input type="text" class="form-control" id="admin-cancel-req-reason-' + app.escapeHtml(ord.id) + '" placeholder="Justificativa (obrigatória ao recusar)..." value="' + app.escapeHtml(req.adminReason || '') + '" style="min-height:38px;" />',
+'    </div>',
+'    <div>',
+'      <label style="display:block;font-size:0.74rem;font-weight:600;margin-bottom:3px;">Comprovante / Código de Estorno no Provedor</label>',
+'      <input type="text" class="form-control" id="admin-cancel-req-ref-' + app.escapeHtml(ord.id) + '" placeholder="Ex.: E2E / ID da transação de estorno Pix" value="' + app.escapeHtml(req.refundReference || '') + '" style="min-height:38px;" />',
+'    </div>',
+'  </div>',
+'  <div style="display:flex;gap:8px;flex-wrap:wrap;">',
+'    <button type="button" class="btn btn-primary btn-sm" data-action-admin="paid-cancel-decision" data-decision="approve" data-order-id="' + app.escapeHtml(ord.id) + '">1. Aprovar Solicitação</button>',
+'    <button type="button" class="btn btn-outline btn-sm" data-action-admin="paid-cancel-decision" data-decision="start_refund" data-order-id="' + app.escapeHtml(ord.id) + '">2. Iniciar Reembolso</button>',
+'    <button type="button" class="btn btn-gold btn-sm" data-action-admin="paid-cancel-decision" data-decision="confirm_refund" data-order-id="' + app.escapeHtml(ord.id) + '">3. Confirmar Reembolso no Provedor</button>',
+'    <button type="button" class="btn btn-danger btn-sm" data-action-admin="paid-cancel-decision" data-decision="reject" data-order-id="' + app.escapeHtml(ord.id) + '">Recusar com Justificativa</button>',
+'  </div>'
+].join('') : ''),
+'</div>'
+].join('');
+}).join(''),
+'  </div>',
+'</div>'
+].join('');
+}
+const _origRenderOrdersSectionV5 = renderOrdersSection;
+renderOrdersSection = function () {
+const app = window.ByAngelyApp;
+const db = app.getState().db;
+const orders = db.orders || [];
+const currentAdmin = app.getState().currentAdmin;
+const canManageOrders = hasPermission(currentAdmin, 'orders');
+const cancelRequestsHtml = renderPaidOrderCancellationRequestsCardV6(orders, app, canManageOrders);
+return cancelRequestsHtml + _origRenderOrdersSectionV5();
+};
+renderCustomersSection = function () {
+const app = window.ByAngelyApp;
+const db = app.getState().db;
+const customers = db.customers || [];
+const orders = db.orders || [];
+const messages = db.contactMessages || [];
+const reviews = db.reviews || [];
+const currentAdmin = app.getState().currentAdmin;
+const canManageCustomers = hasPermission(currentAdmin, 'customers');
+const q = String(AdminState.customerSearchTerm || '').trim().toLowerCase();
+const stFilter = AdminState.customerStatusFilter || 'all';
+const enrichedCustomers = customers.map((c) => {
+const emailNorm = String(c.email || '').trim().toLowerCase();
+const custOrders = orders.filter((o) => {
+if (!o) return false;
+if (o.customerId && c.id && o.customerId === c.id) return true;
+const oe = o.customer && o.customer.email ? String(o.customer.email).trim().toLowerCase() : '';
+return oe && oe === emailNorm;
+});
+let lastAct = c.lastActivityAt || c.updatedAt || c.createdAt || '';
+custOrders.forEach((o) => {
+if (o.createdAt && (!lastAct || new Date(o.createdAt) > new Date(lastAct))) {
+lastAct = o.createdAt;
+}
+});
+const statusRaw = String(c.accountStatus || 'active');
+let statusLabel = 'Ativa';
+let badgeClass = 'confirmed';
+if (statusRaw === 'blocked') {
+statusLabel = 'Bloqueada';
+badgeClass = 'danger';
+} else if (statusRaw === 'deletion_requested') {
+statusLabel = 'Exclusão solicitada';
+badgeClass = 'pending';
+} else if (statusRaw === 'deleted_anonymized' || c.anonymized) {
+statusLabel = 'Excluída / Anonimizada';
+badgeClass = 'danger';
+}
+return {
+raw: c,
+ordersCount: custOrders.length,
+lastActivityAt: lastAct,
+statusRaw,
+statusLabel,
+badgeClass
+};
+});
+const filteredCustomers = enrichedCustomers.filter((item) => {
+const c = item.raw;
+if (stFilter !== 'all' && item.statusRaw !== stFilter) return false;
+if (!q) return true;
+const idStr = String(c.id || '').toLowerCase();
+const nameStr = String(c.name || '').toLowerCase();
+const emailStr = String(c.email || '').toLowerCase();
+const phoneStr = String(c.phone || '').toLowerCase();
+const phoneDigits = phoneStr.replace(/[^0-9]/g, '');
+const qDigits = q.replace(/[^0-9]/g, '');
+return (
+idStr.includes(q) ||
+nameStr.includes(q) ||
+emailStr.includes(q) ||
+phoneStr.includes(q) ||
+(qDigits.length >= 3 && phoneDigits.includes(qDigits))
+);
+});
+return [
+'<div>',
+'  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:16px;">',
+'    <div>',
+'      <span class="section-eyebrow">Relacionamento, Segurança & Conformidade LGPD</span>',
+'      <h1 style="font-family:var(--font-serif);font-size:2rem;margin-bottom:4px;">CLIENTES E GERENCIAMENTO DE CONTAS</h1>',
+'      <p style="font-size:0.86rem;color:var(--text-secondary);margin:0;">Consulte clientes cadastradas, histórico de pedidos, situação da conta e execute ações administrativas auditadas.</p>',
+'    </div>',
+'  </div>',
+'  <div class="admin-card" id="admin-customers-management-card">',
+'    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">',
+'      <h2 style="font-family:var(--font-serif);font-size:1.45rem;margin:0;">Contas Cadastradas (' + filteredCustomers.length + ' de ' + customers.length + ')</h2>',
+'      <div style="display:flex;gap:10px;flex-wrap:wrap;flex:1;max-width:620px;justify-content:flex-end;">',
+'        <input type="search" id="admin-customer-account-search" class="form-control" placeholder="Buscar por nome, e-mail, telefone ou ID da conta..." value="' + app.escapeHtml(AdminState.customerSearchTerm) + '" style="flex:1;min-width:220px;min-height:40px;" />',
+'        <select id="admin-customer-status-filter" class="form-control" style="width:auto;min-height:40px;">',
+'          <option value="all" ' + (stFilter === 'all' ? 'selected' : '') + '>Todas as situações (' + customers.length + ')</option>',
+'          <option value="active" ' + (stFilter === 'active' ? 'selected' : '') + '>Ativas</option>',
+'          <option value="blocked" ' + (stFilter === 'blocked' ? 'selected' : '') + '>Bloqueadas</option>',
+'          <option value="deletion_requested" ' + (stFilter === 'deletion_requested' ? 'selected' : '') + '>Exclusão solicitada</option>',
+'          <option value="deleted_anonymized" ' + (stFilter === 'deleted_anonymized' ? 'selected' : '') + '>Excluídas / Anonimizadas</option>',
+'        </select>',
+'      </div>',
+'    </div>',
+(filteredCustomers.length === 0
+? '<p style="font-size:0.88rem;color:var(--text-secondary);padding:16px 0;">Nenhuma conta encontrada para os critérios de busca informados.</p>'
+: [
+'<div class="admin-table-responsive-wrap">',
+'  <table class="data-table" id="admin-customers-accounts-table">',
+'    <thead>',
+'      <tr>',
+'        <th>Nome / ID da Conta</th>',
+'        <th>E-mail & Telefone</th>',
+'        <th>Data de Cadastro</th>',
+'        <th>Situação da Conta</th>',
+'        <th>Pedidos</th>',
+'        <th>Última Atividade</th>',
+'        <th>Ações Administrativas</th>',
+'      </tr>',
+'    </thead>',
+'    <tbody>',
+filteredCustomers.map((item) => {
+const c = item.raw;
+const rev = Boolean(AdminState.revealedCustomers[c.id]);
+const isAnon = item.statusRaw === 'deleted_anonymized' || Boolean(c.anonymized);
+const isBlocked = item.statusRaw === 'blocked';
+const isOwnerEmail = String(c.email || '').toLowerCase() === 'byangely1@gmail.com';
+return [
+'<tr data-customer-account-row="' + app.escapeHtml(c.id) + '">',
+'  <td data-label="Nome / ID da Conta">',
+'    <strong style="font-size:0.94rem;color:#292522;display:block;">' + app.escapeHtml(c.name || '-') + '</strong>',
+'    <code style="font-size:0.72rem;color:var(--text-secondary);">ID: ' + app.escapeHtml(c.id || '-') + '</code>',
+'  </td>',
+'  <td data-label="E-mail & Telefone">',
+'    <div>' + app.escapeHtml(rev || isAnon ? (c.email || '-') : maskSensitiveData(c.email, 'email')) + '</div>',
+'    <div style="font-size:0.78rem;color:var(--text-secondary);">Tel: ' + app.escapeHtml(rev || isAnon ? (c.phone || '-') : maskSensitiveData(c.phone, 'phone')) + '</div>',
+'  </td>',
+'  <td data-label="Data de Cadastro" style="font-size:0.8rem;">' + (c.createdAt ? app.formatDateBR(c.createdAt) : '-') + '</td>',
+'  <td data-label="Situação da Conta">',
+'    <span class="status-pill ' + item.badgeClass + '" data-customer-status-badge="' + app.escapeHtml(c.id) + '">' + app.escapeHtml(item.statusLabel) + '</span>',
+(c.blockedReason ? '<div style="font-size:0.73rem;color:#8E2626;margin-top:3px;">Motivo: ' + app.escapeHtml(c.blockedReason) + '</div>' : ''),
+(c.deletionRequestReason ? '<div style="font-size:0.73rem;color:#7A5211;margin-top:3px;">Solicitação: ' + app.escapeHtml(c.deletionRequestReason) + '</div>' : ''),
+'  </td>',
+'  <td data-label="Quantidade de Pedidos"><strong>' + item.ordersCount + ' pedido(s)</strong></td>',
+'  <td data-label="Última Atividade" style="font-size:0.8rem;">' + (item.lastActivityAt ? app.formatDateBR(item.lastActivityAt) : '-') + '</td>',
+'  <td data-label="Ações Administrativas">',
+'    <div style="display:flex;gap:6px;flex-wrap:wrap;">',
+(!isAnon ? '<button type="button" class="btn btn-outline btn-sm" data-action-admin="toggle-reveal-customer" data-cust-id="' + app.escapeHtml(c.id) + '">' + (rev ? 'Ocultar' : 'Revelar Dados') + '</button>' : ''),
+(canManageCustomers && !isOwnerEmail && !isAnon ? (
+isBlocked
+? '<button type="button" class="btn btn-primary btn-sm" data-action-admin="unblock-customer-account" data-cust-id="' + app.escapeHtml(c.id) + '" data-cust-name="' + app.escapeHtml(c.name) + '">Desbloquear Conta</button>'
+: '<button type="button" class="btn btn-outline btn-sm" style="color:#8E2626;border-color:#F2B8B5;" data-action-admin="open-block-customer-modal" data-cust-id="' + app.escapeHtml(c.id) + '" data-cust-name="' + app.escapeHtml(c.name) + '">Bloquear Conta</button>'
+) : ''),
+(canManageCustomers && !isOwnerEmail && !isAnon
+? '<button type="button" class="btn btn-danger btn-sm" data-action-admin="open-delete-customer-modal" data-cust-id="' + app.escapeHtml(c.id) + '" data-cust-name="' + app.escapeHtml(c.name) + '">Excluir / Anonimizar</button>'
+: ''),
+(isAnon ? '<span style="font-size:0.75rem;color:var(--text-muted);font-weight:600;">Dados Anonimizados (LGPD)</span>' : ''),
+'    </div>',
+'  </td>',
+'</tr>'
+].join('');
+}).join(''),
+'    </tbody>',
+'  </table>',
+'</div>'
+].join('')),
+'  </div>',
+'  <div class="admin-card">',
+'    <h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:12px;">Atendimentos e Dúvidas Recebidas no SAC (' + messages.length + ')</h2>',
+(messages.length === 0
+? '<p style="font-size:0.86rem;color:var(--text-secondary);">Nenhuma mensagem de atendimento pendente.</p>'
+: messages.map((m) => [
+'<div style="padding:12px;border:1px solid var(--border-subtle);border-radius:6px;margin-bottom:10px;font-size:0.86rem;">',
+'  <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;">',
+'    <strong>' + app.escapeHtml(m.subject) + ' — ' + app.escapeHtml(m.name) + ' (' + app.escapeHtml(m.email) + ')</strong>',
+'    <span class="status-pill ' + (m.status === 'Atendido' ? 'confirmed' : 'pending') + '">' + app.escapeHtml(m.status) + '</span>',
+'  </div>',
+'  <p style="margin:6px 0;color:var(--text-secondary);">' + app.escapeHtml(m.message) + '</p>',
+(m.status !== 'Atendido' ? '<button type="button" class="btn btn-outline btn-sm" data-action-admin="mark-sac-done" data-sac-id="' + app.escapeHtml(m.id) + '">Marcar como Atendido</button>' : ''),
+'</div>'
+].join('')).join('')),
+'  </div>',
+'  <div class="admin-card" style="margin-top:20px;">',
+'    <h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:8px;">Moderação de Avaliações de Produtos (' + reviews.length + ')</h2>',
+(reviews.length === 0
+? '<p style="font-size:0.85rem;color:var(--text-muted);">Nenhuma avaliação enviada até o momento.</p>'
+: [
+'<div class="admin-table-responsive-wrap">',
+'  <table class="data-table">',
+'    <thead><tr><th>Data</th><th>Cliente</th><th>Nota</th><th>Comentário</th><th>Status</th><th>Ações</th></tr></thead>',
+'    <tbody>',
+reviews.map((r) => [
+'<tr>',
+'  <td data-label="Data">' + app.escapeHtml(r.date || '') + '</td>',
+'  <td data-label="Cliente"><strong>' + app.escapeHtml(r.customerName || '') + '</strong></td>',
+'  <td data-label="Nota" style="color:var(--accent-gold);font-weight:700;">' + '★'.repeat(Number(r.rating) || 5) + ' (' + (Number(r.rating) || 5) + ')</td>',
+'  <td data-label="Comentário">' + app.escapeHtml(r.comment || '(Sem comentário escrito)') + '</td>',
+'  <td data-label="Status"><span class="status-pill ' + (r.status === 'hidden' ? 'danger' : 'confirmed') + '">' + (r.status === 'hidden' ? 'Oculta' : 'Publicada') + '</span></td>',
+'  <td data-label="Ações"><div style="display:flex;gap:6px;flex-wrap:wrap;"><button type="button" class="btn btn-outline btn-sm" data-admin-review-action="toggle" data-review-id="' + app.escapeHtml(r.id) + '">' + (r.status === 'hidden' ? 'Aprovar / Exibir' : 'Ocultar') + '</button><button type="button" class="btn btn-danger btn-sm" data-admin-review-action="delete" data-review-id="' + app.escapeHtml(r.id) + '">Excluir</button></div></td>',
+'</tr>'
+].join('')).join(''),
+'    </tbody>',
+'  </table>',
+'</div>'
+].join('')),
+'  </div>',
+'</div>'
+].join('');
+};
+const _origRenderUsersSectionV5 = renderUsersSection;
+renderUsersSection = function () {
+const app = window.ByAngelyApp;
+const db = app.getState().db;
+const logs = Array.isArray(db.auditLog) ? db.auditLog : [];
+const auditCardHtml = [
+'<div class="admin-card" id="admin-audit-log-card" style="margin-top:20px;">',
+'  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;">',
+'    <div>',
+'      <span class="section-eyebrow">Rastreabilidade & Governança</span>',
+'      <h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:2px;">Histórico e Auditoria de Ações Administrativas (' + logs.length + ')</h2>',
+'      <p style="font-size:0.82rem;color:var(--text-secondary);margin:0;">Registro protegido de bloqueios, desbloqueios, exclusões/anonimizações, cancelamentos, reembolsos e alterações de configuração.</p>',
+'    </div>',
+'  </div>',
+(logs.length === 0
+? '<p style="font-size:0.85rem;color:var(--text-muted);">Nenhum evento de auditoria registrado até o momento.</p>'
+: [
+'<div class="admin-table-responsive-wrap">',
+'  <table class="data-table" id="admin-audit-log-table">',
+'    <thead>',
+'      <tr>',
+'        <th>Data e Hora</th>',
+'        <th>Administrador Responsável</th>',
+'        <th>Ação Executada</th>',
+'        <th>Conta ou Pedido Afetado</th>',
+'        <th>Motivo / Detalhes</th>',
+'      </tr>',
+'    </thead>',
+'    <tbody>',
+logs.slice(0, 60).map((lg) => [
+'<tr>',
+'  <td data-label="Data e Hora" style="font-size:0.78rem;white-space:nowrap;">' + app.formatDateBR(lg.timestamp) + '</td>',
+'  <td data-label="Administrador Responsável"><strong>' + app.escapeHtml(lg.actor || 'Sistema') + '</strong>' + (lg.actorRole ? ' <span style="font-size:0.72rem;color:var(--text-secondary);">(' + app.escapeHtml(lg.actorRole) + ')</span>' : '') + '</td>',
+'  <td data-label="Ação Executada">' + app.escapeHtml(lg.action || '-') + '</td>',
+'  <td data-label="Conta ou Pedido Afetado"><code>' + app.escapeHtml(lg.target || '-') + '</code></td>',
+'  <td data-label="Motivo / Detalhes" style="font-size:0.8rem;color:var(--text-secondary);">' + app.escapeHtml(lg.reason || '-') + '</td>',
+'</tr>'
+].join('')).join(''),
+'    </tbody>',
+'  </table>',
+'</div>'
+].join('')),
+'</div>'
+].join('');
+return _origRenderUsersSectionV5() + auditCardHtml;
+};
+const _origRenderAdminViewV5 = renderAdminView;
+renderAdminView = function (containerEl) {
+ensureV6AdminStylesAndModals();
+document.body.classList.add('admin-page-active');
+const catNav = document.getElementById('category-strip-nav');
+if (catNav) catNav.style.display = 'none';
+const floatWa = document.querySelector('.floating-whatsapp-concierge');
+if (floatWa) floatWa.style.display = 'none';
+_origRenderAdminViewV5(containerEl);
+const app = window.ByAngelyApp;
+const state = app.getState();
+if (!state.currentAdmin) return;
+const admin = state.currentAdmin;
+const activeSec = AdminState.activeSection;
+const isConfigGroup = activeSec === 'branding' || activeSec === 'categories' || activeSec === 'policies';
+const topAreas = [
+{ id: 'dashboard', label: 'Visão geral', perm: null, active: activeSec === 'dashboard' },
+{ id: 'analytics', label: 'ANÁLISE DA LOJA', perm: null, active: activeSec === 'analytics' },
+{ id: 'orders', label: 'Pedidos', perm: 'orders', active: activeSec === 'orders' },
+{ id: 'customers', label: 'Clientes e contas', perm: 'customers', active: activeSec === 'customers' },
+{ id: 'products', label: 'Produtos e estoque', perm: 'products', active: activeSec === 'products' },
+{ id: 'payments', label: 'Pagamentos', perm: 'payments', active: activeSec === 'payments' },
+{ id: 'shipping', label: 'Entregas', perm: 'shipping', active: activeSec === 'shipping' },
+{ id: 'branding', label: 'Configurações', perm: 'branding', active: isConfigGroup },
+{ id: 'users', label: 'Equipe e permissões', perm: 'users', active: activeSec === 'users' }
+].filter((a) => !a.perm || hasPermission(admin, a.perm) || (a.id === 'branding' && (hasPermission(admin, 'categories') || hasPermission(admin, 'policies'))));
+const compactHeader = document.createElement('header');
+compactHeader.id = 'admin-compact-header-v6';
+compactHeader.className = 'admin-compact-header-v6';
+compactHeader.setAttribute('aria-label', 'Navegação Administrativa Principal');
+compactHeader.innerHTML = [
+'<div class="admin-compact-header-top">',
+'  <div class="admin-compact-brand">',
+'    <span class="admin-compact-brand-title">BY ANGÉLY</span>',
+'    <span class="admin-compact-badge">Painel Administrativo</span>',
+'    <span style="font-size:0.76rem;color:#E9DFD4;">' + app.escapeHtml(admin.name) + '</span>',
+'  </div>',
+'  <div class="admin-compact-actions">',
+'    <button type="button" class="btn btn-outline btn-sm" data-action="go-view" data-view="home" style="background:rgba(255,255,255,0.08);color:#FAF8F5;border-color:rgba(255,255,255,0.28);min-height:34px;padding:4px 10px;font-size:0.74rem;">Ver Loja ↗</button>',
+'    <button type="button" class="btn btn-danger btn-sm" id="btn-admin-compact-logout" style="min-height:34px;padding:4px 10px;font-size:0.74rem;">Sair</button>',
+'  </div>',
+'</div>',
+'<nav class="admin-compact-nav-strip" role="navigation" aria-label="Áreas do Administrador">',
+topAreas.map((area) => (
+'<button type="button" class="admin-compact-nav-pill ' + (area.active ? 'active' : '') + '" data-admin-top-nav="' + area.id + '">' + app.escapeHtml(area.label) + '</button>'
+)).join(''),
+'</nav>'
+].join('');
+containerEl.prepend(compactHeader);
+const workspace = containerEl.querySelector('#admin-section-workspace');
+if (workspace && isConfigGroup) {
+const subBar = document.createElement('div');
+subBar.className = 'admin-config-subbar-v6';
+subBar.innerHTML = [
+'<strong style="font-size:0.76rem;text-transform:uppercase;letter-spacing:0.05em;color:#806044;margin-right:4px;">Configurações da Loja:</strong>',
+'<button type="button" class="admin-config-subpill ' + (activeSec === 'branding' ? 'active' : '') + '" data-admin-top-nav="branding">Identidade & Dados da Loja</button>',
+'<button type="button" class="admin-config-subpill ' + (activeSec === 'categories' ? 'active' : '') + '" data-admin-top-nav="categories">Categorias, Banners, Cupons & Home</button>',
+'<button type="button" class="admin-config-subpill ' + (activeSec === 'policies' ? 'active' : '') + '" data-admin-top-nav="policies">Políticas & Documentos Legais</button>'
+].join('');
+workspace.prepend(subBar);
+}
+applyMobileCardLabelsToAdminTables(workspace || containerEl);
+compactHeader.querySelector('#btn-admin-compact-logout')?.addEventListener('click', () => {
+app.getState().currentAdmin = null;
+sessionStorage.removeItem(STORAGE_KEY_ADMIN_SESSION);
+app.updateGlobalChrome();
+app.showToast('Sessão administrativa encerrada.');
+app.navigateTo('home');
+});
+containerEl.querySelectorAll('[data-admin-top-nav]').forEach((btn) => {
+btn.addEventListener('click', () => {
+const targetSec = btn.getAttribute('data-admin-top-nav');
+if (targetSec) {
+AdminState.activeSection = targetSec;
+AdminState.mobileMenuOpen = false;
+renderAdminView(containerEl);
+}
+});
+});
+const custSearchInp = containerEl.querySelector('#admin-customer-account-search');
+if (custSearchInp) {
+custSearchInp.addEventListener('input', (ev) => {
+const pos = ev.target.selectionStart || ev.target.value.length;
+AdminState.customerSearchTerm = ev.target.value;
+renderAdminView(containerEl);
+const newInp = containerEl.querySelector('#admin-customer-account-search');
+if (newInp) {
+newInp.focus();
+try { newInp.setSelectionRange(pos, pos); } catch (e) {}
+}
+});
+}
+const custStatusSel = containerEl.querySelector('#admin-customer-status-filter');
+if (custStatusSel) {
+custStatusSel.addEventListener('change', (ev) => {
+AdminState.customerStatusFilter = ev.target.value;
+renderAdminView(containerEl);
+});
+}
+const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+containerEl.querySelectorAll('[data-action-admin="paid-cancel-decision"]').forEach((btn) => {
+btn.addEventListener('click', async () => {
+const orderId = btn.getAttribute('data-order-id');
+const decision = btn.getAttribute('data-decision');
+const reasonInp = containerEl.querySelector('#admin-cancel-req-reason-' + orderId);
+const refInp = containerEl.querySelector('#admin-cancel-req-ref-' + orderId);
+const adminReason = reasonInp ? reasonInp.value.trim() : '';
+const refundReference = refInp ? refInp.value.trim() : '';
+if (decision === 'reject' && adminReason.length < 3) {
+app.showToast('Informe a justificativa para recusar a solicitação de cancelamento.', 'warning');
+if (reasonInp) reasonInp.focus();
+return;
+}
+if (decision === 'confirm_refund' && refundReference.length < 2) {
+app.showToast('Informe o comprovante ou identificador do estorno no provedor antes de confirmar o reembolso.', 'warning');
+if (refInp) refInp.focus();
+return;
+}
+btn.disabled = true;
+try {
+const res = await fetch(apiBase + '/api/admin/orders/' + encodeURIComponent(orderId) + '/cancellation-decision', {
+method: 'POST',
+headers: getAdminHeadersV6(app),
+body: JSON.stringify({
+decision,
+adminReason,
+refundReference,
+actorName: admin.name,
+actorRole: admin.role,
+actorEmail: admin.email
+})
+});
+const data = await res.json();
+btn.disabled = false;
+if (!res.ok || !data || !data.ok) {
+app.showToast((data && data.error) || 'Não foi possível processar a decisão.', 'danger');
+return;
+}
+if (app.loadDatabase) await app.loadDatabase();
+app.showToast(data.message || 'Decisão registrada com sucesso!', 'success');
+renderAdminView(containerEl);
+} catch (err) {
+btn.disabled = false;
+app.showToast('Erro de conexão ao registrar decisão.', 'danger');
+}
+});
+});
+containerEl.querySelectorAll('[data-action-admin="open-block-customer-modal"]').forEach((btn) => {
+btn.addEventListener('click', () => {
+const cid = btn.getAttribute('data-cust-id') || '';
+const cname = btn.getAttribute('data-cust-name') || '';
+const modal = document.getElementById('admin-block-customer-modal');
+const idInp = document.getElementById('admin-block-cust-id-input');
+const titleEl = document.getElementById('admin-block-cust-title');
+const reasonInp = document.getElementById('admin-block-cust-reason-input');
+const errBox = document.getElementById('admin-block-cust-error');
+if (!modal || !idInp) return;
+idInp.value = cid;
+if (titleEl) titleEl.textContent = 'Bloquear Conta: ' + cname;
+if (reasonInp) reasonInp.value = '';
+if (errBox) errBox.style.display = 'none';
+modal.classList.add('open');
+modal.setAttribute('aria-hidden', 'false');
+});
+});
+containerEl.querySelectorAll('[data-action-admin="unblock-customer-account"]').forEach((btn) => {
+btn.addEventListener('click', async () => {
+const cid = btn.getAttribute('data-cust-id') || '';
+if (!cid) return;
+btn.disabled = true;
+try {
+const res = await fetch(apiBase + '/api/admin/customers/' + encodeURIComponent(cid) + '/unblock', {
+method: 'POST',
+headers: getAdminHeadersV6(app),
+body: JSON.stringify({
+reason: 'Conta desbloqueada pela administração.',
+actorName: admin.name,
+actorRole: admin.role,
+actorEmail: admin.email
+})
+});
+const data = await res.json();
+btn.disabled = false;
+if (!res.ok || !data || !data.ok) {
+app.showToast((data && data.error) || 'Não foi possível desbloquear a conta.', 'danger');
+return;
+}
+if (app.loadDatabase) await app.loadDatabase();
+app.showToast(data.message || 'Conta desbloqueada com sucesso!', 'success');
+renderAdminView(containerEl);
+} catch (err) {
+btn.disabled = false;
+app.showToast('Erro ao desbloquear conta.', 'danger');
+}
+});
+});
+containerEl.querySelectorAll('[data-action-admin="open-delete-customer-modal"]').forEach((btn) => {
+btn.addEventListener('click', () => {
+const cid = btn.getAttribute('data-cust-id') || '';
+const cname = btn.getAttribute('data-cust-name') || '';
+const modal = document.getElementById('admin-delete-customer-modal');
+const idInp = document.getElementById('admin-del-cust-id-input');
+const titleEl = document.getElementById('admin-del-cust-title');
+const reasonInp = document.getElementById('admin-del-cust-reason-input');
+const pwdInp = document.getElementById('admin-del-cust-password-input');
+const chkInp = document.getElementById('admin-del-cust-confirm-chk');
+const errBox = document.getElementById('admin-del-cust-error');
+if (!modal || !idInp) return;
+idInp.value = cid;
+if (titleEl) titleEl.textContent = 'Excluir / Anonimizar: ' + cname;
+if (reasonInp) reasonInp.value = '';
+if (pwdInp) pwdInp.value = '';
+if (chkInp) chkInp.checked = false;
+if (errBox) errBox.style.display = 'none';
+modal.classList.add('open');
+modal.setAttribute('aria-hidden', 'false');
+});
+});
+};
+window.ByAngelyAdmin.renderAdminView = renderAdminView;
+document.addEventListener('click', (e) => {
+const target = e.target.closest('[data-action-admin]');
+if (!target) return;
+const act = target.getAttribute('data-action-admin');
+if (act === 'close-block-customer-modal') {
+const m = document.getElementById('admin-block-customer-modal');
+if (m) { m.classList.remove('open'); m.setAttribute('aria-hidden', 'true'); }
+}
+if (act === 'close-delete-customer-modal') {
+const m = document.getElementById('admin-delete-customer-modal');
+if (m) { m.classList.remove('open'); m.setAttribute('aria-hidden', 'true'); }
+}
+});
+document.addEventListener('submit', async (e) => {
+const form = e.target;
+if (!form || !form.id) return;
+const app = window.ByAngelyApp;
+const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+const mainEl = document.getElementById('app-main-content');
+if (form.id === 'admin-block-customer-form') {
+e.preventDefault();
+const cid = (document.getElementById('admin-block-cust-id-input') || {}).value || '';
+const reasonEl = document.getElementById('admin-block-cust-reason-input');
+const errBox = document.getElementById('admin-block-cust-error');
+const btn = document.getElementById('btn-confirm-block-customer');
+const reason = String((reasonEl && reasonEl.value) || '').trim();
+if (errBox) errBox.style.display = 'none';
+if (reason.length < 3) {
+if (errBox) {
+errBox.textContent = 'Informe o motivo do bloqueio (mínimo de 3 caracteres).';
+errBox.style.display = 'block';
+}
+return;
+}
+if (btn) btn.disabled = true;
+const admin = (app && app.getState().currentAdmin) || {};
+try {
+const res = await fetch(apiBase + '/api/admin/customers/' + encodeURIComponent(cid) + '/block', {
+method: 'POST',
+headers: getAdminHeadersV6(app),
+body: JSON.stringify({
+reason,
+actorName: admin.name || 'Proprietária BY ANGÉLY',
+actorRole: admin.role || 'owner',
+actorEmail: admin.email || 'byangely1@gmail.com'
+})
+});
+const data = await res.json();
+if (btn) btn.disabled = false;
+if (!res.ok || !data || !data.ok) {
+if (errBox) {
+errBox.textContent = (data && data.error) || 'Não foi possível bloquear a conta.';
+errBox.style.display = 'block';
+}
+return;
+}
+const m = document.getElementById('admin-block-customer-modal');
+if (m) { m.classList.remove('open'); m.setAttribute('aria-hidden', 'true'); }
+if (app.loadDatabase) await app.loadDatabase();
+app.showToast(data.message || 'Conta bloqueada com sucesso!', 'success');
+if (mainEl) renderAdminView(mainEl);
+} catch (err) {
+if (btn) btn.disabled = false;
+if (errBox) {
+errBox.textContent = 'Erro de conexão ao bloquear a conta.';
+errBox.style.display = 'block';
+}
+}
+return;
+}
+if (form.id === 'admin-delete-customer-form') {
+e.preventDefault();
+const cid = (document.getElementById('admin-del-cust-id-input') || {}).value || '';
+const reasonEl = document.getElementById('admin-del-cust-reason-input');
+const pwdEl = document.getElementById('admin-del-cust-password-input');
+const chkEl = document.getElementById('admin-del-cust-confirm-chk');
+const errBox = document.getElementById('admin-del-cust-error');
+const btn = document.getElementById('btn-confirm-admin-delete-customer');
+if (errBox) errBox.style.display = 'none';
+const reason = String((reasonEl && reasonEl.value) || '').trim();
+const adminPassword = String((pwdEl && pwdEl.value) || '');
+const confirmed = Boolean(chkEl && chkEl.checked);
+if (!confirmed) {
+if (errBox) {
+errBox.textContent = 'Marque a confirmação explícita antes de excluir ou anonimizar a conta.';
+errBox.style.display = 'block';
+}
+return;
+}
+if (reason.length < 3) {
+if (errBox) {
+errBox.textContent = 'Informe o motivo administrativo da exclusão/anonimização.';
+errBox.style.display = 'block';
+}
+return;
+}
+if (!adminPassword) {
+if (errBox) {
+errBox.textContent = 'Digite sua senha administrativa para confirmar esta operação sensível.';
+errBox.style.display = 'block';
+}
+return;
+}
+if (btn) btn.disabled = true;
+const admin = (app && app.getState().currentAdmin) || {};
+try {
+const res = await fetch(apiBase + '/api/admin/customers/' + encodeURIComponent(cid) + '/delete', {
+method: 'POST',
+headers: getAdminHeadersV6(app),
+body: JSON.stringify({
+reason,
+adminPassword,
+confirmDeletion: true,
+actorName: admin.name || 'Proprietária BY ANGÉLY',
+actorRole: admin.role || 'owner',
+actorEmail: admin.email || 'byangely1@gmail.com'
+})
+});
+const data = await res.json();
+if (btn) btn.disabled = false;
+if (!res.ok || !data || !data.ok) {
+if (errBox) {
+errBox.textContent = (data && data.error) || 'Não foi possível excluir/anonimizar a conta.';
+errBox.style.display = 'block';
+}
+return;
+}
+const m = document.getElementById('admin-delete-customer-modal');
+if (m) { m.classList.remove('open'); m.setAttribute('aria-hidden', 'true'); }
+if (app.loadDatabase) await app.loadDatabase();
+app.showToast(data.message || 'Conta excluída e anonimizada com sucesso!', 'success');
+if (mainEl) renderAdminView(mainEl);
+} catch (err) {
+if (btn) btn.disabled = false;
+if (errBox) {
+errBox.textContent = 'Erro de conexão ao excluir/anonimizar conta.';
+errBox.style.display = 'block';
+}
+}
+}
+});
+AdminState.analyticsPeriod = AdminState.analyticsPeriod || '30d';
+AdminState.analyticsCustomStart = AdminState.analyticsCustomStart || '';
+AdminState.analyticsCustomEnd = AdminState.analyticsCustomEnd || '';
+AdminState.analyticsProductRankingTab = AdminState.analyticsProductRankingTab || 'mostViewed';
+AdminState.analyticsReport = AdminState.analyticsReport || null;
+AdminState.analyticsLoading = false;
+async function fetchAdminAnalyticsReport(forceRefresh = false) {
+const app = window.ByAngelyApp;
+if (!app) return null;
+if (AdminState.analyticsLoading && !forceRefresh) return AdminState.analyticsReport;
+AdminState.analyticsLoading = true;
+try {
+const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+const qs = new URLSearchParams({
+period: AdminState.analyticsPeriod || '30d'
+});
+if (AdminState.analyticsPeriod === 'custom') {
+if (AdminState.analyticsCustomStart) qs.set('startDate', AdminState.analyticsCustomStart);
+if (AdminState.analyticsCustomEnd) qs.set('endDate', AdminState.analyticsCustomEnd);
+}
+const res = await fetch(apiBase + '/api/admin/analytics?' + qs.toString(), {
+method: 'GET',
+headers: getAdminHeadersV6(app)
+});
+const data = await res.json();
+AdminState.analyticsLoading = false;
+if (res.ok && data && data.ok) {
+AdminState.analyticsReport = data;
+const mainEl = document.getElementById('app-main-content');
+if (mainEl && AdminState.activeSection === 'analytics') {
+const ws = mainEl.querySelector('#admin-section-workspace');
+if (ws) {
+ws.innerHTML = renderAnalyticsSection();
+applyMobileCardLabelsToAdminTables(ws);
+}
+}
+return data;
+}
+} catch (_err) {
+AdminState.analyticsLoading = false;
+}
+return AdminState.analyticsReport;
+}
+function formatDeltaBadgeHtml(deltaVal) {
+const d = Number(deltaVal) || 0;
+if (d > 0) {
+return `<span style="display:inline-block;padding:2px 7px;border-radius:999px;font-size:0.72rem;font-weight:700;background:#E6F2EC;color:#1E4D38;">▲ +${d}% vs. período anterior</span>`;
+}
+if (d < 0) {
+return `<span style="display:inline-block;padding:2px 7px;border-radius:999px;font-size:0.72rem;font-weight:700;background:#FDECEC;color:#8E2626;">▼ ${d}% vs. período anterior</span>`;
+}
+return `<span style="display:inline-block;padding:2px 7px;border-radius:999px;font-size:0.72rem;font-weight:600;background:#F2ECE4;color:#6E655E;">= 0% vs. período anterior</span>`;
+}
+function renderHorizontalBarListHtml(items, app, labelKey = 'name', countKey = 'count', shareKey = 'share', emptyMsg = 'Sem registros no período.') {
+if (!Array.isArray(items) || items.length === 0 || items.every((i) => (Number(i[countKey]) || 0) === 0)) {
+return `<p style="font-size:0.83rem;color:var(--text-secondary);margin:6px 0;">${app.escapeHtml(emptyMsg)}</p>`;
+}
+const maxVal = Math.max(1, ...items.map((i) => Number(i[countKey]) || 0));
+return items.map((it) => {
+const val = Number(it[countKey]) || 0;
+const pct = it[shareKey] !== undefined ? Number(it[shareKey]) : Math.round((val / maxVal) * 100);
+const barW = Math.max(val > 0 ? 6 : 0, Math.min(100, Math.round((val / maxVal) * 100)));
+return `
+<div style="margin-bottom:10px;">
+<div style="display:flex;justify-content:space-between;align-items:center;font-size:0.82rem;margin-bottom:4px;gap:8px;">
+<strong style="color:#292522;word-break:break-word;">${app.escapeHtml(String(it[labelKey] || '-'))}</strong>
+<span style="color:var(--text-secondary);white-space:nowrap;font-weight:600;">${val} (${pct}%)</span>
+</div>
+<div style="width:100%;height:8px;background:#EFE8DF;border-radius:999px;overflow:hidden;">
+<div style="width:${barW}%;height:100%;background:linear-gradient(90deg,#806044,#C99D91);border-radius:999px;"></div>
+</div>
+</div>
+`;
+}).join('');
+}
+function renderAnalyticsSection() {
+const app = window.ByAngelyApp;
+const admin = app.getState().currentAdmin;
+if (!admin) {
+return '<div class="admin-card"><p>Acesso restrito a administradores autenticados.</p></div>';
+}
+if (!AdminState.analyticsReport && !AdminState.analyticsLoading) {
+fetchAdminAnalyticsReport(true);
+}
+const rep = AdminState.analyticsReport;
+const periodVal = AdminState.analyticsPeriod || '30d';
+if (!rep) {
+return `
+<div class="admin-card" id="admin-analytics-loading-card">
+<span class="section-eyebrow">Inteligência Comercial • BY ANGÉLY</span>
+<h1 style="font-family:var(--font-serif);font-size:2rem;margin-bottom:8px;">ANÁLISE DA LOJA</h1>
+<p style="font-size:0.9rem;color:var(--text-secondary);">Carregando indicadores em tempo real de visitantes, funil de compras e desempenho de vendas...</p>
+</div>
+`;
+}
+const cur = rep.overview.current;
+const prv = rep.overview.previous;
+const dlt = rep.overview.deltas;
+const priv = rep.privacyAndReliability || {};
+const fb = (rep.salesAndRevenue && rep.salesAndRevenue.financialBuckets) || {};
+const rankTab = AdminState.analyticsProductRankingTab || 'mostViewed';
+const activeRankList = (rep.productsRankings && rep.productsRankings[rankTab]) || (rep.productsRankings && rep.productsRankings.mostViewed) || [];
+const kpiCards = [
+{ key: 'uniqueVisitors', label: 'Visitantes Únicos (Estimados)', value: cur.uniqueVisitors, prev: prv.uniqueVisitors, sub: `Contas autenticadas identificadas: ${cur.identifiedAccounts}` },
+{ key: 'totalVisits', label: 'Total de Visitas', value: cur.totalVisits, prev: prv.totalVisits, sub: 'Acessos distintos à loja no período' },
+{ key: 'sessionsStarted', label: 'Sessões Iniciadas', value: cur.sessionsStarted, prev: prv.sessionsStarted, sub: 'Janela de 30 min (protegido contra F5)' },
+{ key: 'newVisitors', label: 'Visitantes Novos', value: cur.newVisitors, prev: prv.newVisitors, sub: 'Primeira visita registrada' },
+{ key: 'returningVisitors', label: 'Visitantes Recorrentes', value: cur.returningVisitors, prev: prv.returningVisitors, sub: 'Retornaram em mais de uma sessão' },
+{ key: 'pageViews', label: 'Visualizações de Páginas', value: cur.pageViews, prev: prv.pageViews, sub: 'Telas abertas (Início, Catálogo, etc.)' },
+{ key: 'productViews', label: 'Visualizações de Produtos', value: cur.productViews, prev: prv.productViews, sub: 'Aberturas de detalhes de peças' },
+{ key: 'addedToCart', label: 'Produtos Adicionados à Sacola', value: cur.addedToCart, prev: prv.addedToCart, sub: 'Unidades adicionadas à sacola' },
+{ key: 'abandonedCarts', label: 'Sacolas Abandonadas', value: cur.abandonedCarts, prev: prv.abandonedCarts, sub: 'Sessões com sacola sem concluir pedido' },
+{ key: 'checkoutsStarted', label: 'Checkouts Iniciados', value: cur.checkoutsStarted, prev: prv.checkoutsStarted, sub: 'Clientes que avançaram para finalização' },
+{ key: 'ordersCreated', label: 'Pedidos Realizados', value: cur.ordersCreated, prev: prv.ordersCreated, sub: 'Total de pedidos gerados no período' },
+{ key: 'ordersPaid', label: 'Pedidos Pagos', value: cur.ordersPaid, prev: prv.ordersPaid, sub: 'Somente pagamentos efetivamente confirmados' },
+{ key: 'ordersCancelled', label: 'Pedidos Cancelados / Expirados', value: cur.ordersCancelled, prev: prv.ordersCancelled, sub: 'Cancelados pela cliente ou expirados' },
+{ key: 'conversionRate', label: 'Taxa de Conversão', value: cur.conversionRate + '%', prev: prv.conversionRate + '%', sub: 'Pedidos pagos ÷ visitantes/sessões' },
+{ key: 'confirmedRevenue', label: 'Faturamento Confirmado', value: app.formatBRL(cur.confirmedRevenue), prev: app.formatBRL(prv.confirmedRevenue), sub: 'Exclusivo de pedidos pagos (líquido)' }
+];
+const rankingTabDefs = [
+{ id: 'mostViewed', label: '1. Mais Visualizados' },
+{ id: 'mostAddedToCart', label: '2. Mais Adicionados à Sacola' },
+{ id: 'mostPurchased', label: '3. Mais Comprados (Pagos)' },
+{ id: 'highestRevenue', label: '4. Maior Faturamento' },
+{ id: 'highViewsLowSales', label: '5. Mais Visualizados e Menos Vendidos' },
+{ id: 'highCartLowPurchase', label: '6. Na Sacola com Poucas Compras' }
+];
+const dailyRecent = Array.isArray(rep.salesAndRevenue && rep.salesAndRevenue.dailySeries)
+? rep.salesAndRevenue.dailySeries.slice(-14)
+: [];
+const maxDailyVisits = Math.max(1, ...dailyRecent.map((d) => Number(d.visits) || 0));
+const maxDailyRev = Math.max(1, ...dailyRecent.map((d) => Number(d.revenuePaid) || 0));
+return `
+<div id="admin-analytics-section-root">
+<!-- CABEÇALHO E FILTRO DE PERÍODO -->
+<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;margin-bottom:16px;">
+<div>
+<span class="section-eyebrow">Inteligência Comercial, Comportamento & Conversão</span>
+<h1 style="font-family:var(--font-serif);font-size:2.05rem;margin-bottom:4px;">ANÁLISE DA LOJA</h1>
+<p style="font-size:0.86rem;color:var(--text-secondary);margin:0;">
+Acompanhe visitantes reais, origem de tráfego, produtos mais desejados, funil de compras, sacolas abandonadas e oportunidades para aumentar o faturamento.
+</p>
+</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+<button type="button" class="btn btn-outline btn-sm" id="btn-refresh-analytics-report">↻ Atualizar Dados</button>
+<button type="button" class="btn btn-primary btn-sm" id="btn-export-analytics-csv-all">⬇ Exportar Relatório CSV</button>
+</div>
+</div>
+<!-- AVISO DE INÍCIO DE COLETA E CONFORMIDADE LGPD (ITENS 13 E 14) -->
+<div style="background:#F8F5F0;border:1px solid #E3D8CC;border-left:4px solid #806044;border-radius:8px;padding:12px 14px;margin-bottom:18px;font-size:0.82rem;color:#292522;">
+<div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:center;">
+<div>
+<strong>Transparência da Coleta & Conformidade LGPD:</strong>
+${app.escapeHtml(priv.historicalNotice || '')}
+</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap;">
+<span class="status-pill confirmed">Retenção: ${Number(priv.retentionDays || 180)} dias</span>
+<span class="status-pill pending">Bots filtrados: ${Number(priv.botsFilteredCount || 0)}</span>
+<span class="status-pill pending">F5 duplicados ignorados: ${Number(priv.duplicateRefreshesIgnored || 0)}</span>
+</div>
+</div>
+</div>
+
+
+<!-- SELETOR DE PERÍODO E DATAS PERSONALIZADAS -->
+<div class="admin-card" style="margin-bottom:18px;padding:14px 16px;">
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+<label for="admin-analytics-period-select" style="font-size:0.82rem;font-weight:700;color:#292522;">Período de Análise:</label>
+<select id="admin-analytics-period-select" class="form-control" style="width:auto;min-width:200px;min-height:40px;">
+<option value="today" ${periodVal === 'today' ? 'selected' : ''}>Hoje</option>
+<option value="yesterday" ${periodVal === 'yesterday' ? 'selected' : ''}>Ontem</option>
+<option value="7d" ${periodVal === '7d' ? 'selected' : ''}>Últimos 7 dias</option>
+<option value="30d" ${periodVal === '30d' ? 'selected' : ''}>Últimos 30 dias</option>
+<option value="90d" ${periodVal === '90d' ? 'selected' : ''}>Últimos 90 dias</option>
+<option value="this_month" ${periodVal === 'this_month' ? 'selected' : ''}>Este mês</option>
+<option value="last_month" ${periodVal === 'last_month' ? 'selected' : ''}>Mês anterior</option>
+<option value="custom" ${periodVal === 'custom' ? 'selected' : ''}>Período personalizado</option>
+</select>
+${periodVal === 'custom' ? `
+<input type="date" id="admin-analytics-start-date" class="form-control" value="${app.escapeHtml(AdminState.analyticsCustomStart)}" style="width:auto;min-height:40px;" aria-label="Data inicial" />
+<span style="font-size:0.8rem;">até</span>
+<input type="date" id="admin-analytics-end-date" class="form-control" value="${app.escapeHtml(AdminState.analyticsCustomEnd)}" style="width:auto;min-height:40px;" aria-label="Data final" />
+<button type="button" class="btn btn-primary btn-sm" id="btn-apply-custom-analytics-period">Aplicar</button>
+` : ''}
+</div>
+<div style="font-size:0.8rem;color:var(--text-secondary);">
+Exibindo: <strong>${app.escapeHtml(rep.period.label)}</strong> (comparado ao período anterior equivalente)
+</div>
+</div>
+</div>
+<!-- 1. VISÃO GERAL — DESEMPENHO DA LOJA (15 INDICADORES + GLOSSÁRIO) -->
+<div class="admin-card" id="analytics-block-overview">
+<span class="section-eyebrow">1. Visão Geral — Desempenho da Loja</span>
+<h2 style="font-family:var(--font-serif);font-size:1.5rem;margin-bottom:14px;">Indicadores Principais & Comparação com Período Anterior</h2>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:16px;">
+${kpiCards.map((k) => `
+<div style="background:#FAF8F5;border:1px solid #E5DDD3;border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;justify-content:space-between;gap:6px;" data-analytics-kpi="${k.key}">
+<span style="font-size:0.74rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:#806044;">${app.escapeHtml(k.label)}</span>
+<strong style="font-size:1.45rem;color:#292522;line-height:1.15;">${app.escapeHtml(String(k.value))}</strong>
+<div>${formatDeltaBadgeHtml(dlt[k.key])}</div>
+<span style="font-size:0.74rem;color:var(--text-secondary);">Período anterior: <strong>${app.escapeHtml(String(k.prev))}</strong> • ${app.escapeHtml(k.sub)}</span>
+</div>
+`).join('')}
+</div>
+<details style="background:#F8F5F0;border:1px solid #E5DDD3;border-radius:8px;padding:10px 14px;">
+<summary style="font-weight:700;font-size:0.84rem;cursor:pointer;color:#292522;">Definições Oficiais dos Indicadores (Visitantes vs. Sessões vs. Visualizações vs. Pagamento Confirmado)</summary>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:10px;font-size:0.8rem;color:var(--text-secondary);">
+${(rep.overview.definitions || []).map((d) => `
+<div style="background:#FFF;padding:8px 10px;border-radius:6px;border:1px solid #EAE2D8;">
+<strong style="color:#292522;display:block;margin-bottom:3px;">${app.escapeHtml(d.term)}</strong>
+<span>${app.escapeHtml(d.definition)}</span>
+</div>
+`).join('')}
+</div>
+</details>
+</div>
+<!-- 2. ORIGEM DOS VISITANTES E 3. DISPOSITIVOS E NAVEGADORES -->
+<div class="admin-form-grid-2" style="margin-bottom:20px;">
+<!-- 2. Origem dos Visitantes -->
+<div class="admin-card" id="analytics-block-origins" style="margin-bottom:0;">
+<span class="section-eyebrow">2. De Onde Vêm os Visitantes</span>
+<h2 style="font-family:var(--font-serif);font-size:1.4rem;margin-bottom:10px;">Origem dos Visitantes & Canais</h2>
+<p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:12px;">
+Localização geográfica aproximada (País, Estado e Cidade/Região), preservando a privacidade e a LGPD.
+</p>
+<h3 style="font-size:0.84rem;text-transform:uppercase;color:#806044;margin-bottom:8px;">Canais de Aquisição</h3>
+${renderHorizontalBarListHtml(rep.origins.byChannel, app, 'name', 'count', 'share', 'Nenhuma visita registrada no período.')}
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid var(--border-subtle);">
+<div>
+<h4 style="font-size:0.78rem;text-transform:uppercase;color:#806044;margin-bottom:6px;">País & Estado (UF)</h4>
+${renderHorizontalBarListHtml(rep.origins.byState.slice(0, 5), app, 'name', 'count', 'share', 'Sem dados de UF.')}
+</div>
+<div>
+<h4 style="font-size:0.78rem;text-transform:uppercase;color:#806044;margin-bottom:6px;">Cidade / Região Aproximada</h4>
+${renderHorizontalBarListHtml(rep.origins.byCity.slice(0, 5), app, 'name', 'count', 'share', 'Sem dados regionais.')}
+</div>
+</div>
+<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border-subtle);">
+<h4 style="font-size:0.78rem;text-transform:uppercase;color:#806044;margin-bottom:6px;">Campanhas e Links com Parâmetros UTM</h4>
+${(rep.origins.utmCampaigns || []).length === 0
+? '<p style="font-size:0.8rem;color:var(--text-secondary);margin:0;">Nenhuma visita com parâmetros UTM (ex.: ?utm_source=instagram&utm_campaign=colecao) registrada neste período.</p>'
+: `<div class="admin-table-responsive-wrap"><table class="data-table"><thead><tr><th>Origem / Mídia / Campanha</th><th>Sessões</th><th>Pedidos Pagos</th></tr></thead><tbody>${rep.origins.utmCampaigns.slice(0, 6).map((u) => `<tr><td data-label="Campanha UTM"><strong>${app.escapeHtml(u.utmKey)}</strong></td><td data-label="Sessões">${u.sessions}</td><td data-label="Pedidos Pagos">${u.paidOrders}</td></tr>`).join('')}</tbody></table></div>`
+}
+</div>
+</div>
+<!-- 3. Dispositivos e Navegadores -->
+<div class="admin-card" id="analytics-block-devices" style="margin-bottom:0;">
+<span class="section-eyebrow">3. Dispositivos e Navegadores</span>
+<h2 style="font-family:var(--font-serif);font-size:1.4rem;margin-bottom:10px;">Celulares, Computadores, Android vs. iPhone</h2>
+<div style="background:#F3EDE4;border-left:4px solid #806044;padding:10px 12px;border-radius:6px;font-size:0.82rem;color:#292522;margin-bottom:12px;">
+<strong>Diagnóstico de Plataforma:</strong> ${app.escapeHtml(rep.devices.prioritySummary || '')}
+</div>
+<h3 style="font-size:0.84rem;text-transform:uppercase;color:#806044;margin-bottom:8px;">Tipo de Dispositivo</h3>
+${renderHorizontalBarListHtml(rep.devices.byDeviceType, app, 'name', 'count', 'share')}
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid var(--border-subtle);">
+<div>
+<h4 style="font-size:0.78rem;text-transform:uppercase;color:#806044;margin-bottom:6px;">Sistemas Operacionais</h4>
+${renderHorizontalBarListHtml(rep.devices.byOs.slice(0, 5), app, 'name', 'count', 'share')}
+</div>
+<div>
+<h4 style="font-size:0.78rem;text-transform:uppercase;color:#806044;margin-bottom:6px;">Navegadores & Telas</h4>
+${renderHorizontalBarListHtml(rep.devices.byBrowser.slice(0, 5), app, 'name', 'count', 'share')}
+</div>
+</div>
+</div>
+</div>
+<!-- 6. FUNIL DE COMPRAS (7 ETAPAS OFICIAIS) -->
+<div class="admin-card" id="analytics-block-funnel">
+<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+<div>
+<span class="section-eyebrow">6. Jornada de Conversão Passo a Passo</span>
+<h2 style="font-family:var(--font-serif);font-size:1.5rem;margin-bottom:4px;">Funil de Compras (7 Etapas)</h2>
+<p style="font-size:0.82rem;color:var(--text-secondary);margin:0;">${app.escapeHtml(rep.funnel.note || '')}</p>
+</div>
+${rep.funnel.biggestDropStage ? `
+<div style="background:#FDECEC;border:1px solid #F2B8B5;color:#8E2626;padding:8px 12px;border-radius:8px;font-size:0.8rem;max-width:440px;">
+<strong>Maior perda de clientes identificada:</strong><br/>
+De <em>${app.escapeHtml(rep.funnel.biggestDropStage.fromStage)}</em> para <em>${app.escapeHtml(rep.funnel.biggestDropStage.toStage)}</em>
+(<strong>${rep.funnel.biggestDropStage.droppedCount} desistência(s)</strong> • queda de ${rep.funnel.biggestDropStage.dropRateFromPrevious}%).
+</div>
+` : ''}
+</div>
+<div style="display:flex;flex-direction:column;gap:10px;">
+${(rep.funnel.stages || []).map((st) => {
+const barWidth = Math.max(st.count > 0 ? 8 : 0, Math.min(100, Math.round(st.conversionFromStart)));
+return `
+<div style="background:#FAF8F5;border:1px solid #E5DDD3;border-radius:8px;padding:10px 14px;" data-funnel-step="${st.stepNumber}">
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
+<strong style="font-size:0.9rem;color:#292522;">${app.escapeHtml(st.label)}</strong>
+<div style="display:flex;gap:10px;flex-wrap:wrap;font-size:0.8rem;">
+<span class="status-pill confirmed">Avançaram: ${st.count}</span>
+${st.stepNumber > 1 ? `<span class="status-pill ${st.droppedCount > 0 ? 'danger' : 'pending'}">Desistiram: ${st.droppedCount} (${st.dropRateFromPrevious}%)</span>` : ''}
+<span style="color:var(--text-secondary);font-weight:600;">Taxa da etapa: ${st.conversionFromPrevious}% • Acumulado: ${st.conversionFromStart}%</span>
+</div>
+</div>
+<div style="width:100%;height:10px;background:#EFE8DF;border-radius:999px;overflow:hidden;">
+<div style="width:${barWidth}%;height:100%;background:linear-gradient(90deg,#292522,#806044);border-radius:999px;"></div>
+</div>
+</div>
+`;
+}).join('')}
+</div>
+</div>
+<!-- 4. PRODUTOS MAIS VISUALIZADOS E 6 RANKINGS -->
+<div class="admin-card" id="analytics-block-products">
+<span class="section-eyebrow">4. Desempenho Individual do Catálogo</span>
+<h2 style="font-family:var(--font-serif);font-size:1.5rem;margin-bottom:8px;">Produtos Mais Visualizados, Desejados e Comprados</h2>
+<p style="font-size:0.83rem;color:var(--text-secondary);margin-bottom:12px;">
+Alterne entre os 6 rankings para identificar as peças campeãs de vendas e aquelas que recebem muitas visitas ou adições à sacola mas ainda convertem pouco.
+</p>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+${rankingTabDefs.map((tb) => `
+<button type="button" class="btn ${rankTab === tb.id ? 'btn-primary' : 'btn-outline'} btn-sm" data-analytics-rank-tab="${tb.id}">
+${app.escapeHtml(tb.label)}
+</button>
+`).join('')}
+</div>
+<div class="admin-table-responsive-wrap">
+<table class="data-table" id="admin-analytics-products-table">
+<thead>
+<tr>
+<th>Produto</th>
+<th>Categoria</th>
+
+<th>Visualizações / Visitantes</th>
+<th>Cliques em Detalhes</th>
+<th>Adições à Sacola</th>
+<th>Pedidos Criados</th>
+<th>Vendas Pagas</th>
+<th>Receita Paga</th>
+<th>Conversão</th>
+</tr>
+</thead>
+<tbody>
+${activeRankList.slice(0, 15).map((p) => `
+<tr>
+<td data-label="Produto">
+<div style="display:flex;align-items:center;gap:10px;">
+${p.photo ? `<img src="${app.escapeHtml(p.photo)}" alt="${app.escapeHtml(p.name)}" style="width:42px;height:52px;object-fit:cover;border-radius:6px;border:1px solid #E5DDD3;flex-shrink:0;" />` : ''}
+<div>
+<strong style="font-size:0.88rem;color:#292522;display:block;">${app.escapeHtml(p.name)}</strong>
+<span style="font-size:0.74rem;color:var(--text-secondary);">SKU: ${app.escapeHtml(p.sku)} • Estoque: ${p.stock} un.</span>
+</div>
+</div>
+</td>
+<td data-label="Categoria">${app.escapeHtml(p.categoryName)}</td>
+<td data-label="Visualizações / Visitantes"><strong>${p.views}</strong> vis. (${p.uniqueViewers} visitante(s))</td>
+<td data-label="Cliques em Detalhes">${p.detailClicks}</td>
+<td data-label="Adições à Sacola"><strong>${p.cartAdditions}</strong></td>
+<td data-label="Pedidos Criados">${p.ordersCount}</td>
+<td data-label="Vendas Pagas"><span class="status-pill ${p.paidUnits > 0 ? 'confirmed' : 'pending'}">${p.paidUnits} un. (${p.paidOrdersCount} ped.)</span></td>
+<td data-label="Receita Paga"><strong>${app.formatBRL(p.paidRevenue)}</strong></td>
+<td data-label="Conversão"><strong>${p.conversionRate}%</strong></td>
+</tr>
+`).join('')}
+</tbody>
+</table>
+</div>
+</div>
+<!-- 5. ANÁLISE POR CATEGORIA -->
+<div class="admin-card" id="analytics-block-categories">
+<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+<div>
+<span class="section-eyebrow">5. Desempenho por Linha de Peças</span>
+<h2 style="font-family:var(--font-serif);font-size:1.5rem;margin-bottom:4px;">Análise por Categoria</h2>
+</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap;">
+${rep.categoriesAnalysis.mostInterestCategory ? `<span class="status-pill pending">Maior interesse: ${app.escapeHtml(rep.categoriesAnalysis.mostInterestCategory.name)}</span>` : ''}
+${rep.categoriesAnalysis.highestRevenueCategory ? `<span class="status-pill confirmed">Maior receita: ${app.escapeHtml(rep.categoriesAnalysis.highestRevenueCategory.name)} (${app.formatBRL(rep.categoriesAnalysis.highestRevenueCategory.paidRevenue)})</span>` : ''}
+</div>
+</div>
+<div class="admin-table-responsive-wrap">
+<table class="data-table" id="admin-analytics-categories-table">
+<thead>
+<tr>
+<th>Categoria</th>
+<th>Visualizações</th>
+<th>Adições à Sacola</th>
+<th>Pedidos Realizados</th>
+<th>Vendas Pagas</th>
+<th>Faturamento Confirmado</th>
+<th>Taxa de Conversão</th>
+</tr>
+</thead>
+<tbody>
+${(rep.categoriesAnalysis.categories || []).map((c) => `
+<tr>
+<td data-label="Categoria"><strong>${app.escapeHtml(c.name)}</strong></td>
+<td data-label="Visualizações">${c.views}</td>
+<td data-label="Adições à Sacola">${c.cartAdditions}</td>
+<td data-label="Pedidos Realizados">${c.ordersCount}</td>
+<td data-label="Vendas Pagas">${c.paidSalesCount} pedido(s) (${c.paidUnits} un.)</td>
+<td data-label="Faturamento Confirmado"><strong>${app.formatBRL(c.paidRevenue)}</strong></td>
+<td data-label="Taxa de Conversão">${c.conversionRate}%</td>
+</tr>
+`).join('')}
+</tbody>
+</table>
+</div>
+</div>
+<!-- 7. SACOLAS ABANDONADAS & 8. ANÁLISE DE BUSCAS E INTERESSES -->
+<div class="admin-form-grid-2" style="margin-bottom:20px;">
+<!-- 7. Sacolas Abandonadas -->
+<div class="admin-card" id="analytics-block-abandoned" style="margin-bottom:0;">
+<span class="section-eyebrow">7. Retenção & Desistências</span>
+<h2 style="font-family:var(--font-serif);font-size:1.4rem;margin-bottom:10px;">Sacolas Abandonadas</h2>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+<div style="background:#FAF8F5;border:1px solid #E5DDD3;border-radius:8px;padding:10px;">
+<span style="font-size:0.72rem;text-transform:uppercase;color:#806044;display:block;">Sacolas Abandonadas</span>
+<strong style="font-size:1.35rem;color:#292522;">${rep.abandonedCarts.abandonedCount}</strong>
+<span style="font-size:0.74rem;color:var(--text-secondary);display:block;">Frequência: ${rep.abandonedCarts.abandonmentFrequencyRate}%</span>
+</div>
+<div style="background:#FAF8F5;border:1px solid #E5DDD3;border-radius:8px;padding:10px;">
+<span style="font-size:0.72rem;text-transform:uppercase;color:#806044;display:block;">Valor Estimado Abandonado</span>
+<strong style="font-size:1.35rem;color:#8E2626;">${app.formatBRL(rep.abandonedCarts.estimatedTotalValue)}</strong>
+<span style="font-size:0.74rem;color:var(--text-secondary);display:block;">Taxa de recuperação: ${rep.abandonedCarts.recoveryRate}% (${rep.abandonedCarts.recoveredCount})</span>
+</div>
+</div>
+<h4 style="font-size:0.78rem;text-transform:uppercase;color:#806044;margin-bottom:6px;">Etapa em que a Cliente Desistiu</h4>
+${renderHorizontalBarListHtml(rep.abandonedCarts.dropByStage, app, 'stage', 'count', undefined, 'Nenhuma desistência de sacola registrada no período.')}
+<h4 style="font-size:0.78rem;text-transform:uppercase;color:#806044;margin:12px 0 6px;">Produtos Mais Abandonados na Sacola</h4>
+${(rep.abandonedCarts.mostAbandonedProducts || []).length === 0
+? '<p style="font-size:0.8rem;color:var(--text-secondary);margin:0;">Nenhum produto abandonado na sacola neste período.</p>'
+: `<ul style="margin:0;padding-left:18px;font-size:0.82rem;color:#292522;">${rep.abandonedCarts.mostAbandonedProducts.slice(0, 5).map((p) => `<li style="margin-bottom:4px;"><strong>${app.escapeHtml(p.name)}</strong> — ${p.abandonedCount} un. abandonada(s) (${app.formatBRL(p.price)}/un.)</li>`).join('')}</ul>`
+}
+</div>
+<!-- 8. Análise de Buscas e Interesses -->
+<div class="admin-card" id="analytics-block-searches" style="margin-bottom:0;">
+<span class="section-eyebrow">8. O que as Clientes Procuram</span>
+<h2 style="font-family:var(--font-serif);font-size:1.4rem;margin-bottom:10px;">Análise de Buscas e Interesses</h2>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+<div>
+<h4 style="font-size:0.78rem;text-transform:uppercase;color:#806044;margin-bottom:6px;">Termos Mais Pesquisados</h4>
+${renderHorizontalBarListHtml(rep.searchesAndInterests.topSearchTerms.slice(0, 6), app, 'term', 'count', undefined, 'Nenhuma pesquisa realizada no período.')}
+</div>
+<div>
+<h4 style="font-size:0.78rem;text-transform:uppercase;color:#8E2626;margin-bottom:6px;">Pesquisas Sem Resultados</h4>
+${renderHorizontalBarListHtml(rep.searchesAndInterests.zeroResultSearches.slice(0, 6), app, 'term', 'count', undefined, 'Nenhuma pesquisa sem resultado.')}
+</div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border-subtle);">
+<div>
+<h4 style="font-size:0.78rem;text-transform:uppercase;color:#806044;margin-bottom:6px;">Filtros Mais Utilizados</h4>
+${renderHorizontalBarListHtml(rep.searchesAndInterests.mostUsedFilters.slice(0, 5), app, 'label', 'count', undefined, 'Sem uso de filtros registrado.')}
+</div>
+<div>
+<h4 style="font-size:0.78rem;text-transform:uppercase;color:#806044;margin-bottom:6px;">Favoritados & Compartilhados</h4>
+<p style="font-size:0.8rem;color:var(--text-secondary);margin:0 0 6px;">
+<strong>Mais Favoritados:</strong> ${(rep.searchesAndInterests.mostWishlistedProducts || []).slice(0, 3).map((p) => `${app.escapeHtml(p.name)} (${p.wishlistedCount})`).join(', ') || 'Sem novos favoritos no período'}
+</p>
+<p style="font-size:0.8rem;color:var(--text-secondary);margin:0;">
+<strong>Mais Compartilhados:</strong> ${(rep.searchesAndInterests.mostSharedProducts || []).slice(0, 3).map((p) => `${app.escapeHtml(p.name)} (${p.sharedCount})`).join(', ') || 'Sem compartilhamentos no período'}
+</p>
+</div>
+</div>
+</div>
+</div>
+<!-- 9. ANÁLISE DE VENDAS E FATURAMENTO (SEPARAÇÃO ESTRITA DOS 5 VALORES) -->
+<div class="admin-card" id="analytics-block-sales">
+<span class="section-eyebrow">9. Resultado Comercial & Financeiro</span>
+<h2 style="font-family:var(--font-serif);font-size:1.5rem;margin-bottom:6px;">Análise de Vendas, Faturamento Confirmado e Cupons</h2>
+<p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:14px;">
+Pedidos aguardando pagamento ou cancelados nunca são somados ao Faturamento Confirmado.
+</p>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(195px,1fr));gap:12px;margin-bottom:18px;">
+<div style="background:#FAF8F5;border:1px solid #E5DDD3;border-radius:8px;padding:12px;">
+<span style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:#6E655E;">1. Valor de Pedidos Criados</span>
+<strong style="font-size:1.3rem;color:#292522;display:block;margin-top:4px;">${app.formatBRL(fb.createdOrdersValue || 0)}</strong>
+<span style="font-size:0.74rem;color:var(--text-secondary);">${rep.salesAndRevenue.ordersCreatedCount} pedido(s) criado(s)</span>
+</div>
+<div style="background:#FFF8E7;border:1px solid #F1DFB6;border-radius:8px;padding:12px;">
+<span style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:#7A5211;">2. Aguardando Pagamento</span>
+<strong style="font-size:1.3rem;color:#7A5211;display:block;margin-top:4px;">${app.formatBRL(fb.awaitingPaymentValue || 0)}</strong>
+<span style="font-size:0.74rem;color:#7A5211;">${rep.salesAndRevenue.ordersAwaitingPaymentCount} pedido(s) pendente(s)</span>
+</div>
+<div style="background:#E6F2EC;border:1px solid #B7DFC9;border-radius:8px;padding:12px;">
+<span style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:#1E4D38;">3. Faturamento Efetivamente Pago</span>
+<strong style="font-size:1.35rem;color:#1E4D38;display:block;margin-top:4px;">${app.formatBRL(fb.paidConfirmedValue || 0)}</strong>
+<span style="font-size:0.74rem;color:#1E4D38;">${rep.salesAndRevenue.ordersPaidCount} pago(s) • Ticket médio: ${app.formatBRL(rep.salesAndRevenue.averageTicket || 0)}</span>
+</div>
+<div style="background:#FDECEC;border:1px solid #F2B8B5;border-radius:8px;padding:12px;">
+<span style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:#8E2626;">4. Valor Cancelado / Expirado</span>
+<strong style="font-size:1.3rem;color:#8E2626;display:block;margin-top:4px;">${app.formatBRL(fb.cancelledOrdersValue || 0)}</strong>
+<span style="font-size:0.74rem;color:#8E2626;">${rep.salesAndRevenue.ordersCancelledCount} cancelado(s)/expirado(s)</span>
+</div>
+<div style="background:#F4EFEA;border:1px solid #D8CFC4;border-radius:8px;padding:12px;">
+<span style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:#5A4636;">5. Reembolsos Realizados</span>
+<strong style="font-size:1.3rem;color:#5A4636;display:block;margin-top:4px;">${app.formatBRL(fb.refundedValue || 0)}</strong>
+<span style="font-size:0.74rem;color:var(--text-secondary);">${rep.salesAndRevenue.refundedOrdersCount || 0} reembolso(s) concluído(s)</span>
+</div>
+</div>
+<!-- Evolução Diária de Visitas e Vendas -->
+<h3 style="font-size:0.86rem;text-transform:uppercase;color:#806044;margin-bottom:8px;">Evolução Diária de Visitas, Vendas Pagas e Conversão (Últimos Dias do Período)</h3>
+<div class="admin-table-responsive-wrap" style="margin-bottom:16px;">
+<table class="data-table">
+<thead>
+<tr>
+<th>Data</th>
+<th>Visitas</th>
+<th>Pedidos Criados</th>
+<th>Pedidos Pagos</th>
+<th>Faturamento Pago</th>
+<th>Conversão</th>
+</tr>
+
+</thead>
+<tbody>
+${dailyRecent.filter((d) => d.visits > 0 || d.ordersCreated > 0 || d.ordersPaid > 0).slice(-10).map((d) => `
+<tr>
+<td data-label="Data"><strong>${app.escapeHtml(d.date.split('-').reverse().join('/'))}</strong></td>
+<td data-label="Visitas">${d.visits}</td>
+<td data-label="Pedidos Criados">${d.ordersCreated}</td>
+<td data-label="Pedidos Pagos"><span class="status-pill ${d.ordersPaid > 0 ? 'confirmed' : 'pending'}">${d.ordersPaid}</span></td>
+<td data-label="Faturamento Pago"><strong>${app.formatBRL(d.revenuePaid)}</strong></td>
+<td data-label="Conversão">${d.conversionRate}%</td>
+</tr>
+`).join('') || `<tr><td colspan="6" style="text-align:center;color:var(--text-secondary);">Sem movimentação diária registrada nos últimos dias deste filtro.</td></tr>`}
+</tbody>
+</table>
+</div>
+<!-- Cupons Utilizados -->
+<h3 style="font-size:0.86rem;text-transform:uppercase;color:#806044;margin-bottom:8px;">Desempenho de Cupons de Desconto</h3>
+<div class="admin-table-responsive-wrap">
+<table class="data-table">
+<thead>
+<tr>
+<th>Código do Cupom</th>
+<th>Descrição</th>
+<th>Pedidos Aplicados</th>
+<th>Pedidos Pagos</th>
+<th>Total de Desconto Concedido</th>
+<th>Faturamento Pago Gerado</th>
+</tr>
+</thead>
+<tbody>
+${(rep.salesAndRevenue.couponsUsed || []).map((cp) => `
+<tr>
+<td data-label="Código do Cupom"><strong>${app.escapeHtml(cp.code)}</strong></td>
+<td data-label="Descrição">${app.escapeHtml(cp.description || '-')}</td>
+<td data-label="Pedidos Aplicados">${cp.ordersCount}</td>
+<td data-label="Pedidos Pagos">${cp.paidOrdersCount}</td>
+<td data-label="Total de Desconto">${app.formatBRL(cp.discountTotal)}</td>
+<td data-label="Faturamento Pago Gerado"><strong>${app.formatBRL(cp.paidRevenueGenerated)}</strong></td>
+</tr>
+`).join('')}
+</tbody>
+</table>
+</div>
+</div>
+<!-- 10. HORÁRIOS E DIAS DE MAIOR MOVIMENTO -->
+<div class="admin-card" id="analytics-block-peak-times">
+<span class="section-eyebrow">10. Comportamento Temporal</span>
+<h2 style="font-family:var(--font-serif);font-size:1.5rem;margin-bottom:10px;">Horários e Dias de Maior Movimento</h2>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:16px;">
+<div style="background:#FAF8F5;border:1px solid #E5DDD3;border-radius:8px;padding:10px;">
+<span style="font-size:0.72rem;text-transform:uppercase;color:#806044;display:block;">Horário com Mais Visitas</span>
+<strong style="font-size:1.02rem;color:#292522;">${app.escapeHtml(rep.peakTimesAndDays.highlights.peakVisitHour)}</strong>
+</div>
+<div style="background:#FAF8F5;border:1px solid #E5DDD3;border-radius:8px;padding:10px;">
+<span style="font-size:0.72rem;text-transform:uppercase;color:#806044;display:block;">Horário de Maior Conversão</span>
+<strong style="font-size:1.02rem;color:#1E4D38;">${app.escapeHtml(rep.peakTimesAndDays.highlights.peakConversionHour)}</strong>
+</div>
+<div style="background:#FAF8F5;border:1px solid #E5DDD3;border-radius:8px;padding:10px;">
+<span style="font-size:0.72rem;text-transform:uppercase;color:#806044;display:block;">Dia com Mais Acessos</span>
+<strong style="font-size:1.02rem;color:#292522;">${app.escapeHtml(rep.peakTimesAndDays.highlights.peakVisitDay)}</strong>
+</div>
+<div style="background:#FAF8F5;border:1px solid #E5DDD3;border-radius:8px;padding:10px;">
+<span style="font-size:0.72rem;text-transform:uppercase;color:#806044;display:block;">Dia com Mais Vendas Pagas</span>
+<strong style="font-size:1.02rem;color:#1E4D38;">${app.escapeHtml(rep.peakTimesAndDays.highlights.peakSalesDay)}</strong>
+</div>
+<div style="background:#FAF8F5;border:1px solid #E5DDD3;border-radius:8px;padding:10px;">
+<span style="font-size:0.72rem;text-transform:uppercase;color:#806044;display:block;">Período de Maior Abandono</span>
+<strong style="font-size:1.02rem;color:#8E2626;">${app.escapeHtml(rep.peakTimesAndDays.highlights.peakAbandonHour)}</strong>
+</div>
+</div>
+<div class="admin-form-grid-2">
+<div>
+<h4 style="font-size:0.8rem;text-transform:uppercase;color:#806044;margin-bottom:8px;">Movimento por Dia da Semana</h4>
+${renderHorizontalBarListHtml(rep.peakTimesAndDays.byDayOfWeek, app, 'name', 'visits', undefined)}
+</div>
+<div>
+<h4 style="font-size:0.8rem;text-transform:uppercase;color:#806044;margin-bottom:8px;">Horários de Maior Acesso</h4>
+${renderHorizontalBarListHtml(
+[...rep.peakTimesAndDays.byHour].filter((h) => h.visits > 0 || h.paidOrders > 0).sort((a, b) => b.visits - a.visits).slice(0, 7),
+app,
+'label',
+'visits',
+undefined,
+'Aguardando acessos por faixa de horário no período.'
+)}
+</div>
+</div>
+</div>
+<!-- 11. OPORTUNIDADES E RECOMENDAÇÕES -->
+<div class="admin-card" id="analytics-block-recommendations">
+<span class="section-eyebrow">11. Diagnóstico Comercial Baseado em Dados Reais</span>
+<h2 style="font-family:var(--font-serif);font-size:1.55rem;margin-bottom:6px;">OPORTUNIDADES E RECOMENDAÇÕES</h2>
+<p style="font-size:0.84rem;color:var(--text-secondary);margin-bottom:16px;">
+Sugestões práticas geradas a partir dos números reais do catálogo, funil de compras e comportamento das visitantes (sem conclusões inventadas).
+</p>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;">
+${(rep.recommendations || []).map((rec) => `
+<div style="background:#FAF8F5;border:1px solid #E3D8CC;border-top:4px solid #806044;border-radius:10px;padding:14px 16px;" data-recommendation-card="${app.escapeHtml(rec.id)}">
+<span style="font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#806044;display:block;margin-bottom:4px;">${app.escapeHtml(rec.category)}</span>
+<h3 style="font-family:var(--font-serif);font-size:1.15rem;color:#292522;margin-bottom:10px;">${app.escapeHtml(rec.title)}</h3>
+<div style="font-size:0.81rem;color:#292522;display:flex;flex-direction:column;gap:8px;">
+<div><strong>1. O que foi observado:</strong> ${app.escapeHtml(rec.observed)}</div>
+<div><strong>2. Qual dado sustenta a observação:</strong> <span style="color:#5A4636;">${app.escapeHtml(rec.supportingData)}</span></div>
+<div><strong>3. Qual ação pode ser tomada:</strong> ${app.escapeHtml(rec.recommendedAction)}</div>
+<div><strong>4. Qual resultado acompanhar depois:</strong> <span style="color:#1E4D38;">${app.escapeHtml(rec.metricToTrack)}</span></div>
+</div>
+</div>
+`).join('')}
+</div>
+</div>
+</div>
+`;
+}
+document.addEventListener('change', (e) => {
+const t = e.target;
+if (!t) return;
+if (t.id === 'admin-analytics-period-select') {
+AdminState.analyticsPeriod = t.value;
+if (t.value !== 'custom') {
+fetchAdminAnalyticsReport(true);
+} else {
+const mainEl = document.getElementById('app-main-content');
+if (mainEl) renderAdminView(mainEl);
+}
+}
+});
+document.addEventListener('click', async (e) => {
+const rankBtn = e.target.closest('[data-analytics-rank-tab]');
+if (rankBtn) {
+AdminState.analyticsProductRankingTab = rankBtn.getAttribute('data-analytics-rank-tab') || 'mostViewed';
+const mainEl = document.getElementById('app-main-content');
+if (mainEl) renderAdminView(mainEl);
+return;
+}
+const refreshBtn = e.target.closest('#btn-refresh-analytics-report');
+if (refreshBtn) {
+refreshBtn.disabled = true;
+await fetchAdminAnalyticsReport(true);
+if (window.ByAngelyApp) window.ByAngelyApp.showToast('Indicadores de Análise da Loja atualizados!', 'success');
+return;
+}
+const applyCustomBtn = e.target.closest('#btn-apply-custom-analytics-period');
+if (applyCustomBtn) {
+const sEl = document.getElementById('admin-analytics-start-date');
+const eEl = document.getElementById('admin-analytics-end-date');
+AdminState.analyticsCustomStart = sEl ? sEl.value : '';
+AdminState.analyticsCustomEnd = eEl ? eEl.value : '';
+await fetchAdminAnalyticsReport(true);
+return;
+}
+const exportCsvBtn = e.target.closest('#btn-export-analytics-csv-all');
+if (exportCsvBtn) {
+const app = window.ByAngelyApp;
+if (!app) return;
+try {
+const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+const qs = new URLSearchParams({
+period: AdminState.analyticsPeriod || '30d',
+section: 'all'
+});
+if (AdminState.analyticsPeriod === 'custom') {
+if (AdminState.analyticsCustomStart) qs.set('startDate', AdminState.analyticsCustomStart);
+if (AdminState.analyticsCustomEnd) qs.set('endDate', AdminState.analyticsCustomEnd);
+}
+const res = await fetch(apiBase + '/api/admin/analytics/export-csv?' + qs.toString(), {
+method: 'GET',
+headers: getAdminHeadersV6(app)
+});
+if (!res.ok) {
+app.showToast('Não foi possível exportar o relatório CSV.', 'danger');
+return;
+}
+const csvText = await res.text();
+const blob = new Blob([csvText], { type: 'text/csv;charset=utf-8;' });
+const url = URL.createObjectURL(blob);
+const a = document.createElement('a');
+a.href = url;
+a.download = `by-angely-analise-loja-${AdminState.analyticsPeriod || '30d'}.csv`;
+document.body.appendChild(a);
+a.click();
+a.remove();
+URL.revokeObjectURL(url);
+app.showToast('Relatório CSV exportado com sucesso!', 'success');
+} catch (_err) {
+app.showToast('Erro ao exportar relatório CSV.', 'danger');
+}
+}
+});
 })();
+
