@@ -3,34 +3,34 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="By Angély — Loja de Moda Feminina Contemporânea em Itaperuna, Rio de Janeiro. Vestidos, conjuntos, alfaiataria, blusas, calças, saias e acessórios." />
-  <meta name="theme-color" content="#161514" />
-  <title>By Angély — Moda Feminina | Itaperuna, RJ</title>
+  <meta name="description" content="BY ANGÉLY — Boutique de Moda Feminina Contemporânea em Itaperuna, Rio de Janeiro. Vestidos, conjuntos, blusas & camisas, calças, saias e acessórios." />
+  <meta name="theme-color" content="#F8F5F0" />
+  <title>BY ANGÉLY — Moda Feminina | Itaperuna, RJ</title>
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
   <!-- Link de Pulo para Navegação por Teclado (Acessibilidade) -->
   <a href="#app-main-content" class="skip-link">Pular para o conteúdo principal</a>
 
-  <!-- Cursor Personalizado Editorial Discreto (Somente Desktop, desativado em inputs e quando reduz movimento) -->
+  <!-- Cursor Personalizado Editorial Discreto (Somente Desktop) -->
   <div id="custom-cursor-ring" class="custom-cursor-ring" aria-hidden="true"></div>
 
-  <!-- Barra Superior Institucional -->
+  <!-- Barra Superior Institucional Compacta -->
   <div class="announcement-bar" role="region" aria-label="Avisos da loja">
     <div class="announcement-bar-inner">
       <p id="announcement-text" class="announcement-text">
-        BY ANGÉLY • Moda Feminina Contemporânea • Itaperuna, RJ
+        BY ANGÉLY • Boutique de Moda Feminina • Itaperuna, RJ
       </p>
       <div class="announcement-links">
         <button type="button" data-action="toggle-a11y-modal" aria-label="Preferências de Acessibilidade">
-          ♿ Acessibilidade
+          Acessibilidade
         </button>
         <span id="admin-top-bar-controls" style="display:none;align-items:center;gap:14px;">
           <button type="button" data-action="go-policies" data-tab="references">
             Licenças &amp; Legislação
           </button>
           <button type="button" data-nav-view="admin">
-            🔐 Painel da Proprietária
+            Painel da Proprietária
           </button>
         </span>
       </div>
@@ -41,42 +41,44 @@
   <div id="demo-disclosure-banner" class="demo-disclosure-banner" role="region" aria-label="Aviso de modo demonstrativo" style="display:none;">
     <div class="demo-disclosure-inner">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <span class="demo-badge-pill">Visão Admin • Modo Demonstração</span>
+        <span class="demo-badge-pill">Visão Admin</span>
         <span>
-          As peças e fotografias iniciais são demonstrativas. Você pode substituí-las ou removê-las no Painel Administrativo.
+          Gerencie produtos, fotos, estoque e configurações pelo Painel da Proprietária.
         </span>
       </div>
       <div style="display:flex;gap:10px;">
-        <button type="button" data-action="go-policies" data-tab="references" style="font-weight:700;text-decoration:underline;">
-          Fontes das Imagens
-        </button>
         <button type="button" data-nav-view="admin" style="font-weight:700;text-decoration:underline;">
-          Gerenciar no Painel →
+          Abrir Painel →
         </button>
       </div>
     </div>
   </div>
 
-  <!-- Cabeçalho Principal -->
+  <!-- Cabeçalho Principal Compacto e Elegante -->
   <header class="site-header" id="site-header">
     <div class="container header-main">
-      <!-- Esquerda: Menu Mobile + Navegação Desktop -->
+      <!-- Esquerda: Botão Menu Lateral + Navegação Horizontal Desktop -->
       <div class="header-left">
-        <button type="button" class="mobile-menu-btn" data-action="open-mobile-menu" aria-label="Abrir menu de navegação">
-          ☰
+        <button type="button" class="header-icon-btn menu-trigger-btn" data-action="open-mobile-menu" aria-label="Abrir menu lateral de navegação" title="Menu">
+          <svg class="lucide-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="12" x2="16" y2="12"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
         </button>
         <nav class="desktop-nav" aria-label="Navegação principal">
           <a href="#home" class="nav-link active" data-nav-view="home">Início</a>
-          <a href="#catalog" class="nav-link" data-nav-view="catalog">Catálogo</a>
-          <a href="#contact" class="nav-link" data-nav-view="contact">Contato</a>
-          <a href="#policies" class="nav-link" data-nav-view="policies">Políticas</a>
+          <a href="#catalog" class="nav-link" data-action="go-catalog">Catálogo</a>
+          <a href="#promocoes" class="nav-link" data-action="filter-promo">Promoções</a>
+          <a href="#contact" class="nav-link" data-nav-view="contact">Atendimento</a>
+          <a href="#policies" class="nav-link" data-nav-view="policies">Informações</a>
           <a href="#admin" class="nav-link admin-only-element" data-nav-view="admin" style="display:none;">Painel Admin</a>
         </nav>
       </div>
 
-      <!-- Centro: Apresentação Tipográfica Elegante "BY ANGÉLY" (ou Logotipo Enviado) -->
+      <!-- Centro: Logotipo BY ANGÉLY -->
       <div class="header-center">
-        <a href="#home" id="header-brand-link" data-nav-view="home" aria-label="By Angély — Página Inicial">
+        <a href="#home" id="header-brand-link" data-nav-view="home" aria-label="BY ANGÉLY — Página Inicial">
           <span class="brand-wordmark">
             <span class="brand-by">BY</span>
             <span class="brand-angely">ANGÉLY</span>
@@ -84,29 +86,41 @@
         </a>
       </div>
 
-      <!-- Direita: Busca, Conta, Favoritos e Sacola -->
+      <!-- Direita: Pesquisa, Minha Conta, Favoritos e Sacola -->
       <div class="header-right">
-        <button type="button" class="icon-action-btn" data-action="go-catalog" aria-label="Buscar produtos no catálogo" title="Buscar no catálogo">
-          <span>🔍</span>
+        <button type="button" class="header-icon-btn" data-action="open-search-filter" aria-label="Pesquisar peças no catálogo" title="Pesquisar">
+          <svg class="lucide-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
           <span class="btn-label-desktop">Buscar</span>
         </button>
-        <button type="button" class="icon-action-btn" data-nav-view="account" aria-label="Minha Conta e Pedidos" title="Minha Conta">
-          <span>👤</span>
+        <button type="button" class="header-icon-btn" data-nav-view="account" aria-label="Minha Conta e Pedidos" title="Minha Conta">
+          <svg class="lucide-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
           <span class="btn-label-desktop" id="header-account-label">Conta</span>
         </button>
-        <button type="button" class="icon-action-btn" data-nav-view="favorites" aria-label="Peças Favoritas" title="Meus Favoritos">
-          <span>♡</span>
+        <button type="button" class="header-icon-btn" data-nav-view="favorites" aria-label="Meus Favoritos" title="Meus Favoritos">
+          <svg class="lucide-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+          </svg>
           <span class="badge-counter" id="header-wishlist-count">0</span>
         </button>
-        <button type="button" class="icon-action-btn" data-action="open-cart" aria-label="Abrir sacola de compras" title="Sacola de Compras">
-          <span>🛍️</span>
+        <button type="button" class="header-icon-btn" data-action="open-cart" aria-label="Abrir sacola de compras" title="Sacola de Compras">
+          <svg class="lucide-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <path d="M16 10a4 4 0 0 1-8 0"></path>
+          </svg>
           <span class="btn-label-desktop">Sacola</span>
           <span class="badge-counter" id="header-cart-count">0</span>
         </button>
       </div>
     </div>
 
-    <!-- Faixa de Categorias Editáveis -->
+    <!-- Faixa de Navegação Rápida por Categorias -->
     <nav class="category-strip" aria-label="Categorias de produtos">
       <div class="category-strip-inner" id="header-category-strip"></div>
     </nav>
@@ -120,7 +134,7 @@
     <div class="container">
       <div class="footer-grid">
         <div>
-          <div id="footer-brand-logo" style="margin-bottom:16px;">
+          <div id="footer-brand-logo" style="margin-bottom:14px;">
             <span class="brand-wordmark stacked">
               <span class="brand-by">BY</span>
               <span class="brand-angely">ANGÉLY</span>
@@ -132,6 +146,7 @@
         <div>
           <h2 class="footer-heading">Categorias</h2>
           <ul class="footer-links">
+            <li><button type="button" data-action="filter-category" data-category="all">Todas as Peças</button></li>
             <li><button type="button" data-action="filter-category" data-category="vestidos">Vestidos</button></li>
             <li><button type="button" data-action="filter-category" data-category="conjuntos">Conjuntos</button></li>
             <li><button type="button" data-action="filter-category" data-category="blusas">Blusas &amp; Camisas</button></li>
@@ -142,36 +157,34 @@
         </div>
 
         <div>
-          <h2 class="footer-heading">Atendimento &amp; Área da Cliente</h2>
+          <h2 class="footer-heading">Atendimento &amp; Cliente</h2>
           <ul class="footer-links">
             <li><button type="button" data-nav-view="account">Minha Conta / Login</button></li>
-            <li><button type="button" data-nav-view="account">Acompanhar Pedidos e Rastreio</button></li>
-            <li><button type="button" data-nav-view="favorites">Lista de Favoritos</button></li>
-            <li><button type="button" data-nav-view="contact">Canais Oficiais de Contato</button></li>
-            <li><a href="https://wa.me/5528999871458?text=Ol%C3%A1!%20Vim%20pelo%20site%20da%20BY%20ANG%C3%89LY%20e%20gostaria%20de%20conhecer%20os%20produtos." target="_blank" rel="noopener noreferrer">Atendimento via WhatsApp ↗</a></li>
+            <li><button type="button" data-action="go-account-orders">Meus Pedidos e Rastreio</button></li>
+            <li><button type="button" data-nav-view="favorites">Meus Favoritos</button></li>
+            <li><button type="button" data-nav-view="contact">Central de Atendimento</button></li>
+            <li><a href="https://wa.me/5528999871458?text=Ol%C3%A1!%20Vim%20pelo%20site%20da%20BY%20ANG%C3%89LY%20e%20gostaria%20de%20conhecer%20os%20produtos." target="_blank" rel="noopener noreferrer">WhatsApp Oficial ↗</a></li>
             <li><a href="https://www.instagram.com/_by.angely?dlrf=OXJrN2EwdHNka21x" target="_blank" rel="noopener noreferrer">Instagram Oficial ↗</a></li>
-            <li><a href="mailto:byangely1@gmail.com">Atendimento por E-mail</a></li>
-            <li><button type="button" data-action="open-return-request">Solicitar Troca ou Devolução</button></li>
-            <li><button type="button" data-action="toggle-a11y-modal">Preferências de Acessibilidade</button></li>
+            <li><a href="mailto:byangely1@gmail.com">E-mail Comercial</a></li>
           </ul>
         </div>
 
         <div>
-          <h2 class="footer-heading">Políticas &amp; Segurança</h2>
+          <h2 class="footer-heading">Informações &amp; Políticas</h2>
           <ul class="footer-links">
-            <li><button type="button" data-action="go-policies" data-tab="privacy">Política de Privacidade (LGPD)</button></li>
-            <li><button type="button" data-action="go-policies" data-tab="terms">Termos de Uso</button></li>
-            <li><button type="button" data-action="go-policies" data-tab="shipping">Política de Entrega e Retirada</button></li>
-            <li><button type="button" data-action="go-policies" data-tab="returns">Trocas, Devoluções e CDC (Art. 49)</button></li>
-            <li class="admin-only-element" style="display:none;"><button type="button" data-action="go-policies" data-tab="references">Licenças das Imagens &amp; Fontes Legais</button></li>
-            <li class="admin-only-element" style="display:none;"><button type="button" data-nav-view="admin" style="color:#E5DACB;font-weight:600;">🔐 Painel da Proprietária</button></li>
+            <li><button type="button" data-action="go-policies" data-tab="shipping">Entrega e Retirada</button></li>
+            <li><button type="button" data-action="go-policies" data-tab="returns">Trocas e Devoluções (CDC)</button></li>
+            <li><button type="button" data-action="go-policies" data-tab="privacy">Privacidade e LGPD</button></li>
+            <li><button type="button" data-action="go-policies" data-tab="terms">Termos e Informações Comerciais</button></li>
+            <li><button type="button" data-action="toggle-a11y-modal">Acessibilidade</button></li>
+            <li class="admin-only-element" style="display:none;"><button type="button" data-action="go-policies" data-tab="references">Licenças &amp; Fontes Legais</button></li>
           </ul>
         </div>
       </div>
 
       <div class="footer-bottom">
-        <p><span data-nav-view="admin" style="cursor:default;" title="BY ANGÉLY">© 2026 BY ANGÉLY</span> — Itaperuna, Rio de Janeiro. Loja exclusiva da marca.</p>
-        <p>Pagamentos seguros (Pix EMV Banco Central &amp; Checkout Externo PCI-DSS) • Conformidade LGPD e Decreto nº 7.962/2013.</p>
+        <p><span data-nav-view="admin" style="cursor:pointer;" title="BY ANGÉLY">© 2026 BY ANGÉLY</span> — Itaperuna, Rio de Janeiro. Todos os direitos reservados.</p>
+        <p>Compra segura • Pix EMV Banco Central &amp; Checkout Externo • Conformidade LGPD (Lei nº 13.709/2018) e Decreto nº 7.962/2013.</p>
       </div>
     </div>
   </footer>
@@ -180,8 +193,8 @@
   <div class="modal-backdrop" id="product-detail-modal" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Detalhes do Produto">
     <div class="modal-dialog">
       <div class="modal-header">
-        <span style="font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--accent-gold);">
-          Ficha Completa da Peça • By Angély
+        <span style="font-size:0.74rem;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;color:var(--accent-primary);">
+          Detalhes da Peça • BY ANGÉLY
         </span>
         <button type="button" class="modal-close-btn" data-action="close-product-modal" aria-label="Fechar detalhes do produto">✕</button>
       </div>
@@ -191,7 +204,7 @@
 
   <!-- Lightbox para Ampliar Foto em Alta Resolução -->
   <div class="lightbox-overlay" id="lightbox-overlay" role="dialog" aria-modal="true" aria-label="Imagem ampliada">
-    <button type="button" class="modal-close-btn" data-action="close-lightbox" aria-label="Fechar zoom" style="position:fixed;top:24px;right:24px;background:#FFF;">✕</button>
+    <button type="button" class="modal-close-btn" data-action="close-lightbox" aria-label="Fechar zoom" style="position:fixed;top:20px;right:20px;background:#FFF;">✕</button>
     <img src="" alt="" id="lightbox-img" />
   </div>
 
@@ -199,7 +212,14 @@
   <div class="drawer-backdrop" id="cart-drawer-backdrop" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Sacola de Compras">
     <div class="drawer-panel">
       <div class="drawer-header">
-        <h2 style="font-family:var(--font-serif);font-size:1.55rem;">Minha Sacola</h2>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <svg class="lucide-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#806044" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <path d="M16 10a4 4 0 0 1-8 0"></path>
+          </svg>
+          <h2 style="font-family:var(--font-serif);font-size:1.5rem;font-weight:500;">Minha Sacola</h2>
+        </div>
         <button type="button" class="modal-close-btn" data-action="close-cart" aria-label="Fechar sacola">✕</button>
       </div>
       <div class="drawer-body" id="cart-drawer-body"></div>
@@ -207,43 +227,130 @@
     </div>
   </div>
 
-  <!-- Menu Mobile Responsivo (Drawer Esquerdo) -->
-  <div class="drawer-backdrop" id="mobile-menu-backdrop" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Menu principal celular">
-    <div class="drawer-panel left">
+  <!-- Painel / Gaveta de Filtros e Ordenação do Catálogo (Recolhido por Padrão) -->
+  <div class="filter-drawer-backdrop" id="filter-drawer-backdrop" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Filtrar e Ordenar Produtos">
+    <div class="filter-drawer-panel">
+      <div class="drawer-header">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <svg class="lucide-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="#806044" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="4" y1="21" x2="4" y2="14"></line>
+            <line x1="4" y1="10" x2="4" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12" y2="3"></line>
+            <line x1="20" y1="21" x2="20" y2="16"></line>
+            <line x1="20" y1="12" x2="20" y2="3"></line>
+            <line x1="1" y1="14" x2="7" y2="14"></line>
+            <line x1="9" y1="8" x2="15" y2="8"></line>
+            <line x1="17" y1="16" x2="23" y2="16"></line>
+          </svg>
+          <h2 style="font-family:var(--font-serif);font-size:1.45rem;font-weight:500;">Filtrar e Ordenar</h2>
+        </div>
+        <button type="button" class="modal-close-btn" data-action="close-filter-drawer" aria-label="Fechar painel de filtros">✕</button>
+      </div>
+      <div class="drawer-body" id="filter-drawer-body"></div>
+      <div class="drawer-footer" style="display:grid;grid-template-columns:1fr 1.3fr;gap:10px;">
+        <button type="button" class="btn btn-outline" data-action="clear-filter-drawer">Limpar filtros</button>
+        <button type="button" class="btn btn-primary" data-action="apply-filter-drawer">Aplicar filtros</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Menu Lateral Profissional, Minimalista e Organizado (Ícones Vetoriais Monocromáticos Lucide) -->
+  <div class="drawer-backdrop" id="mobile-menu-backdrop" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Menu de navegação BY ANGÉLY">
+    <div class="drawer-panel left side-menu-panel">
       <div class="drawer-header">
         <span class="brand-wordmark">
           <span class="brand-by">BY</span>
-          <span class="brand-angely" style="font-size:1.45rem;">ANGÉLY</span>
+          <span class="brand-angely" style="font-size:1.4rem;">ANGÉLY</span>
         </span>
         <button type="button" class="modal-close-btn" data-action="close-mobile-menu" aria-label="Fechar menu">✕</button>
       </div>
-      <div class="drawer-body" style="display:flex;flex-direction:column;gap:10px;">
-        <button type="button" class="btn btn-subtle btn-block" style="justify-content:flex-start;" data-nav-view="home">🏠 Página Inicial</button>
-        <button type="button" class="btn btn-subtle btn-block" style="justify-content:flex-start;" data-action="go-catalog">👗 Catálogo Completo</button>
-        <button type="button" class="btn btn-subtle btn-block" style="justify-content:flex-start;" data-action="filter-promo">🏷️ Promoções</button>
-        <button type="button" class="btn btn-subtle btn-block" style="justify-content:flex-start;" data-nav-view="favorites">♡ Meus Favoritos</button>
-        <button type="button" class="btn btn-subtle btn-block" style="justify-content:flex-start;" data-nav-view="account">👤 Minha Conta &amp; Pedidos</button>
-        <button type="button" class="btn btn-subtle btn-block" style="justify-content:flex-start;" data-nav-view="contact">💬 Contato &amp; Redes Sociais</button>
-        <button type="button" class="btn btn-subtle btn-block" style="justify-content:flex-start;" data-nav-view="policies">⚖️ Políticas, Trocas &amp; LGPD</button>
-        <a href="https://wa.me/5528999871458?text=Ol%C3%A1!%20Vim%20pelo%20site%20da%20BY%20ANG%C3%89LY%20e%20gostaria%20de%20conhecer%20os%20produtos." target="_blank" rel="noopener noreferrer" class="contact-btn-action whatsapp-style" style="width:100%;margin-top:6px;">
-          Conversar no WhatsApp
-        </a>
-        <a href="https://www.instagram.com/_by.angely?dlrf=OXJrN2EwdHNka21x" target="_blank" rel="noopener noreferrer" class="contact-btn-action instagram-style" style="width:100%;">
-          Abrir Instagram Oficial
-        </a>
-        <a href="mailto:byangely1@gmail.com" class="contact-btn-action" style="width:100%;">
-          Enviar E-mail
-        </a>
-        <button type="button" class="btn btn-gold btn-block admin-only-element" style="justify-content:flex-start;margin-top:12px;display:none;" data-nav-view="admin">🔐 Painel da Proprietária</button>
+
+      <div class="drawer-body side-menu-body">
+        <!-- SEÇÃO 1: COMPRAS -->
+        <div class="side-menu-group">
+          <span class="side-menu-group-title">Compras</span>
+          <button type="button" class="side-menu-item" data-nav-view="home">
+            <svg class="side-menu-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+            <span>Início</span>
+          </button>
+          <button type="button" class="side-menu-item" data-action="go-catalog">
+            <svg class="side-menu-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+            <span>Catálogo</span>
+          </button>
+          <button type="button" class="side-menu-item" data-action="filter-promo">
+            <svg class="side-menu-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+            <span>Promoções</span>
+          </button>
+          <button type="button" class="side-menu-item" data-nav-view="favorites">
+            <svg class="side-menu-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+            <span>Meus favoritos</span>
+          </button>
+          <button type="button" class="side-menu-item" data-nav-view="account">
+            <svg class="side-menu-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            <span>Minha conta</span>
+          </button>
+          <button type="button" class="side-menu-item" data-action="go-account-orders">
+            <svg class="side-menu-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+            <span>Meus pedidos</span>
+          </button>
+        </div>
+
+        <!-- SEÇÃO 2: ATENDIMENTO -->
+        <div class="side-menu-group">
+          <span class="side-menu-group-title">Atendimento</span>
+          <a href="https://wa.me/5528999871458?text=Ol%C3%A1!%20Vim%20pelo%20site%20da%20BY%20ANG%C3%89LY%20e%20gostaria%20de%20conhecer%20os%20produtos." target="_blank" rel="noopener noreferrer" class="side-menu-item" data-action="close-mobile-menu">
+            <svg class="side-menu-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+            <span>WhatsApp</span>
+          </a>
+          <a href="https://www.instagram.com/_by.angely?dlrf=OXJrN2EwdHNka21x" target="_blank" rel="noopener noreferrer" class="side-menu-item" data-action="close-mobile-menu">
+            <svg class="side-menu-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
+            <span>Instagram</span>
+          </a>
+          <a href="mailto:byangely1@gmail.com" class="side-menu-item" data-action="close-mobile-menu">
+            <svg class="side-menu-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+            <span>E-mail</span>
+          </a>
+        </div>
+
+        <!-- SEÇÃO 3: INFORMAÇÕES -->
+        <div class="side-menu-group">
+          <span class="side-menu-group-title">Informações</span>
+          <button type="button" class="side-menu-item" data-action="go-policies" data-tab="privacy">
+            <svg class="side-menu-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+            <span>Privacidade e LGPD</span>
+          </button>
+          <button type="button" class="side-menu-item" data-action="go-policies" data-tab="shipping">
+            <svg class="side-menu-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
+            <span>Entrega e retirada</span>
+          </button>
+          <button type="button" class="side-menu-item" data-action="go-policies" data-tab="returns">
+            <svg class="side-menu-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"></polyline><polyline points="23 20 23 14 17 14"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></svg>
+            <span>Trocas e devoluções</span>
+          </button>
+          <button type="button" class="side-menu-item" data-action="toggle-a11y-modal">
+            <svg class="side-menu-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="8" r="1"></circle><path d="M9 12h6"></path><path d="M10 17l2-5 2 5"></path></svg>
+            <span>Acessibilidade</span>
+          </button>
+        </div>
+
+        <!-- SEÇÃO 4: ÁREA DA LOJA (Protegida por Autenticação) -->
+        <div class="side-menu-group side-menu-group-store">
+          <span class="side-menu-group-title">Área da Loja</span>
+          <button type="button" class="side-menu-item" data-nav-view="admin">
+            <svg class="side-menu-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+            <span>Painel da proprietária</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
 
   <!-- Modal de Preferências de Acessibilidade -->
   <div class="modal-backdrop" id="a11y-modal-backdrop" role="dialog" aria-modal="true" aria-label="Opções de Acessibilidade">
-    <div class="modal-dialog" style="max-width:480px;">
+    <div class="modal-dialog" style="max-width:460px;">
       <div class="modal-header">
-        <h2 style="font-family:var(--font-serif);font-size:1.45rem;">♿ Acessibilidade e Conforto Visual</h2>
+        <h2 style="font-family:var(--font-serif);font-size:1.45rem;">Acessibilidade e Conforto Visual</h2>
         <button type="button" class="modal-close-btn" data-action="toggle-a11y-modal" aria-label="Fechar acessibilidade">✕</button>
       </div>
       <div style="padding:22px;display:flex;flex-direction:column;gap:14px;">
@@ -269,15 +376,15 @@
 
   <!-- Banner de Consentimento de Cookies (Guia Orientativo ANPD / LGPD) -->
   <aside class="cookie-banner" id="cookie-consent-banner" role="region" aria-label="Preferências de Privacidade e Cookies">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:18px;flex-wrap:wrap;">
-      <div style="flex:1;min-width:260px;">
-        <strong style="font-size:0.92rem;display:block;margin-bottom:4px;">Privacidade e Cookies (LGPD / Guia ANPD)</strong>
-        <p style="font-size:0.8rem;color:var(--text-secondary);">
-          Utilizamos cookies estritamente necessários para o funcionamento da sua sacola de compras e segurança da sessão. Cookies analíticos ou de marketing vêm desativados por padrão. Consulte nossa <button type="button" data-action="go-policies" data-tab="privacy" style="text-decoration:underline;font-weight:600;">Política de Privacidade</button>.
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:250px;">
+        <strong style="font-size:0.9rem;display:block;margin-bottom:3px;">Privacidade e Cookies (LGPD)</strong>
+        <p style="font-size:0.78rem;color:var(--text-secondary);">
+          Utilizamos cookies necessários para sua sacola e segurança da sessão. Consulte nossa <button type="button" data-action="go-policies" data-tab="privacy" style="text-decoration:underline;font-weight:600;">Política de Privacidade</button>.
         </p>
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
-        <button type="button" class="btn btn-outline btn-sm" id="btn-cookies-essential">Aceitar Apenas Necessários</button>
+        <button type="button" class="btn btn-outline btn-sm" id="btn-cookies-essential">Apenas Necessários</button>
         <button type="button" class="btn btn-primary btn-sm" id="btn-cookies-all">Aceitar Todos</button>
       </div>
     </div>
@@ -290,10 +397,10 @@
     rel="noopener noreferrer"
     class="floating-whatsapp-concierge"
     aria-label="Conversar pelo WhatsApp Oficial da BY ANGÉLY"
-    title="Falar com a BY ANGÉLY no WhatsApp (+55 28 99987-1458)"
+    title="Falar com a BY ANGÉLY no WhatsApp"
   >
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.031 0C5.385 0 0 5.385 0 12.031c0 2.124.553 4.195 1.604 6.018L.099 23.541l5.631-1.477a11.986 11.986 0 006.301 1.787h.005c6.645 0 12.03-5.385 12.03-12.031 0-3.214-1.252-6.236-3.524-8.508C18.268 1.039 15.245 0 12.031 0zm6.564 17.243c-.277.781-1.613 1.491-2.238 1.588-.578.088-1.309.125-2.115-.131-.491-.156-1.119-.366-1.922-.712-3.379-1.459-5.586-4.863-5.755-5.088-.168-.225-1.375-1.829-1.375-3.489 0-1.66 0.869-2.476 1.178-2.813.309-.338.675-.422.9-.422.225 0 .45.003.647.012.208.01.486-.079.76.579.281.675.956 2.334 1.041 2.503.084.169.141.366.028.591-.113.225-.169.366-.338.563-.169.197-.355.441-.506.591-.169.169-.345.352-.148.69.197.338.874 1.442 1.877 2.337 1.29 1.15 2.378 1.506 2.716 1.675.338.169.534.141.731-.084.197-.225.844-.984 1.069-1.322.225-.338.45-.281.759-.169.309.113 1.969.928 2.306 1.097.338.169.563.253.647.394.084.141.084.816-.193 1.597z"/></svg>
-    <span>Atendimento WhatsApp</span>
+    <span>WhatsApp</span>
   </a>
 
   <!-- Container de Notificações Visuais (Toasts) -->
