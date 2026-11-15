@@ -9894,5 +9894,922 @@ document.addEventListener('click', (e) => {
 }, true);
 
 setTimeout(syncAuthPageBodyState, 10);
+
+  
+if (window.ByAngelyPix && window.ByAngelyPix.generatePixPayload) {  </div>',
+'  <div><strong>Motivo informado:</strong> ' + escapeHtml(req.reason || '') + '</div>',
+(req.adminReason ? '<div style="margin-top:4px;"><strong>Posicionamento da loja:</strong> ' + escapeHtml(req.adminReason) + '</div>' : ''),
+(req.refundReference ? '<div style="margin-top:4px;"><strong>Comprovante / Referência do reembolso:</strong> ' + escapeHtml(req.refundReference) + '</div>' : ''),
+'</div>'
+].join('');
+}
+function syncAdminAndAuthBodyStateV6() {
+syncAuthPageBodyState();
+const isAdmin = AppState.currentView === 'admin';
+document.body.classList.toggle('admin-page-active', isAdmin);
+const catNav = document.getElementById('category-strip-nav');
+if (catNav) {
+catNav.style.display = (isAdmin || isAuthScreenActiveV5()) ? 'none' : '';
+}
+const floatWa = document.querySelector('.floating-whatsapp-concierge');
+if (floatWa && isAdmin) {
+floatWa.style.display = 'none';
+}
+}
+function ensureV6CustomerModals() {
+if (!document.getElementById('by-angely-v6-customer-styles')) {
+const st = document.createElement('style');
+st.id = 'by-angely-v6-customer-styles';
+st.textContent = [
+'body.admin-page-active #category-strip-nav, body.admin-page-active .category-strip { display: none !important; }',
+'body.admin-page-active .floating-whatsapp-concierge { display: none !important; }',
+'.v6-modal-backdrop { position: fixed; inset: 0; background: rgba(28, 24, 21, 0.62); backdrop-filter: blur(3px); z-index: 9998; display: none; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; }',
+'.v6-modal-backdrop.open { display: flex !important; }',
+'.v6-modal-card { background: #FFFFFF; border: 1px solid #D5C7B8; border-radius: 14px; max-width: 520px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 22px 20px; box-shadow: 0 18px 48px rgba(28, 24, 21, 0.24); box-sizing: border-box; }',
+'@media (max-width: 480px) { .v6-modal-card { padding: 18px 15px; } }'
+].join(' ');
+document.head.appendChild(st);
+}
+if (!document.getElementById('customer-cancel-order-modal')) {
+const m1 = document.createElement('div');
+m1.id = 'customer-cancel-order-modal';
+m1.className = 'v6-modal-backdrop';
+m1.setAttribute('aria-hidden', 'true');
+m1.innerHTML = [
+'<div class="v6-modal-card" role="dialog" aria-modal="true" aria-labelledby="cancel-unpaid-modal-title">',
+'  <span class="section-eyebrow" style="color:#8E2626;">Cancelamento de Pedido</span>',
+'  <h2 id="cancel-unpaid-modal-title" style="font-family:var(--font-serif);font-size:1.55rem;margin-bottom:8px;color:#292522;">Deseja cancelar este pedido?</h2>',
+'  <p id="cancel-unpaid-modal-desc" style="font-size:0.86rem;color:#5C5346;line-height:1.5;margin-bottom:14px;">Ao confirmar o cancelamento, a cobrança Pix vinculada será invalidada imediatamente e as peças reservadas retornarão ao estoque da loja.</p>',
+'  <div class="form-field-group" style="margin-bottom:14px;">',
+'    <label class="form-field-label" for="cancel-unpaid-reason-input">Motivo do cancelamento (opcional)</label>',
+'    <input type="text" id="cancel-unpaid-reason-input" class="form-input-v4" placeholder="Ex.: Vou escolher outro tamanho ou forma de pagamento" />',
+'  </div>',
+'  <div id="cancel-unpaid-error-box" style="display:none;padding:10px 12px;border-radius:8px;background:#FDF2F2;border:1px solid #F2B8B5;color:#8E2626;font-size:0.8rem;margin-bottom:12px;"></div>',
+'  <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">',
+'    <button type="button" class="btn btn-outline btn-sm" data-action="close-cancel-order-modal" style="min-height:42px;padding:0 16px;">Voltar e manter pedido</button>',
+'    <button type="button" id="btn-confirm-cancel-unpaid-order" class="btn btn-primary btn-sm" data-action="confirm-cancel-order" data-order-id="" style="min-height:42px;padding:0 18px;background:#8E2626;border-color:#8E2626;color:#FFFFFF;">Confirmar cancelamento</button>',
+'  </div>',
+'</div>'
+].join('');
+document.body.appendChild(m1);
+}
+if (!document.getElementById('customer-paid-cancel-request-modal')) {
+const m2 = document.createElement('div');
+m2.id = 'customer-paid-cancel-request-modal';
+m2.className = 'v6-modal-backdrop';
+m2.setAttribute('aria-hidden', 'true');
+m2.innerHTML = [
+'<div class="v6-modal-card" role="dialog" aria-modal="true" aria-labelledby="paid-cancel-req-title">',
+'  <span class="section-eyebrow">Pedido com Pagamento Confirmado</span>',
+'  <h2 id="paid-cancel-req-title" style="font-family:var(--font-serif);font-size:1.55rem;margin-bottom:8px;color:#292522;">Solicitar Cancelamento e Reembolso</h2>',
+'  <p id="paid-cancel-req-desc" style="font-size:0.84rem;color:#5C5346;line-height:1.5;margin-bottom:14px;">Como o pagamento deste pedido já foi confirmado, sua solicitação será encaminhada para análise prioritária da administração da BY ANGÉLY para aprovação e processamento do estorno.</p>',
+'  <form id="customer-paid-cancel-request-form" novalidate>',
+'    <input type="hidden" id="paid-cancel-order-id-input" value="" />',
+'    <div class="form-field-group" style="margin-bottom:14px;">',
+'      <label class="form-field-label" for="paid-cancel-reason-input">Informe o motivo da solicitação <span class="req-star">*</span></label>',
+'      <textarea id="paid-cancel-reason-input" class="form-input-v4" rows="3" required placeholder="Descreva o motivo para cancelamento e estorno do pedido..." style="height:auto;padding:10px 12px;"></textarea>',
+'    </div>',
+'    <div id="paid-cancel-error-box" style="display:none;padding:10px 12px;border-radius:8px;background:#FDF2F2;border:1px solid #F2B8B5;color:#8E2626;font-size:0.8rem;margin-bottom:12px;"></div>',
+'    <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">',
+'      <button type="button" class="btn btn-outline btn-sm" data-action="close-paid-cancel-request-modal" style="min-height:42px;padding:0 16px;">Voltar</button>',
+'      <button type="submit" id="btn-submit-paid-cancel-request" class="btn btn-primary btn-sm" style="min-height:42px;padding:0 18px;">Enviar solicitação</button>',
+'    </div>',
+'  </form>',
+'</div>'
+].join('');
+document.body.appendChild(m2);
+}
+if (!document.getElementById('customer-delete-account-modal')) {
+const m3 = document.createElement('div');
+m3.id = 'customer-delete-account-modal';
+m3.className = 'v6-modal-backdrop';
+m3.setAttribute('aria-hidden', 'true');
+m3.innerHTML = [
+'<div class="v6-modal-card" role="dialog" aria-modal="true" aria-labelledby="delete-account-modal-title">',
+'  <span class="section-eyebrow" style="color:#8E2626;">Privacidade e Titularidade de Dados • LGPD</span>',
+'  <h2 id="delete-account-modal-title" style="font-family:var(--font-serif);font-size:1.55rem;margin-bottom:8px;color:#292522;">Excluir Minha Conta</h2>',
+'  <div style="background:#FFF8F3;border:1px solid #E9DFD4;border-radius:10px;padding:12px 14px;font-size:0.81rem;color:#5C5346;line-height:1.5;margin-bottom:14px;">',
+'    <strong style="display:block;color:#292522;margin-bottom:4px;">Antes de confirmar, saiba o que acontecerá:</strong>',
+'    <ul style="margin:0;padding-left:18px;">',
+'      <li><strong>Encerramento do acesso:</strong> sua conta será desativada permanentemente e não permitirá novos logins ou compras.</li>',
+'      <li><strong>Dados excluídos/anonimizados:</strong> nome completo, telefone/WhatsApp, CPF, endereços salvos e sacola serão anonimizados.</li>',
+'      <li><strong>Retenção legal obrigatória:</strong> registros fiscais, financeiros e de pedidos concluídos são preservados exclusivamente pelo prazo legal (Art. 16 da LGPD — Lei nº 13.709/2018), sem permitir novo acesso.</li>',
+'      <li><strong>Pedidos em andamento:</strong> pedidos não pagos serão cancelados imediatamente; se houver pedido pago em preparação/entrega, a exclusão ficará vinculada à conclusão da entrega.</li>',
+'    </ul>',
+'  </div>',
+'  <form id="customer-delete-account-form" novalidate>',
+'    <div class="form-field-group" style="margin-bottom:12px;">',
+'      <label class="form-field-label" for="delete-account-password-input">Confirme sua senha atual para segurança <span class="req-star">*</span></label>',
+'      <div class="password-input-wrapper">',
+'        <input type="password" id="delete-account-password-input" name="password" class="form-input-v4" required placeholder="Digite sua senha atual" />',
+'        <button type="button" class="password-toggle-btn" data-action="toggle-password-visibility" data-target="delete-account-password-input">Mostrar</button>',
+'      </div>',
+'    </div>',
+'    <div class="form-field-group" style="margin-bottom:12px;">',
+'      <label class="form-field-label" for="delete-account-reason-input">Motivo da saída (opcional)</label>',
+'      <input type="text" id="delete-account-reason-input" name="reason" class="form-input-v4" placeholder="Opcional: conte-nos o motivo" />',
+'    </div>',
+'    <label style="display:flex;align-items:flex-start;gap:8px;font-size:0.8rem;color:#292522;margin-bottom:14px;cursor:pointer;">',
+'      <input type="checkbox" id="delete-account-confirm-checkbox" name="confirmDeletion" required style="margin-top:3px;" />',
+'      <span>Compreendo que esta ação encerrará o acesso à minha conta e anonimizará meus dados pessoais cadastrais.</span>',
+'    </label>',
+'    <div id="delete-account-error-box" style="display:none;padding:10px 12px;border-radius:8px;background:#FDF2F2;border:1px solid #F2B8B5;color:#8E2626;font-size:0.8rem;margin-bottom:12px;"></div>',
+'    <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">',
+'      <button type="button" class="btn btn-outline btn-sm" data-action="close-delete-account-modal" style="min-height:42px;padding:0 16px;">Cancelar e manter conta</button>',
+'      <button type="submit" id="btn-confirm-delete-account" class="btn btn-primary btn-sm" style="min-height:42px;padding:0 18px;background:#8E2626;border-color:#8E2626;color:#FFFFFF;">Confirmar exclusão da minha conta</button>',
+'    </div>',
+'  </form>',
+'</div>'
+].join('');
+document.body.appendChild(m3);
+}
+}
+const _origRenderAccountViewV5 = renderAccountView;
+renderAccountView = function () {
+const baseHtml = _origRenderAccountViewV5();
+if (!isCustomerAuthenticatedV5()) return baseHtml;
+const cust = AppState.currentCustomer || {};
+const hasDeletionReq = cust.accountStatus === 'deletion_requested' || cust.deletionRequestedAt;
+const deletionCardHtml = [
+'<div class="admin-card" id="customer-delete-account-card" style="margin-top:20px;border-color:#F2B8B5;background:#FFFDFD;">',
+'  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">',
+'    <div style="max-width:640px;">',
+'      <span class="section-eyebrow" style="color:#8E2626;">Privacidade e Controle de Dados (LGPD)</span>',
+'      <h2 style="font-family:var(--font-serif);font-size:1.4rem;margin-bottom:4px;color:#292522;">Encerramento e Exclusão da Conta</h2>',
+'      <p style="font-size:0.82rem;color:var(--text-secondary);margin:0;line-height:1.5;">',
+'        Você pode solicitar a exclusão e anonimização dos seus dados pessoais a qualquer momento. Registros financeiros e fiscais de compras concluídas são mantidos apenas pelo prazo legal obrigatório, sem permitir novo acesso.',
+'      </p>',
+(hasDeletionReq
+? '<div style="margin-top:10px;padding:10px 12px;border-radius:8px;background:#FFF8EB;border:1px solid #E2B96B;color:#7A5211;font-size:0.8rem;"><strong>Solicitação registrada:</strong> Sua solicitação de exclusão está vinculada à conclusão dos seus pedidos pagos em andamento.</div>'
+: ''),
+'    </div>',
+'    <div style="display:flex;align-items:center;">',
+'      <button type="button" id="btn-open-delete-account-modal" class="btn btn-outline btn-sm" data-action="open-delete-account-modal" style="color:#8E2626;border-color:#F2B8B5;background:#FDF2F2;min-height:42px;padding:0 18px;">',
+'        Excluir minha conta',
+'      </button>',
+'    </div>',
+'  </div>',
+'</div>'
+].join('');
+const marker = '</form>\n          </div>\n        </div>\n      </div>\n    </section>';
+if (baseHtml.includes(marker)) {
+return baseHtml.replace(marker, '</form>\n          </div>\n          ' + deletionCardHtml + '\n        </div>\n      </div>\n    </section>');
+}
+return baseHtml.replace('</section>', '<div class="container" style="max-width:960px;margin-top:16px;">' + deletionCardHtml + '</div></section>');
+};
+function enhanceOrderViewsV6() {
+ensureV6CustomerModals();
+const ordersShell = document.getElementById('view-meus-pedidos');
+if (ordersShell && AppState.lastCancelledOrderBannerMessage) {
+const container = ordersShell.querySelector('.container');
+if (container && !document.getElementById('customer-cancelled-order-banner')) {
+const banner = document.createElement('div');
+banner.id = 'customer-cancelled-order-banner';
+banner.style.cssText = 'background:#EDF7F1;border:1.5px solid #2E6F52;border-radius:12px;padding:16px 18px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;';
+banner.innerHTML = [
+'<div>',
+'  <strong style="display:block;font-size:0.95rem;color:#1E4D38;margin-bottom:2px;">Pedido ' + escapeHtml(AppState.lastCancelledOrderNumber || '') + ' cancelado com sucesso</strong>',
+'  <p style="font-size:0.86rem;color:#1E4D38;margin:0;" id="customer-cancelled-order-exact-text">' + escapeHtml(AppState.lastCancelledOrderBannerMessage) + '</p>',
+'</div>',
+'<div style="display:flex;gap:8px;align-items:center;">',
+'  <button type="button" class="btn btn-primary btn-sm" data-action="go-catalog">Continuar navegando na loja</button>',
+'  <button type="button" class="btn btn-outline btn-sm" data-action="dismiss-cancelled-order-banner">Fechar</button>',
+'</div>'
+].join('');
+const navEl = container.querySelector('.customer-area-nav');
+if (navEl && navEl.nextSibling) {
+container.insertBefore(banner, navEl.nextSibling);
+} else {
+container.prepend(banner);
+}
+}
+}
+document.querySelectorAll('article.order-card-v4[data-order-card-id]').forEach((card) => {
+const orderId = card.getAttribute('data-order-card-id');
+const ord = (AppState.db && AppState.db.orders || []).find((o) => o && o.id === orderId);
+if (!ord) return;
+const actionsBar = card.querySelector('.order-card-v4-actions');
+if (actionsBar && !actionsBar.hasAttribute('data-v6-enhanced')) {
+actionsBar.setAttribute('data-v6-enhanced', 'true');
+if (isOrderAwaitingPaymentV6(ord)) {
+const btn = document.createElement('button');
+btn.type = 'button';
+btn.className = 'btn btn-outline btn-sm btn-cancel-unpaid-order';
+btn.setAttribute('data-action', 'open-cancel-order-modal');
+btn.setAttribute('data-order-id', ord.id);
+btn.setAttribute('data-order-number', ord.orderNumber || '');
+btn.style.cssText = 'min-height:42px;padding:0 16px;color:#8E2626;border-color:#F2B8B5;background:#FDF2F2;';
+btn.textContent = 'Cancelar pedido';
+actionsBar.appendChild(btn);
+} else if (isOrderPaidAndEligibleForCancelRequestV6(ord)) {
+if (!ord.cancellationRequest || ord.cancellationRequest.status === 'rejected') {
+const btnReq = document.createElement('button');
+btnReq.type = 'button';
+btnReq.className = 'btn btn-outline btn-sm btn-request-paid-cancel';
+btnReq.setAttribute('data-action', 'open-paid-cancel-request-modal');
+btnReq.setAttribute('data-order-id', ord.id);
+btnReq.setAttribute('data-order-number', ord.orderNumber || '');
+btnReq.style.cssText = 'min-height:42px;padding:0 16px;color:#806044;border-color:#D5C7B8;';
+btnReq.textContent = 'Solicitar cancelamento';
+actionsBar.appendChild(btnReq);
+}
+}
+}
+if (ord.cancellationRequest && !card.querySelector('.order-cancel-request-box-v6')) {
+const boxWrapper = document.createElement('div');
+boxWrapper.innerHTML = renderCancellationRequestBadgeHtmlV6(ord);
+if (actionsBar) {
+card.insertBefore(boxWrapper.firstElementChild, actionsBar);
+} else {
+card.appendChild(boxWrapper.firstElementChild);
+}
+}
+});
+if (AppState.lastCreatedOrder) {
+const ord = (AppState.db && AppState.db.orders || []).find((o) => o && o.id === AppState.lastCreatedOrder.id) || AppState.lastCreatedOrder;
+const pixBox = document.getElementById('pix-awaiting-box');
+if (pixBox && isOrderAwaitingPaymentV6(ord) && !document.getElementById('btn-confirmation-cancel-order')) {
+const cancelWrap = document.createElement('div');
+cancelWrap.style.cssText = 'margin-top:14px;padding-top:12px;border-top:1px dashed #E9DFD4;';
+cancelWrap.innerHTML = '<button type="button" id="btn-confirmation-cancel-order" class="btn btn-outline btn-sm" data-action="open-cancel-order-modal" data-order-id="' + escapeHtml(ord.id) + '" data-order-number="' + escapeHtml(ord.orderNumber) + '" style="color:#8E2626;border-color:#F2B8B5;background:#FDF2F2;min-height:40px;padding:0 16px;">Cancelar pedido</button>';
+pixBox.appendChild(cancelWrap);
+}
+const expiredBanner = document.getElementById('pix-expired-banner');
+if (expiredBanner && ord.status === 'cancelled' && ord.cancelledBy === 'customer') {
+const pEl = expiredBanner.querySelector('p');
+if (pEl) {
+pEl.textContent = CUSTOMER_CANCELLED_ORDER_EXACT_MSG;
+}
+}
+}
+}
+const _origOpenOrderDetailModalV5 = openOrderDetailModal;
+openOrderDetailModal = function (orderId) {
+_origOpenOrderDetailModalV5(orderId);
+ensureV6CustomerModals();
+const ord = (AppState.db && AppState.db.orders || []).find((o) => o && o.id === orderId);
+const body = document.getElementById('order-detail-modal-body');
+if (!ord || !body) return;
+if (ord.status === 'cancelled' && ord.cancelledBy === 'customer') {
+const cancelNotice = document.createElement('div');
+cancelNotice.style.cssText = 'background:#EDF7F1;border:1px solid #2E6F52;border-radius:10px;padding:12px 14px;margin-bottom:14px;color:#1E4D38;font-size:0.85rem;font-weight:600;';
+cancelNotice.textContent = ord.customerCancelMessage || CUSTOMER_CANCELLED_ORDER_EXACT_MSG;
+body.prepend(cancelNotice);
+}
+if (ord.cancellationRequest && !body.querySelector('.order-cancel-request-box-v6')) {
+const wrap = document.createElement('div');
+wrap.style.marginBottom = '16px';
+wrap.innerHTML = renderCancellationRequestBadgeHtmlV6(ord);
+body.insertBefore(wrap, body.lastElementChild);
+}
+const closeBtn = body.querySelector('[data-action="close-order-detail-modal"]');
+const footerActions = closeBtn ? closeBtn.parentElement : null;
+if (footerActions && !footerActions.hasAttribute('data-v6-modal-enhanced')) {
+footerActions.setAttribute('data-v6-modal-enhanced', 'true');
+if (isOrderAwaitingPaymentV6(ord)) {
+const btn = document.createElement('button');
+btn.type = 'button';
+btn.className = 'btn btn-outline btn-sm';
+btn.id = 'btn-modal-cancel-unpaid-order';
+btn.setAttribute('data-action', 'open-cancel-order-modal');
+btn.setAttribute('data-order-id', ord.id);
+btn.setAttribute('data-order-number', ord.orderNumber || '');
+btn.style.cssText = 'color:#8E2626;border-color:#F2B8B5;background:#FDF2F2;';
+btn.textContent = 'Cancelar pedido';
+footerActions.insertBefore(btn, closeBtn);
+} else if (isOrderPaidAndEligibleForCancelRequestV6(ord) && (!ord.cancellationRequest || ord.cancellationRequest.status === 'rejected')) {
+const btnReq = document.createElement('button');
+btnReq.type = 'button';
+btnReq.className = 'btn btn-outline btn-sm';
+btnReq.id = 'btn-modal-request-paid-cancel';
+btnReq.setAttribute('data-action', 'open-paid-cancel-request-modal');
+btnReq.setAttribute('data-order-id', ord.id);
+btnReq.setAttribute('data-order-number', ord.orderNumber || '');
+btnReq.style.cssText = 'color:#806044;border-color:#D5C7B8;';
+btnReq.textContent = 'Solicitar cancelamento';
+footerActions.insertBefore(btnReq, closeBtn);
+}
+}
+};
+const _origRenderMainViewV5 = renderMainView;
+renderMainView = function () {
+syncAdminAndAuthBodyStateV6();
+_origRenderMainViewV5();
+syncAdminAndAuthBodyStateV6();
+enhanceOrderViewsV6();
+};
+function openCancelUnpaidOrderModalV6(orderId, orderNumber) {
+ensureV6CustomerModals();
+const modal = document.getElementById('customer-cancel-order-modal');
+const titleEl = document.getElementById('cancel-unpaid-modal-title');
+const reasonInp = document.getElementById('cancel-unpaid-reason-input');
+const errBox = document.getElementById('cancel-unpaid-error-box');
+const confirmBtn = document.getElementById('btn-confirm-cancel-unpaid-order');
+if (!modal || !confirmBtn) return;
+if (titleEl) titleEl.textContent = 'Cancelar Pedido ' + (orderNumber || '') + '?';
+if (reasonInp) reasonInp.value = '';
+if (errBox) errBox.style.display = 'none';
+confirmBtn.setAttribute('data-order-id', orderId || '');
+confirmBtn.disabled = false;
+confirmBtn.textContent = 'Confirmar cancelamento';
+modal.classList.add('open');
+modal.setAttribute('aria-hidden', 'false');
+}
+function closeCancelUnpaidOrderModalV6() {
+const modal = document.getElementById('customer-cancel-order-modal');
+if (modal) {
+modal.classList.remove('open');
+modal.setAttribute('aria-hidden', 'true');
+}
+}
+function openPaidCancelRequestModalV6(orderId, orderNumber) {
+ensureV6CustomerModals();
+const modal = document.getElementById('customer-paid-cancel-request-modal');
+const titleEl = document.getElementById('paid-cancel-req-title');
+const idInp = document.getElementById('paid-cancel-order-id-input');
+const reasonInp = document.getElementById('paid-cancel-reason-input');
+const errBox = document.getElementById('paid-cancel-error-box');
+if (!modal || !idInp) return;
+if (titleEl) titleEl.textContent = 'Solicitar Cancelamento • ' + (orderNumber || 'Pedido Pago');
+idInp.value = orderId || '';
+if (reasonInp) reasonInp.value = '';
+if (errBox) errBox.style.display = 'none';
+modal.classList.add('open');
+modal.setAttribute('aria-hidden', 'false');
+}
+function closePaidCancelRequestModalV6() {
+const modal = document.getElementById('customer-paid-cancel-request-modal');
+if (modal) {
+modal.classList.remove('open');
+modal.setAttribute('aria-hidden', 'true');
+}
+}
+function openDeleteAccountModalV6() {
+ensureV6CustomerModals();
+const modal = document.getElementById('customer-delete-account-modal');
+const pwdInp = document.getElementById('delete-account-password-input');
+const reasonInp = document.getElementById('delete-account-reason-input');
+const chkInp = document.getElementById('delete-account-confirm-checkbox');
+const errBox = document.getElementById('delete-account-error-box');
+if (!modal) return;
+if (pwdInp) pwdInp.value = '';
+if (reasonInp) reasonInp.value = '';
+if (chkInp) chkInp.checked = false;
+if (errBox) errBox.style.display = 'none';
+modal.classList.add('open');
+modal.setAttribute('aria-hidden', 'false');
+}
+function closeDeleteAccountModalV6() {
+const modal = document.getElementById('customer-delete-account-modal');
+if (modal) {
+modal.classList.remove('open');
+modal.setAttribute('aria-hidden', 'true');
+}
+}
+document.addEventListener('click', async (e) => {
+const target = e.target.closest('[data-action]');
+if (!target) return;
+const action = target.getAttribute('data-action');
+const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+if (action === 'open-cancel-order-modal') {
+e.preventDefault();
+e.stopPropagation();
+const orderId = target.getAttribute('data-order-id') || '';
+const orderNum = target.getAttribute('data-order-number') || '';
+openCancelUnpaidOrderModalV6(orderId, orderNum);
+return;
+}
+if (action === 'close-cancel-order-modal') {
+e.preventDefault();
+e.stopPropagation();
+closeCancelUnpaidOrderModalV6();
+return;
+}
+if (action === 'dismiss-cancelled-order-banner') {
+e.preventDefault();
+e.stopPropagation();
+AppState.lastCancelledOrderBannerMessage = '';
+AppState.lastCancelledOrderNumber = '';
+const b = document.getElementById('customer-cancelled-order-banner');
+if (b) b.remove();
+return;
+}
+if (action === 'confirm-cancel-order') {
+e.preventDefault();
+e.stopPropagation();
+const orderId = target.getAttribute('data-order-id') || '';
+if (!orderId) return;
+const reasonInp = document.getElementById('cancel-unpaid-reason-input');
+const errBox = document.getElementById('cancel-unpaid-error-box');
+const reason = reasonInp && reasonInp.value.trim()
+? reasonInp.value.trim()
+: 'Cancelado pela cliente antes do pagamento.';
+target.disabled = true;
+target.textContent = 'Cancelando pedido...';
+if (errBox) errBox.style.display = 'none';
+const headers = { 'Content-Type': 'application/json' };
+if (AppState.currentCustomer && AppState.currentCustomer.token) {
+headers['Authorization'] = 'Bearer ' + AppState.currentCustomer.token;
+}
+try {
+const res = await fetch(apiBase + '/api/orders/' + encodeURIComponent(orderId) + '/cancel', {
+method: 'POST',
+headers,
+body: JSON.stringify({
+customerId: AppState.currentCustomer ? AppState.currentCustomer.id : '',
+email: AppState.currentCustomer ? AppState.currentCustomer.email : '',
+reason
+})
+});
+const data = await res.json();
+if (res.status === 409 && data && data.alreadyPaid) {
+closeCancelUnpaidOrderModalV6();
+await loadDatabase();
+renderMainView();
+showToast(data.error || 'O pagamento deste pedido já foi confirmado! Você pode abrir uma solicitação de cancelamento de pedido pago.', 'warning');
+if (data.canRequestPaidCancellation) {
+const ord = (AppState.db.orders || []).find((o) => o && o.id === orderId);
+openPaidCancelRequestModalV6(orderId, ord ? ord.orderNumber : '');
+}
+return;
+}
+if (!res.ok || !data || !data.ok) {
+const msg = (data && data.error) || 'Não foi possível cancelar este pedido.';
+if (errBox) {
+errBox.textContent = msg;
+errBox.style.display = 'block';
+}
+target.disabled = false;
+target.textContent = 'Confirmar cancelamento';
+showToast(msg, 'danger');
+return;
+}
+stopPixPaymentPolling();
+closeCancelUnpaidOrderModalV6();
+const exactMsg = data.customerCancelMessage || CUSTOMER_CANCELLED_ORDER_EXACT_MSG;
+AppState.lastCancelledOrderBannerMessage = exactMsg;
+AppState.lastCancelledOrderNumber = (data.order && data.order.orderNumber) || '';
+if (AppState.lastCreatedOrder && AppState.lastCreatedOrder.id === orderId) {
+AppState.lastCreatedOrder = data.order;
+}
+await loadDatabase();
+renderMainView();
+const detailModal = document.getElementById('order-detail-modal');
+if (detailModal && detailModal.classList.contains('open')) {
+openOrderDetailModal(orderId);
+}
+showToast(exactMsg, 'success');
+} catch (err) {
+target.disabled = false;
+target.textContent = 'Confirmar cancelamento';
+showToast('Erro de conexão ao cancelar o pedido.', 'danger');
+}
+return;
+}
+if (action === 'open-paid-cancel-request-modal') {
+e.preventDefault();
+e.stopPropagation();
+const orderId = target.getAttribute('data-order-id') || '';
+const orderNum = target.getAttribute('data-order-number') || '';
+openPaidCancelRequestModalV6(orderId, orderNum);
+return;
+}
+if (action === 'close-paid-cancel-request-modal') {
+e.preventDefault();
+e.stopPropagation();
+closePaidCancelRequestModalV6();
+return;
+}
+if (action === 'open-delete-account-modal') {
+e.preventDefault();
+e.stopPropagation();
+openDeleteAccountModalV6();
+return;
+}
+if (action === 'close-delete-account-modal') {
+e.preventDefault();
+e.stopPropagation();
+closeDeleteAccountModalV6();
+return;
+}
+}, true);
+document.addEventListener('submit', async (e) => {
+const form = e.target;
+if (!form || !form.id) return;
+const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+if (form.id === 'customer-paid-cancel-request-form') {
+e.preventDefault();
+const orderId = (document.getElementById('paid-cancel-order-id-input') || {}).value || '';
+const reasonEl = document.getElementById('paid-cancel-reason-input');
+const errBox = document.getElementById('paid-cancel-error-box');
+const submitBtn = document.getElementById('btn-submit-paid-cancel-request');
+const reason = String((reasonEl && reasonEl.value) || '').trim();
+if (errBox) errBox.style.display = 'none';
+if (reason.length < 5) {
+if (errBox) {
+errBox.textContent = 'Por favor, informe o motivo da solicitação de cancelamento (mínimo de 5 caracteres).';
+errBox.style.display = 'block';
+}
+return;
+}
+if (submitBtn) {
+submitBtn.disabled = true;
+submitBtn.textContent = 'Enviando...';
+}
+const headers = { 'Content-Type': 'application/json' };
+if (AppState.currentCustomer && AppState.currentCustomer.token) {
+headers['Authorization'] = 'Bearer ' + AppState.currentCustomer.token;
+}
+try {
+const res = await fetch(apiBase + '/api/orders/' + encodeURIComponent(orderId) + '/request-cancellation', {
+method: 'POST',
+headers,
+body: JSON.stringify({
+customerId: AppState.currentCustomer ? AppState.currentCustomer.id : '',
+email: AppState.currentCustomer ? AppState.currentCustomer.email : '',
+reason
+})
+});
+const data = await res.json();
+if (submitBtn) {
+submitBtn.disabled = false;
+submitBtn.textContent = 'Enviar solicitação';
+}
+if (!res.ok || !data || !data.ok) {
+const msg = (data && data.error) || 'Não foi possível registrar a solicitação.';
+if (errBox) {
+errBox.textContent = msg;
+errBox.style.display = 'block';
+}
+showToast(msg, 'danger');
+return;
+}
+closePaidCancelRequestModalV6();
+await loadDatabase();
+renderMainView();
+const detailModal = document.getElementById('order-detail-modal');
+if (detailModal && detailModal.classList.contains('open')) {
+openOrderDetailModal(orderId);
+}
+showToast(data.message || 'Solicitação de cancelamento enviada para análise da loja!', 'success');
+} catch (err) {
+if (submitBtn) {
+submitBtn.disabled = false;
+submitBtn.textContent = 'Enviar solicitação';
+}
+showToast('Erro de conexão ao enviar solicitação.', 'danger');
+}
+return;
+}
+if (form.id === 'customer-delete-account-form') {
+e.preventDefault();
+const pwdEl = document.getElementById('delete-account-password-input');
+const reasonEl = document.getElementById('delete-account-reason-input');
+const chkEl = document.getElementById('delete-account-confirm-checkbox');
+const errBox = document.getElementById('delete-account-error-box');
+const submitBtn = document.getElementById('btn-confirm-delete-account');
+if (errBox) errBox.style.display = 'none';
+const password = String((pwdEl && pwdEl.value) || '');
+const reason = String((reasonEl && reasonEl.value) || '').trim();
+const confirmed = Boolean(chkEl && chkEl.checked);
+if (!confirmed) {
+if (errBox) {
+errBox.textContent = 'Marque a caixa de confirmação para declarar ciência sobre a exclusão da conta.';
+errBox.style.display = 'block';
+}
+return;
+}
+if (!password) {
+if (errBox) {
+errBox.textContent = 'Informe sua senha atual para confirmar a exclusão.';
+errBox.style.display = 'block';
+}
+return;
+}
+if (submitBtn) {
+submitBtn.disabled = true;
+submitBtn.textContent = 'Processando...';
+}
+const headers = { 'Content-Type': 'application/json' };
+if (AppState.currentCustomer && AppState.currentCustomer.token) {
+headers['Authorization'] = 'Bearer ' + AppState.currentCustomer.token;
+}
+try {
+const res = await fetch(apiBase + '/api/customer/delete-account', {
+method: 'POST',
+headers,
+body: JSON.stringify({
+customerId: AppState.currentCustomer ? AppState.currentCustomer.id : '',
+email: AppState.currentCustomer ? AppState.currentCustomer.email : '',
+password,
+reason,
+confirmDeletion: true
+})
+});
+const data = await res.json();
+if (submitBtn) {
+submitBtn.disabled = false;
+submitBtn.textContent = 'Confirmar exclusão da minha conta';
+}
+if (!res.ok || !data || !data.ok) {
+const msg = (data && data.error) || 'Não foi possível concluir a solicitação de exclusão.';
+if (errBox) {
+errBox.textContent = msg;
+errBox.style.display = 'block';
+}
+showToast(msg, 'danger');
+return;
+}
+closeDeleteAccountModalV6();
+if (data.mode === 'deletion_requested_pending_orders') {
+if (AppState.currentCustomer) {
+AppState.currentCustomer.accountStatus = 'deletion_requested';
+AppState.currentCustomer.deletionRequestedAt = new Date().toISOString();
+localStorage.setItem(STORAGE_KEY_CUSTOMER_SESSION, JSON.stringify(AppState.currentCustomer));
+}
+await loadDatabase();
+renderMainView();
+showToast(data.message, 'warning');
+} else {
+AppState.currentCustomer = null;
+AppState.cart = [];
+saveCart();
+try {
+localStorage.removeItem(STORAGE_KEY_CUSTOMER_SESSION);
+} catch (err) {}
+await loadDatabase();
+updateHeaderCounters();
+navigateTo('home');
+showToast(data.message || 'Sua conta foi excluída e seus dados pessoais foram anonimizados.', 'success');
+}
+} catch (err) {
+if (submitBtn) {
+submitBtn.disabled = false;
+submitBtn.textContent = 'Confirmar exclusão da minha conta';
+}
+showToast('Erro de conexão ao processar exclusão da conta.', 'danger');
+}
+}
+});
+setTimeout(() => {
+ensureV6CustomerModals();
+syncAdminAndAuthBodyStateV6();
+enhanceOrderViewsV6();
+}, 30);
+const STORAGE_KEY_VISITOR_ID = 'by_angely_vid_v1';
+const STORAGE_KEY_SESSION_ID = 'by_angely_sid_v1';
+const STORAGE_KEY_SESSION_TS = 'by_angely_sid_ts_v1';
+const STORAGE_KEY_ANALYTICS_CONSENT = 'by_angely_analytics_consent_v1';
+function getOrCreateVisitorId() {
+try {
+let vid = localStorage.getItem(STORAGE_KEY_VISITOR_ID);
+if (!vid) {
+vid = 'vis_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
+localStorage.setItem(STORAGE_KEY_VISITOR_ID, vid);
+}
+return vid;
+} catch (_e) {
+return 'vis_mem_' + Date.now().toString(36);
+}
+}
+function getOrCreateSessionId() {
+const now = Date.now();
+try {
+let sid = sessionStorage.getItem(STORAGE_KEY_SESSION_ID);
+const lastTs = Number(sessionStorage.getItem(STORAGE_KEY_SESSION_TS) || 0);
+if (!sid || (lastTs > 0 && now - lastTs > 30 * 60 * 1000)) {
+sid = 'ses_' + now.toString(36) + '_' + Math.random().toString(36).slice(2, 10);
+sessionStorage.setItem(STORAGE_KEY_SESSION_ID, sid);
+}
+sessionStorage.setItem(STORAGE_KEY_SESSION_TS, String(now));
+return sid;
+} catch (_e) {
+return 'ses_mem_' + Math.floor(now / 1800000);
+}
+}
+function getUrlUtmParams() {
+try {
+const params = new URLSearchParams(window.location.search || '');
+return {
+utmSource: params.get('utm_source') || '',
+utmMedium: params.get('utm_medium') || '',
+utmCampaign: params.get('utm_campaign') || '',
+utmTerm: params.get('utm_term') || '',
+utmContent: params.get('utm_content') || ''
+};
+} catch (_e) {
+return { utmSource: '', utmMedium: '', utmCampaign: '', utmTerm: '', utmContent: '' };
+}
+}
+function sendAnalyticsEvent(type, extra = {}) {
+try {
+if (AppState.currentView === 'admin' && !extra.forceTrackInAdmin) return;
+if (localStorage.getItem(STORAGE_KEY_ANALYTICS_CONSENT) === 'declined') return;
+const visitorId = getOrCreateVisitorId();
+const sessionId = getOrCreateSessionId();
+const utm = getUrlUtmParams();
+const cust = AppState.currentCustomer;
+const defaultAddr = cust && Array.isArray(cust.addresses) && cust.addresses[0] ? cust.addresses[0] : null;
+const cartTotal = Array.isArray(AppState.cart)
+? AppState.cart.reduce((acc, it) => {
+const p = (AppState.db.products || []).find((pr) => pr.id === it.productId);
+const price = p ? getEffectivePrice(p) : Number(it.unitPrice || 0);
+return acc + price * (Number(it.quantity) || 1);
+}, 0)
+: 0;
+const payload = {
+type,
+visitorId,
+sessionId,
+isAuthenticated: Boolean(cust && cust.id),
+customerId: cust && cust.id ? cust.id : undefined,
+page: extra.page || AppState.currentView || 'home',
+referrer: document.referrer || '',
+userAgent: navigator.userAgent || '',
+screen: window.screen ? `${window.screen.width}x${window.screen.height}` : '',
+timezone: (Intl && Intl.DateTimeFormat && Intl.DateTimeFormat().resolvedOptions().timeZone) || 'America/Sao_Paulo',
+state: extra.state || (defaultAddr && defaultAddr.state) || undefined,
+city: extra.city || (defaultAddr && defaultAddr.city) || undefined,
+cartTotal: Number(cartTotal.toFixed(2)),
+...utm,
+...extra
+};
+const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+fetch(apiBase + '/api/analytics/event', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify(payload),
+keepalive: true
+}).catch(() => {});
+} catch (_err) {}
+}
+window.ByAngelyAnalytics = {
+track: sendAnalyticsEvent,
+getVisitorId: getOrCreateVisitorId,
+getSessionId: getOrCreateSessionId
+};
+const _origOpenProductModalAnalytics = openProductModal;
+openProductModal = function (productId) {
+_origOpenProductModalAnalytics(productId);
+const prod = (AppState.db.products || []).find((p) => p && p.id === productId);
+if (prod) {
+sendAnalyticsEvent('product_view', {
+productId: prod.id,
+productName: prod.name,
+category: prod.categoryName || prod.category || '',
+price: getEffectivePrice(prod)
+});
+}
+};
+const _origAddToCartAnalytics = addToCart;
+addToCart = function (productId, size, color, quantity = 1, openDrawerAfter = true) {
+const beforeLen = Array.isArray(AppState.cart)
+? AppState.cart.reduce((a, b) => a + (Number(b.quantity) || 0), 0)
+: 0;
+_origAddToCartAnalytics(productId, size, color, quantity, openDrawerAfter);
+const afterLen = Array.isArray(AppState.cart)
+? AppState.cart.reduce((a, b) => a + (Number(b.quantity) || 0), 0)
+: 0;
+if (afterLen > beforeLen) {
+const prod = (AppState.db.products || []).find((p) => p && p.id === productId);
+if (prod) {
+sendAnalyticsEvent('add_to_cart', {
+productId: prod.id,
+productName: prod.name,
+category: prod.categoryName || prod.category || '',
+quantity: afterLen - beforeLen,
+price: getEffectivePrice(prod)
+});
+}
+}
+};
+if (typeof removeFromCart === 'function') {
+const _origRemoveFromCartAnalytics = removeFromCart;
+removeFromCart = function (index) {
+const item = AppState.cart && AppState.cart[index];
+const prodId = item ? item.productId : '';
+_origRemoveFromCartAnalytics(index);
+if (prodId) {
+sendAnalyticsEvent('remove_from_cart', { productId: prodId });
+}
+};
+}
+if (typeof toggleWishlist === 'function') {
+const _origToggleWishlistAnalytics = toggleWishlist;
+toggleWishlist = function (productId) {
+const wasFav = AppState.wishlist.includes(productId);
+_origToggleWishlistAnalytics(productId);
+if (!wasFav && AppState.wishlist.includes(productId)) {
+const prod = (AppState.db.products || []).find((p) => p && p.id === productId);
+sendAnalyticsEvent('wishlist_add', {
+productId,
+productName: prod ? prod.name : '',
+category: prod ? (prod.categoryName || prod.category || '') : ''
+});
+}
+};
+}
+const _origNavigateToAnalytics = navigateTo;
+navigateTo = function (view, options = {}) {
+const prevView = AppState.currentView;
+_origNavigateToAnalytics(view, options);
+if (AppState.currentView && AppState.currentView !== 'admin') {
+if (AppState.currentView !== prevView) {
+sendAnalyticsEvent('page_view', { page: AppState.currentView });
+}
+if (AppState.currentView === 'checkout') {
+sendAnalyticsEvent('begin_checkout', {
+page: 'checkout',
+stage: 'Iniciou a finalização da compra (Checkout)'
+});
+}
+}
+};
+window.ByAngelyApp.navigateTo = navigateTo;
+let _searchDebounceTimer = null;
+document.addEventListener('input', (e) => {
+const t = e.target;
+if (!t) return;
+if (t.id === 'catalog-search-input' || t.id === 'header-search-input') {
+clearTimeout(_searchDebounceTimer);
+const q = String(t.value || '').trim();
+if (q.length < 2) return;
+_searchDebounceTimer = setTimeout(() => {
+const matches = (AppState.db.products || []).filter((p) => {
+if (!p || p.status === 'draft') return false;
+const hay = `${p.name || ''} ${p.categoryName || ''} ${p.category || ''} ${p.description || ''} ${p.sku || ''}`.toLowerCase();
+return hay.includes(q.toLowerCase());
+});
+sendAnalyticsEvent('search', {
+query: q,
+resultsCount: matches.length
+});
+}, 650);
+}
+});
+document.addEventListener('change', (e) => {
+const t = e.target;
+if (!t) return;
+if (t.id === 'filter-size-select' && t.value && t.value !== 'all') {
+sendAnalyticsEvent('filter_use', { filterType: 'Tamanho', filterValue: t.value });
+} else if (t.id === 'filter-color-select' && t.value && t.value !== 'all') {
+sendAnalyticsEvent('filter_use', { filterType: 'Cor', filterValue: t.value });
+} else if (t.id === 'filter-sort-select' && t.value) {
+sendAnalyticsEvent('filter_use', { filterType: 'Ordenação', filterValue: t.value });
+} else if (t.name === 'shippingMethod') {
+sendAnalyticsEvent('checkout_step', { stage: 'Seleção de entrega no checkout' });
+} else if (t.name === 'paymentMethod') {
+sendAnalyticsEvent('checkout_step', { stage: 'Seleção de forma de pagamento (' + t.value + ')' });
+}
+});
+document.addEventListener('click', (e) => {
+const target = e.target.closest('[data-action], #pdp-whatsapp-product-link');
+if (!target) return;
+if (target.id === 'pdp-whatsapp-product-link') {
+const pid = AppState.activeProductModal && AppState.activeProductModal.productId;
+const prod = (AppState.db.products || []).find((p) => p && p.id === pid);
+if (prod) {
+sendAnalyticsEvent('product_share', {
+productId: prod.id,
+productName: prod.name,
+category: prod.categoryName || prod.category || ''
+});
+}
+return;
+}
+const act = target.getAttribute('data-action');
+if (act === 'filter-category') {
+const cat = target.getAttribute('data-category') || '';
+if (cat && cat !== 'all') {
+sendAnalyticsEvent('category_access', { category: cat });
+}
+} else if (act === 'share-product') {
+const pid = target.getAttribute('data-product-id') || '';
+const prod = (AppState.db.products || []).find((p) => p && p.id === pid);
+sendAnalyticsEvent('product_share', {
+productId: pid,
+productName: prod ? prod.name : '',
+category: prod ? (prod.categoryName || prod.category || '') : ''
+});
+}
+});
+setTimeout(() => {
+try {
+if (AppState.currentView === 'admin') return;
+const sid = getOrCreateSessionId();
+const visitKey = 'by_angely_visit_logged_' + sid;
+if (!sessionStorage.getItem(visitKey)) {
+sessionStorage.setItem(visitKey, '1');
+sendAnalyticsEvent('store_visit', { page: AppState.currentView || 'home' });
+}
+const pvKey = 'by_angely_last_pv_' + sid;
+const currPage = AppState.currentView || 'home';
+if (sessionStorage.getItem(pvKey) !== currPage) {
+sessionStorage.setItem(pvKey, currPage);
+sendAnalyticsEvent('page_view', { page: currPage });
+}
+} catch (_e) {}
+}, 250);
 })();
+
 
