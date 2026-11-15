@@ -19,29 +19,31 @@
   <div class="announcement-bar" role="region" aria-label="Avisos da loja">
     <div class="announcement-bar-inner">
       <p id="announcement-text" class="announcement-text">
-        By Angély • Itaperuna, RJ — Moda feminina elegante e atemporal
+        BY ANGÉLY • Moda Feminina Contemporânea • Itaperuna, RJ
       </p>
       <div class="announcement-links">
         <button type="button" data-action="toggle-a11y-modal" aria-label="Preferências de Acessibilidade">
           ♿ Acessibilidade
         </button>
-        <button type="button" data-action="go-policies" data-tab="references">
-          Licenças &amp; Legislação
-        </button>
-        <button type="button" data-nav-view="admin">
-          🔐 Painel da Proprietária
-        </button>
+        <span id="admin-top-bar-controls" style="display:none;align-items:center;gap:14px;">
+          <button type="button" data-action="go-policies" data-tab="references">
+            Licenças &amp; Legislação
+          </button>
+          <button type="button" data-nav-view="admin">
+            🔐 Painel da Proprietária
+          </button>
+        </span>
       </div>
     </div>
   </div>
 
-  <!-- Aviso Ostensivo sobre Produtos e Imagens Demonstrativas -->
-  <div id="demo-disclosure-banner" class="demo-disclosure-banner" role="region" aria-label="Aviso de modo demonstrativo">
+  <!-- Aviso sobre Produtos Demonstrativos (Visível apenas para Admin logado) -->
+  <div id="demo-disclosure-banner" class="demo-disclosure-banner" role="region" aria-label="Aviso de modo demonstrativo" style="display:none;">
     <div class="demo-disclosure-inner">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <span class="demo-badge-pill">Modo Demonstração</span>
+        <span class="demo-badge-pill">Visão Admin • Modo Demonstração</span>
         <span>
-          As peças e fotografias iniciais são <strong>meramente ilustrativas</strong> (licenciadas para demonstração) e não representam estoque real. A proprietária pode substituí-las ou removê-las a qualquer momento no Painel.
+          As peças e fotografias iniciais são demonstrativas. Você pode substituí-las ou removê-las no Painel Administrativo.
         </span>
       </div>
       <div style="display:flex;gap:10px;">
@@ -68,7 +70,7 @@
           <a href="#catalog" class="nav-link" data-nav-view="catalog">Catálogo</a>
           <a href="#contact" class="nav-link" data-nav-view="contact">Contato</a>
           <a href="#policies" class="nav-link" data-nav-view="policies">Políticas</a>
-          <a href="#admin" class="nav-link" data-nav-view="admin">Painel Admin</a>
+          <a href="#admin" class="nav-link admin-only-element" data-nav-view="admin" style="display:none;">Painel Admin</a>
         </nav>
       </div>
 
@@ -146,29 +148,29 @@
             <li><button type="button" data-nav-view="account">Acompanhar Pedidos e Rastreio</button></li>
             <li><button type="button" data-nav-view="favorites">Lista de Favoritos</button></li>
             <li><button type="button" data-nav-view="contact">Canais Oficiais de Contato</button></li>
-            <li><a href="https://wa.me/5528999871458?text=Ol%C3%A1!%20Vim%20pelo%20site%20da%20BY%20ANG%C3%89LY%20e%20gostaria%20de%20conhecer%20os%20produtos." target="_blank" rel="noopener noreferrer">WhatsApp: +55 28 99987-1458 ↗</a></li>
-            <li><a href="https://www.instagram.com/_by.angely?dlrf=OXJrN2EwdHNka21x" target="_blank" rel="noopener noreferrer">Instagram: @_by.angely ↗</a></li>
-            <li><a href="mailto:byangely1@gmail.com">E-mail: byangely1@gmail.com</a></li>
+            <li><a href="https://wa.me/5528999871458?text=Ol%C3%A1!%20Vim%20pelo%20site%20da%20BY%20ANG%C3%89LY%20e%20gostaria%20de%20conhecer%20os%20produtos." target="_blank" rel="noopener noreferrer">Atendimento via WhatsApp ↗</a></li>
+            <li><a href="https://www.instagram.com/_by.angely?dlrf=OXJrN2EwdHNka21x" target="_blank" rel="noopener noreferrer">Instagram Oficial ↗</a></li>
+            <li><a href="mailto:byangely1@gmail.com">Atendimento por E-mail</a></li>
             <li><button type="button" data-action="open-return-request">Solicitar Troca ou Devolução</button></li>
             <li><button type="button" data-action="toggle-a11y-modal">Preferências de Acessibilidade</button></li>
           </ul>
         </div>
 
         <div>
-          <h2 class="footer-heading">Políticas, Segurança &amp; Gestão</h2>
+          <h2 class="footer-heading">Políticas &amp; Segurança</h2>
           <ul class="footer-links">
             <li><button type="button" data-action="go-policies" data-tab="privacy">Política de Privacidade (LGPD)</button></li>
             <li><button type="button" data-action="go-policies" data-tab="terms">Termos de Uso</button></li>
             <li><button type="button" data-action="go-policies" data-tab="shipping">Política de Entrega e Retirada</button></li>
             <li><button type="button" data-action="go-policies" data-tab="returns">Trocas, Devoluções e CDC (Art. 49)</button></li>
-            <li><button type="button" data-action="go-policies" data-tab="references">Licenças das Imagens &amp; Fontes Legais</button></li>
-            <li><button type="button" data-nav-view="admin" style="color:#E5DACB;font-weight:600;">🔐 Acessar Painel da Proprietária</button></li>
+            <li class="admin-only-element" style="display:none;"><button type="button" data-action="go-policies" data-tab="references">Licenças das Imagens &amp; Fontes Legais</button></li>
+            <li class="admin-only-element" style="display:none;"><button type="button" data-nav-view="admin" style="color:#E5DACB;font-weight:600;">🔐 Painel da Proprietária</button></li>
           </ul>
         </div>
       </div>
 
       <div class="footer-bottom">
-        <p>© 2026 By Angély — Itaperuna, Rio de Janeiro. Loja exclusiva da marca (sem marketplace ou vendedores terceiros).</p>
+        <p><span data-nav-view="admin" style="cursor:default;" title="BY ANGÉLY">© 2026 BY ANGÉLY</span> — Itaperuna, Rio de Janeiro. Loja exclusiva da marca.</p>
         <p>Pagamentos seguros (Pix EMV Banco Central &amp; Checkout Externo PCI-DSS) • Conformidade LGPD e Decreto nº 7.962/2013.</p>
       </div>
     </div>
@@ -224,15 +226,15 @@
         <button type="button" class="btn btn-subtle btn-block" style="justify-content:flex-start;" data-nav-view="contact">💬 Contato &amp; Redes Sociais</button>
         <button type="button" class="btn btn-subtle btn-block" style="justify-content:flex-start;" data-nav-view="policies">⚖️ Políticas, Trocas &amp; LGPD</button>
         <a href="https://wa.me/5528999871458?text=Ol%C3%A1!%20Vim%20pelo%20site%20da%20BY%20ANG%C3%89LY%20e%20gostaria%20de%20conhecer%20os%20produtos." target="_blank" rel="noopener noreferrer" class="contact-btn-action whatsapp-style" style="width:100%;margin-top:6px;">
-          WhatsApp +55 28 99987-1458
+          Conversar no WhatsApp
         </a>
         <a href="https://www.instagram.com/_by.angely?dlrf=OXJrN2EwdHNka21x" target="_blank" rel="noopener noreferrer" class="contact-btn-action instagram-style" style="width:100%;">
-          Instagram @_by.angely
+          Abrir Instagram Oficial
         </a>
         <a href="mailto:byangely1@gmail.com" class="contact-btn-action" style="width:100%;">
-          E-mail: byangely1@gmail.com
+          Enviar E-mail
         </a>
-        <button type="button" class="btn btn-gold btn-block" style="justify-content:flex-start;margin-top:12px;" data-nav-view="admin">🔐 Painel da Proprietária</button>
+        <button type="button" class="btn btn-gold btn-block admin-only-element" style="justify-content:flex-start;margin-top:12px;display:none;" data-nav-view="admin">🔐 Painel da Proprietária</button>
       </div>
     </div>
   </div>
