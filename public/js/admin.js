@@ -5651,4 +5651,112 @@ renderAdminView = function (containerEl) {
   }
 };
 window.ByAngelyAdmin.renderAdminView = renderAdminView;
+function getAdminHeadersV6(app) {
+  const currentAdmin = (app && app.getState && app.getState().currentAdmin) || {};
+  const token = currentAdmin.token || currentAdmin.sessionToken || 'by-angely-admin-token';
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer ' + token,
+    'x-admin-token': token
+  };
+}
+
+// === V6 ADMIN PAYMENTS FORM & PIX DIRECT NUMBER COMPLETE FIX ===
+const _prevRenderPaymentsSectionV6PayFix = renderPaymentsSection;
+renderPaymentsSection = function () {
+  const app = window.ByAngelyApp;
+  const db = (app && app.getState && app.getState().db) || {};
+  const pay = db.paymentSettings || {};
+  const kType = (pay.pix && pay.pix.keyType) || 'telefone';
+  let html = _prevRenderPaymentsSectionV6PayFix();
+  if (!html.includes('value="numero"')) {
+    html = html.replace(
+      '<select name="pixKeyType" class="form-control">',
+      '<select name="pixKeyType" id="admin-pix-key-type-select" class="form-control"><option value="numero" ' + (kType === 'numero' || kType === 'direta' ? 'selected' : '') + '>Apenas Número / Identificador Direto</option>'
+    );
+  }
+  return html;
+};
+
+const _prevBindAdminWorkspaceEventsV6PayFix = bindAdminWorkspaceEvents;
+bindAdminWorkspaceEvents = function (containerEl) {
+  _prevBindAdminWorkspaceEventsV6PayFix(containerEl);
+  const app = window.ByAngelyApp;
+  if (!app || !app.getState().currentAdmin) return;
+  const db = app.getState().db;
+  const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+
+  const payForm = containerEl.querySelector('#admin-payments-form');
+  if (payForm) {
+    payForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      const fd = new FormData(payForm);
+      db.paymentSettings.paymentConfigVersion = 4;
+      db.paymentSettings.whatsapp = db.paymentSettings.whatsapp || {};
+      db.paymentSettings.whatsapp.enabled = fd.get('whatsappEnabled') === 'on';
+      db.paymentSettings.whatsapp.title = fd.get('whatsappTitle') || 'Atendimento e Finalização pelo WhatsApp';
+      db.paymentSettings.whatsapp.instructions = fd.get('whatsappInstructions') || '';
+
+      const pixKeyType = String(fd.get('pixKeyType') || 'telefone').trim().toLowerCase();
+      const pixKeyVal = String(fd.get('pixKey') || '').trim();
+      db.paymentSettings.pix = db.paymentSettings.pix || {};
+      db.paymentSettings.pix.enabled = fd.get('pixEnabled') === 'on';
+      db.paymentSettings.pix.keyType = pixKeyType;
+      db.paymentSettings.pix.pixKey = pixKeyVal;
+      db.paymentSettings.pix.recipientName = String(fd.get('pixRecipientName') || 'BY ANGELY').trim();
+      db.paymentSettings.pix.recipientCity = String(fd.get('pixRecipientCity') || 'ITAPERUNA').trim();
+      db.paymentSettings.pix.txidPrefix = String(fd.get('pixTxidPrefix') || 'BYANGELY').trim();
+      db.paymentSettings.pix.instructions = fd.get('pixInstructions') || '';
+
+      db.paymentSettings.creditCard = db.paymentSettings.creditCard || {};
+      db.paymentSettings.creditCard.enabled = fd.get('cardEnabled') === 'on';
+      db.paymentSettings.creditCard.providerName = String(fd.get('cardProviderName') || '').trim();
+      db.paymentSettings.creditCard.externalPaymentLink = String(fd.get('cardExternalLink') || '').trim();
+      db.paymentSettings.creditCard.installmentsInfo = String(fd.get('cardInstallmentsInfo') || '').trim();
+      db.paymentSettings.creditCard.instructions = String(fd.get('cardInstructions') || '').trim();
+
+      db.paymentSettings.debitCard = db.paymentSettings.debitCard || {};
+      db.paymentSettings.debitCard.enabled = fd.get('debitEnabled') === 'on';
+      db.paymentSettings.debitCard.providerName = String(fd.get('debitProviderName') || '').trim();
+      db.paymentSettings.debitCard.externalPaymentLink = String(fd.get('debitExternalLink') || '').trim();
+      db.paymentSettings.debitCard.instructions = String(fd.get('debitInstructions') || '').trim();
+
+      db.paymentSettings.payOnPickup = db.paymentSettings.payOnPickup || {};
+      db.paymentSettings.payOnPickup.enabled = fd.get('pickupPayEnabled') === 'on';
+      db.paymentSettings.payOnPickup.instructions = String(fd.get('pickupPayInstructions') || '').trim();
+
+      const cardSecretToken = String(fd.get('cardSecretToken') || '').trim();
+      if (cardSecretToken) {
+        db.paymentSettings.creditCard.hasSecretCredentials = true;
+        try {
+          await fetch(apiBase + '/api/admin/payment-credentials', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              creditCardProvider: db.paymentSettings.creditCard.providerName,
+              creditCardSecretToken: cardSecretToken
+            })
+          });
+        } catch (err) {}
+      }
+
+      try {
+        await fetch(apiBase + '/api/admin/payment-settings', {
+          method: 'POST',
+          headers: getAdminHeadersV6(app),
+          body: JSON.stringify({
+            paymentSettings: db.paymentSettings,
+            actorName: (app.getState().currentAdmin && app.getState().currentAdmin.name) || 'Proprietária BY ANGÉLY',
+            actorRole: (app.getState().currentAdmin && app.getState().currentAdmin.role) || 'owner',
+            actorEmail: (app.getState().currentAdmin && app.getState().currentAdmin.email) || 'byangely1@gmail.com'
+          })
+        });
+      } catch (err) {}
+      await app.saveDatabase('Configurações de venda e pagamento atualizadas pela proprietária (Pix: ' + (db.paymentSettings.pix.enabled ? 'Ativo' : 'Desativado') + ', Chave: ' + db.paymentSettings.pix.pixKey + ').');
+      app.showToast('Configurações de Venda e Pagamento salvas com sucesso!', 'success');
+      renderAdminView(containerEl);
+    }, true);
+  }
+};
 })();
