@@ -9897,5 +9897,3 @@ document.addEventListener('click', (e) => {
 setTimeout(syncAuthPageBodyState, 10);
 })();
 
-
-})();
