@@ -2522,6 +2522,8 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 400, { ok: false, error: err.message });
     }
   }
+  // Endpoint de Simulação de Sandbox do Provedor Pix (para testes manuais rápidos no Admin)
+  if (pathname === '/api/pix/sandbox-simulate-payment' && req.method === 'POST') {
     try {
       const body = await parseBody(req);
       const orderId = String(body.orderId || body.orderNumber || '').trim();
