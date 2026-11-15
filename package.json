@@ -1,0 +1,20 @@
+{
+  "name": "by-angely-ecommerce",
+  "version": "1.0.0",
+  "description": "Plataforma completa de e-commerce de moda feminina e painel administrativo para By Angély — Itaperuna, RJ",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "by-angely",
+    "moda-feminina",
+    "itaperuna",
+    "ecommerce",
+    "pix-emv",
+    "lgpd"
+  ],
+  "author": "By Angély — Itaperuna, RJ",
+  "license": "UNLICENSED"
+}
