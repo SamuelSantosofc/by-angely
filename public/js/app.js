@@ -9992,6 +9992,54 @@ label: 'Configurado (' + kType.toUpperCase() + ')',
 detail: 'Chave Pix (' + key + ') pronta para recebimento.'
 };
 }
+if (methodId === 'creditCard' || methodId === 'debitCard') {
+const cardObj = pay[methodId] || {};
+const prov = String(cardObj.providerName || cardObj.provider || '').trim();
+const link = String(cardObj.externalPaymentLink || '').trim();
+const hasRealLink = (link.startsWith('http://') || link.startsWith('https://')) && !link.includes('wa.me/');
+const hasSecret = Boolean(cardObj.hasSecretCredentials || cardObj.hasBackendSecretConfigured || cardObj.pspApiConfigured);
+if (hasSecret && prov.length >= 2) {
+return {
+stateCode: 'validated',
+badgeClass: 'confirmed',
+label: 'Integração validada',
+detail: 'Credencial privada armazenada no servidor (' + prov + ').'
+};
+}
+if (hasRealLink && prov.length >= 2) {
+return {
+stateCode: 'configured',
+badgeClass: 'info',
+label: 'Configurado (Link HTTPS externo)',
+detail: 'Redirecionamento externo configurado para ' + prov + '.'
+};
+}
+return {
+stateCode: 'pending',
+badgeClass: 'pending',
+label: 'Aguardando configuração',
+detail: 'Informe a URL HTTPS real do provedor ou token secreto da API antes de ativar.'
+};
+}
+if (methodId === 'payOnPickup') {
+const addrPending = !st.addressLine || String(st.addressLine).toLowerCase().includes('a confirmar');
+if (addrPending) {
+return {
+stateCode: 'pending',
+badgeClass: 'pending',
+label: 'Aguardando configuração de endereço',
+detail: 'Confirme o endereço completo de retirada em Itaperuna na aba Dados da Loja.'
+};
+}
+return {
+stateCode: 'configured',
+badgeClass: 'confirmed',
+label: 'Configurado',
+detail: 'Endereço presencial em Itaperuna confirmado.'
+};
+}
+return { stateCode: 'pending', badgeClass: 'pending', label: 'Aguardando configuração', detail: '' };
+}
 function getAdminRequestHeaders() {
 const headers = {};
 if (AppState.currentAdmin) {
@@ -10127,6 +10175,7 @@ body: JSON.stringify(AppState.db)
 );
 await Promise.allSettled(syncPromises);
 }
+if (_origNormalizeAndRepairDatabase) {
 normalizeAndRepairDatabase = function (rawDb) {
 const rawPayIn = (rawDb && rawDb.paymentSettings) || {};
 const rawPixIn = rawPayIn.pix || {};
@@ -10145,6 +10194,18 @@ showContactSection: false,
 };
 repaired.paymentSettings = repaired.paymentSettings || {};
 repaired.paymentSettings.paymentConfigVersion = 4;
+if (rawPayIn.whatsapp && typeof rawPayIn.whatsapp.enabled === 'boolean') {
+repaired.paymentSettings.whatsapp = { ...(repaired.paymentSettings.whatsapp || {}), ...rawPayIn.whatsapp, enabled: rawPayIn.whatsapp.enabled };
+}
+if (rawPayIn.creditCard && typeof rawPayIn.creditCard.enabled === 'boolean') {
+repaired.paymentSettings.creditCard = { ...(repaired.paymentSettings.creditCard || {}), ...rawPayIn.creditCard, enabled: rawPayIn.creditCard.enabled };
+}
+if (rawPayIn.debitCard && typeof rawPayIn.debitCard.enabled === 'boolean') {
+repaired.paymentSettings.debitCard = { ...(repaired.paymentSettings.debitCard || {}), ...rawPayIn.debitCard, enabled: rawPayIn.debitCard.enabled };
+}
+if (rawPayIn.payOnPickup && typeof rawPayIn.payOnPickup.enabled === 'boolean') {
+repaired.paymentSettings.payOnPickup = { ...(repaired.paymentSettings.payOnPickup || {}), ...rawPayIn.payOnPickup, enabled: rawPayIn.payOnPickup.enabled };
+}
 const preservedPixEnabled = typeof rawPixIn.enabled === 'boolean'
 ? rawPixIn.enabled
 : (typeof (repaired.paymentSettings.pix && repaired.paymentSettings.pix.enabled) === 'boolean' ? repaired.paymentSettings.pix.enabled : true);
@@ -10178,6 +10239,7 @@ pspWebhookConfigured: rawPixIn.pspWebhookConfigured !== undefined ? Boolean(rawP
 return repaired;
 };
 }
+  
 if (window.ByAngelyApp) {
 window.ByAngelyApp.loadDatabase = loadDatabase;
 window.ByAngelyApp.saveDatabase = saveDatabase;
@@ -10233,11 +10295,11 @@ color = '#8E2626';
 }
 return [
 '<div class="order-cancel-request-box-v6" style="margin-top:12px;padding:12px 14px;border-radius:10px;background:' + bg + ';border:1px solid ' + border + ';font-size:0.82rem;color:' + color + ';">',
-'  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:4px;">',
-'    <strong>Solicitação de Cancelamento (Pedido Pago): ' + escapeHtml(req.statusLabel || 'Em análise pela loja') + '</strong>',
-'    <span style="font-size:0.74rem;opacity:0.85;">' + formatDateBR(req.updatedAt || req.createdAt) + '</span>',
-'  </div>',
-'  <div><strong>Motivo informado:</strong> ' + escapeHtml(req.reason || '') + '</div>',
+' <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:4px;">',
+' <strong>Solicitação de Cancelamento (Pedido Pago): ' + escapeHtml(req.statusLabel || 'Em análise pela loja') + '</strong>',
+' <span style="font-size:0.74rem;opacity:0.85;">' + formatDateBR(req.updatedAt || req.createdAt) + '</span>',
+' </div>',
+' <div><strong>Motivo informado:</strong> ' + escapeHtml(req.reason || '') + '</div>',
 (req.adminReason ? '<div style="margin-top:4px;"><strong>Posicionamento da loja:</strong> ' + escapeHtml(req.adminReason) + '</div>' : ''),
 (req.refundReference ? '<div style="margin-top:4px;"><strong>Comprovante / Referência do reembolso:</strong> ' + escapeHtml(req.refundReference) + '</div>' : ''),
 '</div>'
@@ -10277,18 +10339,18 @@ m1.className = 'v6-modal-backdrop';
 m1.setAttribute('aria-hidden', 'true');
 m1.innerHTML = [
 '<div class="v6-modal-card" role="dialog" aria-modal="true" aria-labelledby="cancel-unpaid-modal-title">',
-'  <span class="section-eyebrow" style="color:#8E2626;">Cancelamento de Pedido</span>',
-'  <h2 id="cancel-unpaid-modal-title" style="font-family:var(--font-serif);font-size:1.55rem;margin-bottom:8px;color:#292522;">Deseja cancelar este pedido?</h2>',
-'  <p id="cancel-unpaid-modal-desc" style="font-size:0.86rem;color:#5C5346;line-height:1.5;margin-bottom:14px;">Ao confirmar o cancelamento, a cobrança Pix vinculada será invalidada imediatamente e as peças reservadas retornarão ao estoque da loja.</p>',
-'  <div class="form-field-group" style="margin-bottom:14px;">',
-'    <label class="form-field-label" for="cancel-unpaid-reason-input">Motivo do cancelamento (opcional)</label>',
-'    <input type="text" id="cancel-unpaid-reason-input" class="form-input-v4" placeholder="Ex.: Vou escolher outro tamanho ou forma de pagamento" />',
-'  </div>',
-'  <div id="cancel-unpaid-error-box" style="display:none;padding:10px 12px;border-radius:8px;background:#FDF2F2;border:1px solid #F2B8B5;color:#8E2626;font-size:0.8rem;margin-bottom:12px;"></div>',
-'  <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">',
-'    <button type="button" class="btn btn-outline btn-sm" data-action="close-cancel-order-modal" style="min-height:42px;padding:0 16px;">Voltar e manter pedido</button>',
-'    <button type="button" id="btn-confirm-cancel-unpaid-order" class="btn btn-primary btn-sm" data-action="confirm-cancel-order" data-order-id="" style="min-height:42px;padding:0 18px;background:#8E2626;border-color:#8E2626;color:#FFFFFF;">Confirmar cancelamento</button>',
-'  </div>',
+' <span class="section-eyebrow" style="color:#8E2626;">Cancelamento de Pedido</span>',
+' <h2 id="cancel-unpaid-modal-title" style="font-family:var(--font-serif);font-size:1.55rem;margin-bottom:8px;color:#292522;">Deseja cancelar este pedido?</h2>',
+' <p id="cancel-unpaid-modal-desc" style="font-size:0.86rem;color:#5C5346;line-height:1.5;margin-bottom:14px;">Ao confirmar o cancelamento, a cobrança Pix vinculada será invalidada imediatamente e as peças reservadas retornarão ao estoque da loja.</p>',
+' <div class="form-field-group" style="margin-bottom:14px;">',
+' <label class="form-field-label" for="cancel-unpaid-reason-input">Motivo do cancelamento (opcional)</label>',
+' <input type="text" id="cancel-unpaid-reason-input" class="form-input-v4" placeholder="Ex.: Vou escolher outro tamanho ou forma de pagamento" />',
+' </div>',
+' <div id="cancel-unpaid-error-box" style="display:none;padding:10px 12px;border-radius:8px;background:#FDF2F2;border:1px solid #F2B8B5;color:#8E2626;font-size:0.8rem;margin-bottom:12px;"></div>',
+' <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">',
+' <button type="button" class="btn btn-outline btn-sm" data-action="close-cancel-order-modal" style="min-height:42px;padding:0 16px;">Voltar e manter pedido</button>',
+' <button type="button" id="btn-confirm-cancel-unpaid-order" class="btn btn-primary btn-sm" data-action="confirm-cancel-order" data-order-id="" style="min-height:42px;padding:0 18px;background:#8E2626;border-color:#8E2626;color:#FFFFFF;">Confirmar cancelamento</button>',
+' </div>',
 '</div>'
 ].join('');
 document.body.appendChild(m1);
@@ -10300,21 +10362,21 @@ m2.className = 'v6-modal-backdrop';
 m2.setAttribute('aria-hidden', 'true');
 m2.innerHTML = [
 '<div class="v6-modal-card" role="dialog" aria-modal="true" aria-labelledby="paid-cancel-req-title">',
-'  <span class="section-eyebrow">Pedido com Pagamento Confirmado</span>',
-'  <h2 id="paid-cancel-req-title" style="font-family:var(--font-serif);font-size:1.55rem;margin-bottom:8px;color:#292522;">Solicitar Cancelamento e Reembolso</h2>',
-'  <p id="paid-cancel-req-desc" style="font-size:0.84rem;color:#5C5346;line-height:1.5;margin-bottom:14px;">Como o pagamento deste pedido já foi confirmado, sua solicitação será encaminhada para análise prioritária da administração da BY ANGÉLY para aprovação e processamento do estorno.</p>',
-'  <form id="customer-paid-cancel-request-form" novalidate>',
-'    <input type="hidden" id="paid-cancel-order-id-input" value="" />',
-'    <div class="form-field-group" style="margin-bottom:14px;">',
-'      <label class="form-field-label" for="paid-cancel-reason-input">Informe o motivo da solicitação <span class="req-star">*</span></label>',
-'      <textarea id="paid-cancel-reason-input" class="form-input-v4" rows="3" required placeholder="Descreva o motivo para cancelamento e estorno do pedido..." style="height:auto;padding:10px 12px;"></textarea>',
-'    </div>',
-'    <div id="paid-cancel-error-box" style="display:none;padding:10px 12px;border-radius:8px;background:#FDF2F2;border:1px solid #F2B8B5;color:#8E2626;font-size:0.8rem;margin-bottom:12px;"></div>',
-'    <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">',
-'      <button type="button" class="btn btn-outline btn-sm" data-action="close-paid-cancel-request-modal" style="min-height:42px;padding:0 16px;">Voltar</button>',
-'      <button type="submit" id="btn-submit-paid-cancel-request" class="btn btn-primary btn-sm" style="min-height:42px;padding:0 18px;">Enviar solicitação</button>',
-'    </div>',
-'  </form>',
+' <span class="section-eyebrow">Pedido com Pagamento Confirmado</span>',
+' <h2 id="paid-cancel-req-title" style="font-family:var(--font-serif);font-size:1.55rem;margin-bottom:8px;color:#292522;">Solicitar Cancelamento e Reembolso</h2>',
+' <p id="paid-cancel-req-desc" style="font-size:0.84rem;color:#5C5346;line-height:1.5;margin-bottom:14px;">Como o pagamento deste pedido já foi confirmado, sua solicitação será encaminhada para análise prioritária da administração da BY ANGÉLY para aprovação e processamento do estorno.</p>',
+' <form id="customer-paid-cancel-request-form" novalidate>',
+' <input type="hidden" id="paid-cancel-order-id-input" value="" />',
+' <div class="form-field-group" style="margin-bottom:14px;">',
+' <label class="form-field-label" for="paid-cancel-reason-input">Informe o motivo da solicitação <span class="req-star">*</span></label>',
+' <textarea id="paid-cancel-reason-input" class="form-input-v4" rows="3" required placeholder="Descreva o motivo para cancelamento e estorno do pedido..." style="height:auto;padding:10px 12px;"></textarea>',
+' </div>',
+' <div id="paid-cancel-error-box" style="display:none;padding:10px 12px;border-radius:8px;background:#FDF2F2;border:1px solid #F2B8B5;color:#8E2626;font-size:0.8rem;margin-bottom:12px;"></div>',
+' <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">',
+' <button type="button" class="btn btn-outline btn-sm" data-action="close-paid-cancel-request-modal" style="min-height:42px;padding:0 16px;">Voltar</button>',
+' <button type="submit" id="btn-submit-paid-cancel-request" class="btn btn-primary btn-sm" style="min-height:42px;padding:0 18px;">Enviar solicitação</button>',
+' </div>',
+' </form>',
 '</div>'
 ].join('');
 document.body.appendChild(m2);
@@ -10326,39 +10388,39 @@ m3.className = 'v6-modal-backdrop';
 m3.setAttribute('aria-hidden', 'true');
 m3.innerHTML = [
 '<div class="v6-modal-card" role="dialog" aria-modal="true" aria-labelledby="delete-account-modal-title">',
-'  <span class="section-eyebrow" style="color:#8E2626;">Privacidade e Titularidade de Dados • LGPD</span>',
-'  <h2 id="delete-account-modal-title" style="font-family:var(--font-serif);font-size:1.55rem;margin-bottom:8px;color:#292522;">Excluir Minha Conta</h2>',
-'  <div style="background:#FFF8F3;border:1px solid #E9DFD4;border-radius:10px;padding:12px 14px;font-size:0.81rem;color:#5C5346;line-height:1.5;margin-bottom:14px;">',
-'    <strong style="display:block;color:#292522;margin-bottom:4px;">Antes de confirmar, saiba o que acontecerá:</strong>',
-'    <ul style="margin:0;padding-left:18px;">',
-'      <li><strong>Encerramento do acesso:</strong> sua conta será desativada permanentemente e não permitirá novos logins ou compras.</li>',
-'      <li><strong>Dados excluídos/anonimizados:</strong> nome completo, telefone/WhatsApp, CPF, endereços salvos e sacola serão anonimizados.</li>',
-'      <li><strong>Retenção legal obrigatória:</strong> registros fiscais, financeiros e de pedidos concluídos são preservados exclusivamente pelo prazo legal (Art. 16 da LGPD — Lei nº 13.709/2018), sem permitir novo acesso.</li>',
-'      <li><strong>Pedidos em andamento:</strong> pedidos não pagos serão cancelados imediatamente; se houver pedido pago em preparação/entrega, a exclusão ficará vinculada à conclusão da entrega.</li>',
-'    </ul>',
-'  </div>',
-'  <form id="customer-delete-account-form" novalidate>',
-'    <div class="form-field-group" style="margin-bottom:12px;">',
-'      <label class="form-field-label" for="delete-account-password-input">Confirme sua senha atual para segurança <span class="req-star">*</span></label>',
-'      <div class="password-input-wrapper">',
-'        <input type="password" id="delete-account-password-input" name="password" class="form-input-v4" required placeholder="Digite sua senha atual" />',
-'        <button type="button" class="password-toggle-btn" data-action="toggle-password-visibility" data-target="delete-account-password-input">Mostrar</button>',
-'      </div>',
-'    </div>',
-'    <div class="form-field-group" style="margin-bottom:12px;">',
-'      <label class="form-field-label" for="delete-account-reason-input">Motivo da saída (opcional)</label>',
-'      <input type="text" id="delete-account-reason-input" name="reason" class="form-input-v4" placeholder="Opcional: conte-nos o motivo" />',
-'    </div>',
-'    <label style="display:flex;align-items:flex-start;gap:8px;font-size:0.8rem;color:#292522;margin-bottom:14px;cursor:pointer;">',
-'      <input type="checkbox" id="delete-account-confirm-checkbox" name="confirmDeletion" required style="margin-top:3px;" />',
-'      <span>Compreendo que esta ação encerrará o acesso à minha conta e anonimizará meus dados pessoais cadastrais.</span>',
-'    </label>',
-'    <div id="delete-account-error-box" style="display:none;padding:10px 12px;border-radius:8px;background:#FDF2F2;border:1px solid #F2B8B5;color:#8E2626;font-size:0.8rem;margin-bottom:12px;"></div>',
-'    <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">',
-'      <button type="button" class="btn btn-outline btn-sm" data-action="close-delete-account-modal" style="min-height:42px;padding:0 16px;">Cancelar e manter conta</button>',
-'      <button type="submit" id="btn-confirm-delete-account" class="btn btn-primary btn-sm" style="min-height:42px;padding:0 18px;background:#8E2626;border-color:#8E2626;color:#FFFFFF;">Confirmar exclusão da minha conta</button>',
-'    </div>',
-'  </form>',
+' <span class="section-eyebrow" style="color:#8E2626;">Privacidade e Titularidade de Dados • LGPD</span>',
+' <h2 id="delete-account-modal-title" style="font-family:var(--font-serif);font-size:1.55rem;margin-bottom:8px;color:#292522;">Excluir Minha Conta</h2>',
+' <div style="background:#FFF8F3;border:1px solid #E9DFD4;border-radius:10px;padding:12px 14px;font-size:0.81rem;color:#5C5346;line-height:1.5;margin-bottom:14px;">',
+' <strong style="display:block;color:#292522;margin-bottom:4px;">Antes de confirmar, saiba o que acontecerá:</strong>',
+' <ul style="margin:0;padding-left:18px;">',
+' <li><strong>Encerramento do acesso:</strong> sua conta será desativada permanentemente e não permitirá novos logins ou compras.</li>',
+' <li><strong>Dados excluídos/anonimizados:</strong> nome completo, telefone/WhatsApp, CPF, endereços salvos e sacola serão anonimizados.</li>',
+' <li><strong>Retenção legal obrigatória:</strong> registros fiscais, financeiros e de pedidos concluídos são preservados exclusivamente pelo prazo legal (Art. 16 da LGPD — Lei nº 13.709/2018), sem permitir novo acesso.</li>',
+' <li><strong>Pedidos em andamento:</strong> pedidos não pagos serão cancelados imediatamente; se houver pedido pago em preparação/entrega, a exclusão ficará vinculada à conclusão da entrega.</li>',
+' </ul>',
+' </div>',
+' <form id="customer-delete-account-form" novalidate>',
+' <div class="form-field-group" style="margin-bottom:12px;">',
+' <label class="form-field-label" for="delete-account-password-input">Confirme sua senha atual para segurança <span class="req-star">*</span></label>',
+' <div class="password-input-wrapper">',
+' <input type="password" id="delete-account-password-input" name="password" class="form-input-v4" required placeholder="Digite sua senha atual" />',
+' <button type="button" class="password-toggle-btn" data-action="toggle-password-visibility" data-target="delete-account-password-input">Mostrar</button>',
+' </div>',
+' </div>',
+' <div class="form-field-group" style="margin-bottom:12px;">',
+' <label class="form-field-label" for="delete-account-reason-input">Motivo da saída (opcional)</label>',
+' <input type="text" id="delete-account-reason-input" name="reason" class="form-input-v4" placeholder="Opcional: conte-nos o motivo" />',
+' </div>',
+' <label style="display:flex;align-items:flex-start;gap:8px;font-size:0.8rem;color:#292522;margin-bottom:14px;cursor:pointer;">',
+' <input type="checkbox" id="delete-account-confirm-checkbox" name="confirmDeletion" required style="margin-top:3px;" />',
+' <span>Compreendo que esta ação encerrará o acesso à minha conta e anonimizará meus dados pessoais cadastrais.</span>',
+' </label>',
+' <div id="delete-account-error-box" style="display:none;padding:10px 12px;border-radius:8px;background:#FDF2F2;border:1px solid #F2B8B5;color:#8E2626;font-size:0.8rem;margin-bottom:12px;"></div>',
+' <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">',
+' <button type="button" class="btn btn-outline btn-sm" data-action="close-delete-account-modal" style="min-height:42px;padding:0 16px;">Cancelar e manter conta</button>',
+' <button type="submit" id="btn-confirm-delete-account" class="btn btn-primary btn-sm" style="min-height:42px;padding:0 18px;background:#8E2626;border-color:#8E2626;color:#FFFFFF;">Confirmar exclusão da minha conta</button>',
+' </div>',
+' </form>',
 '</div>'
 ].join('');
 document.body.appendChild(m3);
@@ -10372,23 +10434,23 @@ const cust = AppState.currentCustomer || {};
 const hasDeletionReq = cust.accountStatus === 'deletion_requested' || cust.deletionRequestedAt;
 const deletionCardHtml = [
 '<div class="admin-card" id="customer-delete-account-card" style="margin-top:20px;border-color:#F2B8B5;background:#FFFDFD;">',
-'  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">',
-'    <div style="max-width:640px;">',
-'      <span class="section-eyebrow" style="color:#8E2626;">Privacidade e Controle de Dados (LGPD)</span>',
-'      <h2 style="font-family:var(--font-serif);font-size:1.4rem;margin-bottom:4px;color:#292522;">Encerramento e Exclusão da Conta</h2>',
-'      <p style="font-size:0.82rem;color:var(--text-secondary);margin:0;line-height:1.5;">',
-'        Você pode solicitar a exclusão e anonimização dos seus dados pessoais a qualquer momento. Registros financeiros e fiscais de compras concluídas são mantidos apenas pelo prazo legal obrigatório, sem permitir novo acesso.',
-'      </p>',
+' <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">',
+' <div style="max-width:640px;">',
+' <span class="section-eyebrow" style="color:#8E2626;">Privacidade e Controle de Dados (LGPD)</span>',
+' <h2 style="font-family:var(--font-serif);font-size:1.4rem;margin-bottom:4px;color:#292522;">Encerramento e Exclusão da Conta</h2>',
+' <p style="font-size:0.82rem;color:var(--text-secondary);margin:0;line-height:1.5;">',
+' Você pode solicitar a exclusão e anonimização dos seus dados pessoais a qualquer momento. Registros financeiros e fiscais de compras concluídas são mantidos apenas pelo prazo legal obrigatório, sem permitir novo acesso.',
+' </p>',
 (hasDeletionReq
 ? '<div style="margin-top:10px;padding:10px 12px;border-radius:8px;background:#FFF8EB;border:1px solid #E2B96B;color:#7A5211;font-size:0.8rem;"><strong>Solicitação registrada:</strong> Sua solicitação de exclusão está vinculada à conclusão dos seus pedidos pagos em andamento.</div>'
 : ''),
-'    </div>',
-'    <div style="display:flex;align-items:center;">',
-'      <button type="button" id="btn-open-delete-account-modal" class="btn btn-outline btn-sm" data-action="open-delete-account-modal" style="color:#8E2626;border-color:#F2B8B5;background:#FDF2F2;min-height:42px;padding:0 18px;">',
-'        Excluir minha conta',
-'      </button>',
-'    </div>',
-'  </div>',
+' </div>',
+' <div style="display:flex;align-items:center;">',
+' <button type="button" id="btn-open-delete-account-modal" class="btn btn-outline btn-sm" data-action="open-delete-account-modal" style="color:#8E2626;border-color:#F2B8B5;background:#FDF2F2;min-height:42px;padding:0 18px;">',
+' Excluir minha conta',
+' </button>',
+' </div>',
+' </div>',
 '</div>'
 ].join('');
 const marker = '</form>\n          </div>\n        </div>\n      </div>\n    </section>';
@@ -10515,7 +10577,7 @@ btn.setAttribute('data-action', 'open-cancel-order-modal');
 btn.setAttribute('data-order-id', ord.id);
 btn.setAttribute('data-order-number', ord.orderNumber || '');
 btn.style.cssText = 'color:#8E2626;border-color:#F2B8B5;background:#FDF2F2;';
-btn.textContent = 'Cancelar pedido';
+  btn.textContent = 'Cancelar pedido';
 footerActions.insertBefore(btn, closeBtn);
 } else if (isOrderPaidAndEligibleForCancelRequestV6(ord) && (!ord.cancellationRequest || ord.cancellationRequest.status === 'rejected')) {
 const btnReq = document.createElement('button');
@@ -10865,7 +10927,7 @@ if (data.mode === 'deletion_requested_pending_orders') {
 if (AppState.currentCustomer) {
 AppState.currentCustomer.accountStatus = 'deletion_requested';
 AppState.currentCustomer.deletionRequestedAt = new Date().toISOString();
-localStorage.setItem(STORAGE_KEY_CUSTOMER_SESSION, JSON.stringify(AppState.currentCustomer));
+  localStorage.setItem(STORAGE_KEY_CUSTOMER_SESSION, JSON.stringify(AppState.currentCustomer));
 }
 await loadDatabase();
 renderMainView();
@@ -10966,7 +11028,7 @@ customerId: cust && cust.id ? cust.id : undefined,
 page: extra.page || AppState.currentView || 'home',
 referrer: document.referrer || '',
 userAgent: navigator.userAgent || '',
-screen: window.screen ? `${window.screen.width}x${window.screen.height}` : '',
+screen: window.screen ? (window.screen.width + 'x' + window.screen.height) : '',
 timezone: (Intl && Intl.DateTimeFormat && Intl.DateTimeFormat().resolvedOptions().timeZone) || 'America/Sao_Paulo',
 state: extra.state || (defaultAddr && defaultAddr.state) || undefined,
 city: extra.city || (defaultAddr && defaultAddr.city) || undefined,
@@ -11002,11 +11064,11 @@ price: getEffectivePrice(prod)
 }
 };
 const _origAddToCartAnalytics = addToCart;
-addToCart = function (productId, size, color, quantity = 1, openDrawerAfter = true) {
+addToCart = function (productId, size, color, quantity = 1, options = {}) {
 const beforeLen = Array.isArray(AppState.cart)
 ? AppState.cart.reduce((a, b) => a + (Number(b.quantity) || 0), 0)
 : 0;
-_origAddToCartAnalytics(productId, size, color, quantity, openDrawerAfter);
+const added = _origAddToCartAnalytics(productId, size, color, quantity, options);
 const afterLen = Array.isArray(AppState.cart)
 ? AppState.cart.reduce((a, b) => a + (Number(b.quantity) || 0), 0)
 : 0;
@@ -11022,6 +11084,7 @@ price: getEffectivePrice(prod)
 });
 }
 }
+return added;
 };
 if (typeof removeFromCart === 'function') {
 const _origRemoveFromCartAnalytics = removeFromCart;
@@ -11070,14 +11133,14 @@ let _searchDebounceTimer = null;
 document.addEventListener('input', (e) => {
 const t = e.target;
 if (!t) return;
-if (t.id === 'catalog-search-input' || t.id === 'header-search-input') {
+if (t.id === 'filter-search' || t.id === 'catalog-search-input' || t.id === 'header-search-input') {
 clearTimeout(_searchDebounceTimer);
 const q = String(t.value || '').trim();
 if (q.length < 2) return;
 _searchDebounceTimer = setTimeout(() => {
 const matches = (AppState.db.products || []).filter((p) => {
 if (!p || p.status === 'draft') return false;
-const hay = `${p.name || ''} ${p.categoryName || ''} ${p.category || ''} ${p.description || ''} ${p.sku || ''}`.toLowerCase();
+const hay = ((p.name || '') + ' ' + (p.categoryName || '') + ' ' + (p.category || '') + ' ' + (p.description || '') + ' ' + (p.sku || '')).toLowerCase();
 return hay.includes(q.toLowerCase());
 });
 sendAnalyticsEvent('search', {
@@ -11090,12 +11153,18 @@ resultsCount: matches.length
 document.addEventListener('change', (e) => {
 const t = e.target;
 if (!t) return;
-if (t.id === 'filter-size-select' && t.value && t.value !== 'all') {
+if ((t.id === 'filter-size-select' || t.id === 'drawer-filter-size') && t.value && t.value !== 'all') {
 sendAnalyticsEvent('filter_use', { filterType: 'Tamanho', filterValue: t.value });
-} else if (t.id === 'filter-color-select' && t.value && t.value !== 'all') {
+} else if ((t.id === 'filter-color-select' || t.id === 'drawer-filter-color') && t.value && t.value !== 'all') {
 sendAnalyticsEvent('filter_use', { filterType: 'Cor', filterValue: t.value });
-} else if (t.id === 'filter-sort-select' && t.value) {
+} else if ((t.id === 'filter-sort-select' || t.id === 'drawer-filter-sort') && t.value) {
 sendAnalyticsEvent('filter_use', { filterType: 'Ordenação', filterValue: t.value });
+} else if (t.id === 'drawer-filter-category' && t.value && t.value !== 'all') {
+sendAnalyticsEvent('category_access', { category: t.value });
+} else if (t.id === 'drawer-filter-style' && t.value && t.value !== 'all') {
+sendAnalyticsEvent('filter_use', { filterType: 'Estilo', filterValue: t.value });
+} else if (t.id === 'drawer-filter-price' && t.value && t.value !== 'all') {
+sendAnalyticsEvent('filter_use', { filterType: 'Faixa de Preço', filterValue: t.value });
 } else if (t.name === 'shippingMethod') {
 sendAnalyticsEvent('checkout_step', { stage: 'Seleção de entrega no checkout' });
 } else if (t.name === 'paymentMethod') {
