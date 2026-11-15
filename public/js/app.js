@@ -23,7 +23,7 @@
     wishlist: [],
     appliedCoupon: null,
     selectedShippingMethodId: 'pickup_itaperuna',
-    selectedPaymentMethod: 'pix',
+    selectedPaymentMethod: 'whatsapp',
     lastCreatedOrder: null,
     currentCustomer: null,
     currentAdmin: null,
@@ -31,6 +31,7 @@
       productId: null,
       selectedColor: null,
       selectedSize: null,
+      quantity: 1,
       mediaIndex: 0
     },
     filters: {
@@ -50,6 +51,45 @@
       disableCustomCursor: false
     }
   };
+
+  const CATEGORY_COVER_FALLBACKS = {
+    vestidos: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=900&q=85',
+    conjuntos: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=900&q=85',
+    blusas: 'https://images.unsplash.com/photo-1551163943-3f6a855d1153?auto=format&fit=crop&w=900&q=85',
+    'blusas-camisas': 'https://images.unsplash.com/photo-1551163943-3f6a855d1153?auto=format&fit=crop&w=900&q=85',
+    calcas: 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?auto=format&fit=crop&w=900&q=85',
+    saias: 'https://images.unsplash.com/photo-1583496661160-fb5886a0aaaa?auto=format&fit=crop&w=900&q=85',
+    acessorios: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=900&q=85'
+  };
+
+  function normalizeCategorySlug(val) {
+    if (!val) return '';
+    const raw = String(val)
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+    if (raw.includes('blusa') || raw.includes('camisa')) return 'blusas';
+    if (raw.includes('vestido')) return 'vestidos';
+    if (raw.includes('conjunto')) return 'conjuntos';
+    if (raw.includes('calca')) return 'calcas';
+    if (raw.includes('saia')) return 'saias';
+    if (raw.includes('acessorio') || raw.includes('bolsa') || raw.includes('cinto')) return 'acessorios';
+    return raw.replace(/[^a-z0-9]+/g, '-');
+  }
+
+  function matchesCategory(product, filterSlug) {
+    if (!filterSlug || filterSlug === 'all') return true;
+    if (!product) return false;
+    const targetNorm = normalizeCategorySlug(filterSlug);
+    const prodSlugNorm = normalizeCategorySlug(product.category);
+    const prodNameNorm = normalizeCategorySlug(product.categoryName);
+    return (
+      product.category === filterSlug ||
+      prodSlugNorm === targetNorm ||
+      prodNameNorm === targetNorm
+    );
+  }
 
   // =========================================================================
   // UTILITÁRIOS DE FORMATAÇÃO E SEGURANÇA
@@ -124,31 +164,304 @@
   }
 
   /**
-   * Gera o link direto do WhatsApp identificando o produto, código SKU, tamanho, cor, valor e link da peça
+   * Gera o link direto do WhatsApp na ficha do produto identificando:
+   * Nome da loja BY ANGÉLY, Nome da peça, Código/SKU, Cor, Tamanho, Quantidade, Preço, Link e Pergunta sobre disponibilidade
    */
-  function getProductWhatsappUrl(product, selectedSize, selectedColor) {
+  function getProductWhatsappUrl(product, selectedSize, selectedColor, quantity) {
     if (!product) return getOfficialContacts().whatsappUrl;
     const priceStr = formatBRL(getEffectivePrice(product));
     const sizeInfo = selectedSize || (product.sizes && product.sizes[0]) || 'A definir';
     const colorInfo = selectedColor || (product.colors && product.colors[0] && product.colors[0].name) || 'A definir';
-    const baseUrl = (typeof window !== 'undefined' && window.location)
-      ? (window.location.origin + window.location.pathname + '?produto=' + encodeURIComponent(product.id))
-      : '';
+    const qtyInfo = Number(quantity) >= 1 ? String(quantity) : '1';
+    let productUrl = 'https://by-angely.onrender.com/?produto=' + encodeURIComponent(product.id);
+    if (typeof window !== 'undefined' && window.location && window.location.protocol && window.location.protocol.startsWith('http')) {
+      productUrl = window.location.origin + window.location.pathname + '?produto=' + encodeURIComponent(product.id);
+    }
 
     const messageLines = [
-      'Olá! Vim pelo site da BY ANGÉLY e gostaria de informações / comprar este produto:',
+      'Olá! Vim pelo site da *BY ANGÉLY* e gostaria de falar sobre esta peça:',
       '',
-      '• *Produto:* ' + product.name,
+      '• *Loja:* BY ANGÉLY',
+      '• *Peça:* ' + product.name,
       '• *Código (SKU):* ' + (product.sku || product.id),
       '• *Cor selecionada:* ' + colorInfo,
       '• *Tamanho selecionado:* ' + sizeInfo,
-      '• *Valor:* ' + priceStr
+      '• *Quantidade:* ' + qtyInfo,
+      '• *Preço no site:* ' + priceStr,
+      '• *Link da peça:* ' + productUrl,
+      '',
+      'Esta peça está disponível nesta cor e tamanho?'
     ];
-    if (baseUrl && baseUrl.startsWith('http')) {
-      messageLines.push('• *Link da peça:* ' + baseUrl);
-    }
 
     return 'https://wa.me/5528999871458?text=' + encodeURIComponent(messageLines.join('\n'));
+  }
+
+  /**
+   * Gera a mensagem completa e estruturada para finalização de pedido pelo WhatsApp
+   */
+  function buildOrderWhatsappMessage(order) {
+    if (!order) return '';
+    const cust = order.customer || {};
+    const ship = order.shipping || {};
+    const addr = ship.address || {};
+    const items = Array.isArray(order.items) ? order.items : [];
+    const dateStr = formatDateBR(order.createdAt || new Date().toISOString());
+
+    const lines = [
+      '🛍️ *NOVO PEDIDO — BY ANGÉLY*',
+      '━━━━━━━━━━━━━━━━━━━━',
+      '• *Código do Pedido:* ' + (order.orderNumber || order.id),
+      '• *Data e Horário:* ' + dateStr,
+      '',
+      '👤 *DADOS DA CLIENTE*',
+      '• *Nome completo:* ' + (cust.name || 'Não informado'),
+      '• *Telefone / WhatsApp:* ' + (cust.phone || 'Não informado')
+    ];
+    if (cust.email) {
+      lines.push('• *E-mail:* ' + cust.email);
+    }
+
+    lines.push(
+      '',
+      '🚚 *FORMA DE RECEBIMENTO E ENDEREÇO*',
+      '• *Forma de recebimento:* ' + (ship.methodName || 'A combinar'),
+      '• *Cidade / UF:* ' + (addr.cityState || 'Itaperuna - RJ'),
+      '• *Bairro:* ' + (addr.neighborhood || 'Não informado')
+    );
+    if (addr.street) {
+      lines.push('• *Endereço:* ' + addr.street + (addr.number ? ', nº ' + addr.number : ''));
+    }
+    if (addr.zipCode) {
+      lines.push('• *CEP:* ' + addr.zipCode);
+    }
+
+    lines.push('', '👗 *LISTA COMPLETA DOS PRODUTOS*');
+    items.forEach((it, idx) => {
+      const unitP = Number(it.unitPrice) || 0;
+      const qty = Number(it.quantity) || 1;
+      const subP = unitP * qty;
+      lines.push(
+        (idx + 1) + '. *' + it.name + '*' + (it.sku ? ' (' + it.sku + ')' : ''),
+        '   - Tamanho: ' + (it.size || 'Único') + ' | Cor: ' + (it.color || 'Padrão'),
+        '   - Quantidade: ' + qty + ' un.',
+        '   - Preço unitário: ' + formatBRL(unitP),
+        '   - Subtotal do produto: ' + formatBRL(subP)
+      );
+    });
+
+    lines.push(
+      '',
+      '💰 *VALORES DO PEDIDO*',
+      '• *Total dos produtos:* ' + formatBRL(order.subtotal != null ? order.subtotal : order.total)
+    );
+    if (order.discount && Number(order.discount) > 0) {
+      lines.push('• *Desconto (' + (order.couponCode || 'Cupom') + '):* -' + formatBRL(order.discount));
+    }
+    if (ship.priceStatus === 'confirmed' && Number(ship.cost) > 0) {
+      lines.push('• *Entrega / Frete:* ' + formatBRL(ship.cost));
+    } else {
+      lines.push('• *Entrega / Frete:* A confirmar no atendimento');
+    }
+    lines.push('• *TOTAL DO PEDIDO:* *' + formatBRL(order.total) + '*');
+
+    const obs = order.customerNotes || order.customerPaymentNote || '';
+    lines.push('• *Observações:* ' + (String(obs).trim() ? String(obs).trim() : 'Nenhuma observação adicional'));
+    lines.push('', 'Aguardo a confirmação do pedido pela equipe da BY ANGÉLY. Obrigada!');
+
+    return lines.join('\n');
+  }
+
+  function getOrderWhatsappUrl(order) {
+    const msg = buildOrderWhatsappMessage(order);
+    return 'https://wa.me/5528999871458?text=' + encodeURIComponent(msg);
+  }
+
+  /**
+   * Verifica se uma forma de pagamento está devidamente configurada/validada para ser exibida como funcional
+   */
+  function isPaymentOptionConfigured(methodId, paySettings) {
+    const pay = paySettings || (AppState.db && AppState.db.paymentSettings) || {};
+    if (methodId === 'whatsapp') {
+      return Boolean(pay.whatsapp);
+    }
+    if (methodId === 'pix') {
+      if (!pay.pix) return false;
+      const key = String(pay.pix.pixKey || '').trim();
+      const rec = String(pay.pix.recipientName || '').trim();
+      if (key.length < 3 || key.toLowerCase().includes('a confirmar') || rec.length < 2 || rec.toLowerCase().includes('a confirmar')) {
+        return false;
+      }
+      const kType = String(pay.pix.keyType || 'telefone').toLowerCase();
+      const digits = key.replace(/\D/g, '');
+      if (kType === 'cnpj' && digits.length !== 14) return false;
+      if (kType === 'cpf' && digits.length !== 11) return false;
+      if (kType === 'email' && !key.includes('@')) return false;
+      if (kType === 'telefone' && (digits.length < 10 || digits.length > 14)) return false;
+      return true;
+    }
+    if (methodId === 'creditCard' || methodId === 'credit_card') {
+      if (!pay.creditCard) return false;
+      const prov = String(pay.creditCard.providerName || pay.creditCard.provider || '').trim();
+      const link = String(pay.creditCard.externalPaymentLink || '').trim();
+      const pubKey = String(pay.creditCard.publicKey || '').trim();
+      const hasRealLink = (link.startsWith('http://') || link.startsWith('https://')) && !link.includes('wa.me/');
+      const hasApiCreds = Boolean(pay.creditCard.pspApiConfigured || pay.creditCard.hasSecretCredentials || pubKey.length >= 4);
+      return Boolean(prov.length >= 2 && !prov.toLowerCase().includes('a confirmar') && (hasRealLink || hasApiCreds));
+    }
+    if (methodId === 'debitCard' || methodId === 'debit_card') {
+      if (!pay.debitCard) return false;
+      const prov = String(pay.debitCard.providerName || pay.debitCard.provider || '').trim();
+      const link = String(pay.debitCard.externalPaymentLink || '').trim();
+      const pubKey = String(pay.debitCard.publicKey || '').trim();
+      const hasRealLink = (link.startsWith('http://') || link.startsWith('https://')) && !link.includes('wa.me/');
+      const hasApiCreds = Boolean(pay.debitCard.pspApiConfigured || pay.debitCard.hasSecretCredentials || pubKey.length >= 4);
+      return Boolean(prov.length >= 2 && !prov.toLowerCase().includes('a confirmar') && (hasRealLink || hasApiCreds));
+    }
+    if (methodId === 'payOnPickup' || methodId === 'pay_on_pickup') {
+      return Boolean(pay.payOnPickup);
+    }
+    return false;
+  }
+
+  /**
+   * Retorna diagnóstico detalhado do estado de configuração e validação de cada forma de pagamento para o Painel Admin
+   */
+  function getPaymentIntegrationStatus(methodId, paySettings, storeSettings) {
+    const pay = paySettings || (AppState.db && AppState.db.paymentSettings) || {};
+    const st = storeSettings || (AppState.db && AppState.db.storeSettings) || {};
+
+    if (methodId === 'whatsapp') {
+      return {
+        stateCode: 'validated',
+        badgeClass: 'confirmed',
+        label: 'Integração validada (+55 28 99987-1458)',
+        detail: 'Canal oficial conectado e mensagem automática validada.'
+      };
+    }
+
+    if (methodId === 'pix') {
+      if (!pay.pix) {
+        return { stateCode: 'pending', badgeClass: 'pending', label: 'Aguardando configuração', detail: 'Informe a chave Pix da loja.' };
+      }
+      const key = String(pay.pix.pixKey || '').trim();
+      const rec = String(pay.pix.recipientName || '').trim();
+      const kType = String(pay.pix.keyType || 'telefone').toLowerCase();
+      const digits = key.replace(/\D/g, '');
+      if (!key || key.toLowerCase().includes('a confirmar') || !rec || rec.toLowerCase().includes('a confirmar')) {
+        return { stateCode: 'pending', badgeClass: 'pending', label: 'Aguardando configuração', detail: 'Preencha a chave Pix e o nome do recebedor.' };
+      }
+      if (
+        (kType === 'cnpj' && digits.length !== 14) ||
+        (kType === 'cpf' && digits.length !== 11) ||
+        (kType === 'email' && !key.includes('@')) ||
+        (kType === 'telefone' && (digits.length < 10 || digits.length > 14))
+      ) {
+        return {
+          stateCode: 'error',
+          badgeClass: 'danger',
+          label: 'Erro na integração (Tipo de chave incompatível)',
+          detail: `O tipo selecionado é "${kType.toUpperCase()}", mas o valor informado ("${key}") não corresponde a esse formato.`
+        };
+      }
+      if (pay.pix.pspWebhookConfigured) {
+        return { stateCode: 'validated', badgeClass: 'confirmed', label: 'Integração validada', detail: 'QR Code EMV + Webhook automático ativo.' };
+      }
+      return {
+        stateCode: 'configured',
+        badgeClass: 'info',
+        label: 'Configurado (Conferência manual)',
+        detail: `Chave ${kType.toUpperCase()} válida no padrão EMV Banco Central.`
+      };
+    }
+
+    if (methodId === 'creditCard' || methodId === 'debitCard') {
+      const cardObj = pay[methodId] || {};
+      const prov = String(cardObj.providerName || cardObj.provider || '').trim();
+      const link = String(cardObj.externalPaymentLink || '').trim();
+      const hasRealLink = (link.startsWith('http://') || link.startsWith('https://')) && !link.includes('wa.me/');
+      const hasSecret = Boolean(cardObj.hasSecretCredentials || cardObj.hasBackendSecretConfigured || cardObj.pspApiConfigured);
+      if (hasSecret && prov.length >= 2) {
+        return {
+          stateCode: 'validated',
+          badgeClass: 'confirmed',
+          label: 'Integração validada',
+          detail: `Credencial privada armazenada no servidor (${prov}).`
+        };
+      }
+      if (hasRealLink && prov.length >= 2) {
+        return {
+          stateCode: 'configured',
+          badgeClass: 'info',
+          label: 'Configurado (Link HTTPS externo)',
+          detail: `Redirecionamento externo configurado para ${prov}.`
+        };
+      }
+      return {
+        stateCode: 'pending',
+        badgeClass: 'pending',
+        label: 'Aguardando configuração',
+        detail: 'Informe a URL HTTPS real do provedor ou token secreto da API antes de ativar.'
+      };
+    }
+
+    if (methodId === 'payOnPickup') {
+      const addrPending = !st.addressLine || String(st.addressLine).toLowerCase().includes('a confirmar');
+      if (addrPending) {
+        return {
+          stateCode: 'pending',
+          badgeClass: 'pending',
+          label: 'Aguardando configuração de endereço',
+          detail: 'Confirme o endereço completo de retirada em Itaperuna na aba Dados da Loja.'
+        };
+      }
+      return {
+        stateCode: 'configured',
+        badgeClass: 'confirmed',
+        label: 'Configurado',
+        detail: 'Endereço presencial em Itaperuna confirmado.'
+      };
+    }
+
+    return { stateCode: 'pending', badgeClass: 'pending', label: 'Aguardando configuração', detail: '' };
+  }
+
+  /**
+   * Retorna somente as formas de pagamento que estão ATIVADAS pela proprietária e CONFIGURADAS/VALIDADAS
+   */
+  function getAvailableCheckoutPaymentOptions(paySettings) {
+    const pay = paySettings || (AppState.db && AppState.db.paymentSettings) || {};
+    const options = [];
+    if (pay.whatsapp && pay.whatsapp.enabled && isPaymentOptionConfigured('whatsapp', pay)) {
+      options.push({
+        id: 'whatsapp',
+        label: pay.whatsapp.title || 'Atendimento e Finalização pelo WhatsApp'
+      });
+    }
+    if (pay.pix && pay.pix.enabled && isPaymentOptionConfigured('pix', pay)) {
+      options.push({
+        id: 'pix',
+        label: 'Pix pelo Site (QR Code EMV e Copia e Cola)'
+      });
+    }
+    if (pay.creditCard && pay.creditCard.enabled && isPaymentOptionConfigured('creditCard', pay)) {
+      options.push({
+        id: 'creditCard',
+        label: 'Cartão de Crédito pelo Site (Ambiente Seguro)'
+      });
+    }
+    if (pay.debitCard && pay.debitCard.enabled && isPaymentOptionConfigured('debitCard', pay)) {
+      options.push({
+        id: 'debitCard',
+        label: 'Cartão de Débito pelo Site (Ambiente Seguro)'
+      });
+    }
+    if (pay.payOnPickup && pay.payOnPickup.enabled && isPaymentOptionConfigured('payOnPickup', pay)) {
+      options.push({
+        id: 'payOnPickup',
+        label: pay.payOnPickup.title || 'Pagamento na Retirada (Itaperuna - RJ)'
+      });
+    }
+    return options;
   }
 
   function getEffectivePrice(product) {
@@ -174,9 +487,9 @@
     if (!container) return;
     const item = document.createElement('div');
     item.className = 'toast-item';
-    if (type === 'success') item.style.borderLeftColor = '#2E7D5B';
-    if (type === 'warning') item.style.borderLeftColor = '#D9822B';
-    if (type === 'danger') item.style.borderLeftColor = '#C93B3B';
+    if (type === 'success') item.style.borderLeftColor = '#2E6F52';
+    if (type === 'warning') item.style.borderLeftColor = '#C47A2C';
+    if (type === 'danger') item.style.borderLeftColor = '#B83A3A';
     item.setAttribute('role', 'status');
     item.setAttribute('aria-live', 'polite');
     item.textContent = message;
@@ -187,65 +500,376 @@
   }
 
   // =========================================================================
+  // NORMALIZAÇÃO E REPARO AUTOMÁTICO DO BANCO DE DADOS
+  // =========================================================================
+  function normalizeAndRepairDatabase(rawDb) {
+    const seed = window.ByAngelySeed ? window.ByAngelySeed.createInitialDatabase() : {};
+    const db = rawDb && typeof rawDb === 'object' ? rawDb : seed;
+
+    db.storeSettings = { ...(seed.storeSettings || {}), ...(db.storeSettings || {}) };
+    db.storeSettings.heroBanner = {
+      ...((seed.storeSettings && seed.storeSettings.heroBanner) || {}),
+      ...((db.storeSettings && db.storeSettings.heroBanner) || {})
+    };
+    db.storeSettings.brandStory = {
+      ...((seed.storeSettings && seed.storeSettings.brandStory) || {}),
+      ...((db.storeSettings && db.storeSettings.brandStory) || {})
+    };
+
+    // Limpa produtos e garante fotos válidas, preços reais e prioridade para peças publicadas pela proprietária
+    const seedProducts = seed.products || [];
+    const needsCatalogV3Repair = !db.catalogDataRepairV3;
+    if (!Array.isArray(db.products) || db.products.length === 0) {
+      db.products = JSON.parse(JSON.stringify(seedProducts));
+    }
+
+    // Remove eventual duplicata corrompida com preço R$ 0,00 se já existir a peça correspondente no catálogo
+    const seenSkus = new Set();
+    db.products = db.products.filter((p) => {
+      if (!p) return false;
+      const cleanName = String(p.name || '').replace(/\s*\(Demonstração\)\s*/gi, '').trim().toLowerCase();
+      if (Number(p.price) <= 0 && String(p.sku) === '2023' && db.products.some((other) => other !== p && String(other.name || '').toLowerCase().includes(cleanName))) {
+        return false;
+      }
+      if (p.sku && seenSkus.has(p.sku)) return false;
+      if (p.sku) seenSkus.add(p.sku);
+      return true;
+    });
+
+    db.products = db.products.map((p) => {
+      const cleanName = String(p.name || 'Peça By Angély').replace(/\s*\(Demonstração\)\s*/gi, '').trim();
+      const seedMatch = seedProducts.find(
+        (sp) =>
+          sp.id === p.id ||
+          sp.sku === p.sku ||
+          String(sp.name || '').toLowerCase() === cleanName.toLowerCase()
+      );
+      const normCat = normalizeCategorySlug(p.category || (seedMatch && seedMatch.category) || p.categoryName || 'vestidos');
+      const fallbackImg = CATEGORY_COVER_FALLBACKS[normCat] || CATEGORY_COVER_FALLBACKS.vestidos;
+
+      // Se o produto estava corrompido (preço <= 0 ou peça demo pausada sem estoque de versão antiga), restaura dados íntegros do Seed
+      const hadZeroPrice = !(Number(p.price) > 0);
+      const hadZeroStock = getTotalProductStock(p) <= 0;
+      const shouldRestoreFromSeed = seedMatch && (hadZeroPrice || (needsCatalogV3 && p.isDemo && (hadZeroStock || p.status === 'paused')) || (p.isDemo && hadZeroPrice));
+
+      function needsCatalogV3() {
+        return needsCatalogV3Repair;
+      }
+
+      const validPrice = Number(p.price) > 0 ? Number(p.price) : (seedMatch ? seedMatch.price : 299.90);
+      const validPromoPrice = p.promoPrice && Number(p.promoPrice) > 0
+        ? Number(p.promoPrice)
+        : (shouldRestoreFromSeed && seedMatch ? seedMatch.promoPrice : null);
+      const validIsPromo = typeof p.isPromo === 'boolean' && !hadZeroPrice
+        ? p.isPromo
+        : (seedMatch ? Boolean(seedMatch.isPromo) : Boolean(validPromoPrice));
+      const validStatus = (needsCatalogV3Repair && p.isDemo && hadZeroPrice)
+        ? 'published'
+        : (p.status || 'published');
+      const validVariations = Array.isArray(p.variations) && p.variations.length > 0 && getTotalProductStock(p) > 0
+        ? p.variations
+        : (seedMatch && seedMatch.variations ? JSON.parse(JSON.stringify(seedMatch.variations)) : [{ size: 'M', color: 'Padrão', stock: 4 }]);
+      const validSizes = Array.isArray(p.sizes) && p.sizes.length > 0
+        ? p.sizes
+        : (seedMatch && seedMatch.sizes ? [...seedMatch.sizes] : ['P', 'M', 'G']);
+      const validColors = Array.isArray(p.colors) && p.colors.length > 0
+        ? p.colors
+        : (seedMatch && seedMatch.colors ? JSON.parse(JSON.stringify(seedMatch.colors)) : [{ name: 'Padrão', hex: '#806044' }]);
+
+      const rawMedia = Array.isArray(p.media) && p.media.length > 0
+        ? p.media
+        : (seedMatch && seedMatch.media ? seedMatch.media : [{ type: 'image', url: fallbackImg, alt: cleanName }]);
+      const media = rawMedia.map((m) => ({
+        ...m,
+        url: m.url || fallbackImg,
+        alt: String(m.alt || cleanName).replace(/\s*—\s*Imagem Ilustrativa/gi, '').trim()
+      }));
+      const salesCount = p.isDemo ? 0 : (Number(p.salesCount) || 0);
+
+      return {
+        ...(seedMatch || {}),
+        ...p,
+        name: cleanName,
+        category: normCat,
+        price: validPrice,
+        promoPrice: validPromoPrice,
+        isPromo: validIsPromo,
+        status: validStatus,
+        sizes: validSizes,
+        colors: validColors,
+        variations: validVariations,
+        media,
+        salesCount
+      };
+    });
+    db.catalogDataRepairV3 = true;
+
+    // Ordena de modo que produtos reais (isDemo === false) fiquem sempre no topo antes dos demonstrativos
+    db.products.sort((a, b) => {
+      const aReal = !a.isDemo ? 1 : 0;
+      const bReal = !b.isDemo ? 1 : 0;
+      if (aReal !== bReal) return bReal - aReal;
+      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+    });
+
+    // Repara categorias garantindo que todas tenham imageUrl válida e nome padronizado
+    const seedCats = seed.categories || [];
+    if (!Array.isArray(db.categories) || db.categories.length === 0) {
+      db.categories = JSON.parse(JSON.stringify(seedCats));
+    }
+    db.categories = db.categories.map((cat, idx) => {
+      const normSlug = normalizeCategorySlug(cat.slug || cat.name);
+      const seedMatch = seedCats.find((sc) => normalizeCategorySlug(sc.slug) === normSlug);
+      // Procura se há produto real publicado nesta categoria para usar como foto de capa se a categoria não tiver foto própria
+      const realProductInCat = db.products.find(
+        (p) => !p.isDemo && p.status === 'published' && matchesCategory(p, normSlug) && p.media && p.media[0] && p.media[0].url
+      );
+      const validImageUrl =
+        (cat.imageUrl && String(cat.imageUrl).trim().length > 8 ? cat.imageUrl : '') ||
+        (realProductInCat ? realProductInCat.media[0].url : '') ||
+        (seedMatch ? seedMatch.imageUrl : '') ||
+        CATEGORY_COVER_FALLBACKS[normSlug] ||
+        CATEGORY_COVER_FALLBACKS.vestidos;
+
+      const cleanName = normSlug === 'blusas' ? 'Blusas & Camisas' : (cat.name || (seedMatch ? seedMatch.name : 'Categoria'));
+      return {
+        ...cat,
+        id: cat.id || (seedMatch ? seedMatch.id : 'cat-' + (idx + 1)),
+        slug: normSlug === 'blusas' ? 'blusas' : (cat.slug || normSlug),
+        name: cleanName,
+        description: cat.description || (seedMatch ? seedMatch.description : ''),
+        imageUrl: validImageUrl,
+        imageAlt: `Categoria ${cleanName} — By Angély`,
+        order: cat.order || idx + 1
+      };
+    });
+
+    // Remove registros fictícios ("dados fake") de pedidos, clientes e avaliações
+    db.orders = (db.orders || []).filter(
+      (o) =>
+        o &&
+        o.id !== 'ord-demo-1001' &&
+        o.orderNumber !== 'BYA-2026-1042' &&
+        !(o.customer && String(o.customer.name || '').includes('Pedido de Exemplo'))
+    );
+    db.customers = (db.customers || []).filter(
+      (c) => c && c.id !== 'cust-demo-1' && c.email !== 'cliente.exemplo@email.local'
+    );
+    db.reviews = (db.reviews || []).filter(
+      (r) => r && !r.isDemo && r.id !== 'rev-1' && r.id !== 'rev-2'
+    );
+
+    // Garante conta oficial da proprietária e remove contas demonstrativas duplicadas
+    db.adminUsers = (db.adminUsers || []).filter(
+      (u) => u && u.email !== 'equipe@byangely.local' && u.email !== 'proprietaria@byangely.local'
+    );
+    if (!db.adminUsers.some((u) => u.email && u.email.toLowerCase() === 'byangely1@gmail.com')) {
+      db.adminUsers.unshift({
+        id: 'admin-owner-official',
+        name: 'Proprietária BY ANGÉLY',
+        email: 'byangely1@gmail.com',
+        role: 'owner',
+        roleLabel: 'Proprietária (Acesso Total)',
+        permissions: ['products', 'categories', 'orders', 'customers', 'payments', 'shipping', 'branding', 'policies', 'users'],
+        active: true
+      });
+    }
+
+    // Normaliza cupons (corrige BEMVINDO10 e ITAPERUNA5 quando salvos como valor fixo ou sem regras completas)
+    if (!Array.isArray(db.coupons) || db.coupons.length === 0) {
+      db.coupons = JSON.parse(JSON.stringify(seed.coupons || []));
+    } else {
+      db.coupons = db.coupons.map((cp) => {
+        const codeUpper = String(cp.code || '').trim().toUpperCase();
+        let type = cp.type || 'percent';
+        let value = Number(cp.value) || 10;
+        let minOrderAmount = Number(cp.minOrderAmount) || 0;
+        let description = cp.description || '';
+        if ((codeUpper === 'BEMVINDO10' || codeUpper === 'BEMVINDA10') && (needsCatalogV3Repair || (type === 'fixed' && value === 10))) {
+          type = 'percent';
+          value = 10;
+          minOrderAmount = minOrderAmount > 0 ? minOrderAmount : 150;
+          description = '10% de desconto na primeira compra acima de R$ 150,00';
+        }
+        if (codeUpper === 'ITAPERUNA5' && (needsCatalogV3Repair || (type === 'fixed' && value === 5))) {
+          type = 'percent';
+          value = 5;
+          minOrderAmount = minOrderAmount > 0 ? minOrderAmount : 200;
+          description = '5% de desconto especial para clientes de Itaperuna acima de R$ 200,00';
+        }
+        return {
+          ...cp,
+          code: codeUpper,
+          type,
+          value,
+          minOrderAmount,
+          description,
+          startDate: cp.startDate || '2026-01-01',
+          endDate: cp.endDate || '2026-12-31',
+          usageLimit: Number(cp.usageLimit) || 100,
+          usedCount: Number(cp.usedCount) || 0,
+          applyToPromo: cp.applyToPromo !== false
+        };
+      });
+    }
+
+    // Normaliza configurações de venda e pagamento preservando escolhas salvas pela proprietária (paymentConfigVersion === 2)
+    const seedPay = seed.paymentSettings || {};
+    const rawPay = db.paymentSettings || {};
+    const isMigratedV2 = rawPay.paymentConfigVersion === 2;
+
+    const rawPixKey = (rawPay.pix && rawPay.pix.pixKey && !String(rawPay.pix.pixKey).toLowerCase().includes('a confirmar'))
+      ? rawPay.pix.pixKey
+      : '+5528999871458';
+    let normalizedPixKeyType = (rawPay.pix && rawPay.pix.keyType) || 'telefone';
+    if (String(rawPixKey).includes('5528999871458') && normalizedPixKeyType === 'cnpj') {
+      normalizedPixKeyType = 'telefone';
+    }
+
+    const rawCreditLink = (rawPay.creditCard && rawPay.creditCard.externalPaymentLink) || '';
+    const rawDebitLink = (rawPay.debitCard && rawPay.debitCard.externalPaymentLink) || '';
+
+    db.paymentSettings = {
+      paymentConfigVersion: 2,
+      whatsapp: {
+        ...(seedPay.whatsapp || {}),
+        ...(rawPay.whatsapp || {}),
+        enabled: isMigratedV2 && rawPay.whatsapp && typeof rawPay.whatsapp.enabled === 'boolean'
+          ? rawPay.whatsapp.enabled
+          : true
+      },
+      pix: {
+        ...(seedPay.pix || {}),
+        ...(rawPay.pix || {}),
+        keyType: normalizedPixKeyType,
+        pixKey: rawPixKey,
+        recipientName: (rawPay.pix && rawPay.pix.recipientName && !String(rawPay.pix.recipientName).toLowerCase().includes('a confirmar'))
+          ? rawPay.pix.recipientName
+          : 'BY ANGELY',
+        enabled: isMigratedV2 && rawPay.pix && typeof rawPay.pix.enabled === 'boolean'
+          ? rawPay.pix.enabled
+          : false
+      },
+      creditCard: {
+        ...(seedPay.creditCard || {}),
+        ...(rawPay.creditCard || {}),
+        providerName: (rawPay.creditCard && rawPay.creditCard.providerName && !String(rawPay.creditCard.providerName).toLowerCase().includes('a confirmar'))
+          ? rawPay.creditCard.providerName
+          : '',
+        externalPaymentLink: rawCreditLink === 'https://wa.me/5528999871458' ? '' : rawCreditLink,
+        enabled: isMigratedV2 && rawPay.creditCard && typeof rawPay.creditCard.enabled === 'boolean'
+          ? rawPay.creditCard.enabled
+          : false
+      },
+      debitCard: {
+        ...(seedPay.debitCard || {}),
+        ...(rawPay.debitCard || {}),
+        providerName: (rawPay.debitCard && rawPay.debitCard.providerName && !String(rawPay.debitCard.providerName).toLowerCase().includes('a confirmar'))
+          ? rawPay.debitCard.providerName
+          : '',
+        externalPaymentLink: rawDebitLink === 'https://wa.me/5528999871458' ? '' : rawDebitLink,
+        enabled: isMigratedV2 && rawPay.debitCard && typeof rawPay.debitCard.enabled === 'boolean'
+          ? rawPay.debitCard.enabled
+          : false
+      },
+      payOnPickup: {
+        ...(seedPay.payOnPickup || {}),
+        ...(rawPay.payOnPickup || {}),
+        enabled: isMigratedV2 && rawPay.payOnPickup && typeof rawPay.payOnPickup.enabled === 'boolean'
+          ? rawPay.payOnPickup.enabled
+          : false
+      }
+    };
+
+    return db;
+  }
+
+  // =========================================================================
   // PERSISTÊNCIA E SINCRONIZAÇÃO (SUPABASE + RENDER BACKEND + LOCALSTORAGE)
   // =========================================================================
   async function loadDatabase() {
     const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+    let supaState = null;
+    let serverState = null;
+    let localState = null;
 
-    // 1. Tenta carregar via Supabase PostgreSQL (alta disponibilidade em sa-east-1)
-    if (window.ByAngelyCloud && window.ByAngelyCloud.fetchStateFromSupabase) {
-      try {
-        const supaState = await window.ByAngelyCloud.fetchStateFromSupabase();
-        if (supaState && supaState.storeSettings) {
-          AppState.db = supaState;
-          try {
-            localStorage.setItem(STORAGE_KEY_DB, JSON.stringify(supaState));
-          } catch (e) {}
-          // Acorda o backend Render em paralelo sem bloquear a renderização
-          fetch(apiBase + '/api/health').catch(() => {});
-          return;
-        }
-      } catch (e) {
-        // Prossegue para o servidor Render / API
-      }
-    }
-
-    // 2. Tenta carregar do servidor Node.js / Render (/api/state)
-    try {
-      const res = await fetch(apiBase + '/api/state', { cache: 'no-store' });
-      if (res.ok) {
-        const serverDb = await res.json();
-        if (serverDb && serverDb.storeSettings) {
-          AppState.db = serverDb;
-          try {
-            localStorage.setItem(STORAGE_KEY_DB, JSON.stringify(serverDb));
-          } catch (e) { /* ignore quota */ }
-          return;
-        }
-      }
-    } catch (e) {
-      // Modo estático/offline: utiliza localStorage ou Seed
-    }
-
-    // 3. Fallback para localStorage
     try {
       const saved = localStorage.getItem(STORAGE_KEY_DB);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed && parsed.storeSettings) {
-          AppState.db = parsed;
-          return;
-        }
-      }
-    } catch (e) { /* fallback to seed */ }
+      if (saved) localState = JSON.parse(saved);
+    } catch (e) {}
 
-    // 4. Inicializa a partir do Seed oficial
-    AppState.db = window.ByAngelySeed.createInitialDatabase();
-    saveDatabase();
+    // Busca em paralelo do Supabase e da API do servidor para escolher o estado mais recente e íntegro
+    const tasks = [];
+    if (window.ByAngelyCloud && window.ByAngelyCloud.fetchStateFromSupabase) {
+      tasks.push(
+        window.ByAngelyCloud.fetchStateFromSupabase()
+          .then((st) => { supaState = st; })
+          .catch(() => {})
+      );
+    }
+    tasks.push(
+      fetch(apiBase + '/api/state', { cache: 'no-store' })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((st) => { serverState = st; })
+        .catch(() => {})
+    );
+
+    await Promise.allSettled(tasks);
+
+    // Determina a melhor base combinando produtos reais cadastrados pela proprietária
+    const candidates = [serverState, supaState, localState].filter((c) => c && c.storeSettings);
+    let chosen = null;
+    if (candidates.length > 0) {
+      candidates.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+      chosen = candidates[0];
+
+      // Preserva produtos reais (isDemo === false) que estejam em qualquer uma das fontes
+      const allRealProductsMap = new Map();
+      candidates.forEach((cand) => {
+        (cand.products || []).forEach((p) => {
+          if (p && !p.isDemo && p.id) {
+            allRealProductsMap.set(p.id, p);
+          }
+        });
+      });
+      if (allRealProductsMap.size > 0) {
+        const existingIds = new Set((chosen.products || []).map((p) => p.id));
+        allRealProductsMap.forEach((realProd, id) => {
+          if (!existingIds.has(id)) {
+            chosen.products = [realProd, ...(chosen.products || [])];
+          }
+        });
+      }
+    } else {
+      chosen = window.ByAngelySeed.createInitialDatabase();
+    }
+
+    const hadMissingCatImages =
+      supaState &&
+      Array.isArray(supaState.categories) &&
+      supaState.categories.some((c) => !c.imageUrl || String(c.imageUrl).trim().length < 8);
+    const hadFakeOrders =
+      supaState &&
+      Array.isArray(supaState.orders) &&
+      supaState.orders.some((o) => o.id === 'ord-demo-1001' || o.orderNumber === 'BYA-2026-1042');
+    const neededV3Repair = Boolean(supaState && !supaState.catalogDataRepairV3);
+
+    AppState.db = normalizeAndRepairDatabase(chosen);
+
+    try {
+      localStorage.setItem(STORAGE_KEY_DB, JSON.stringify(AppState.db));
+    } catch (e) {}
+
+    // Se o estado na nuvem estava com categorias sem imagem, dados fake ou produtos sem reparo V3, sincroniza imediatamente
+    if (hadMissingCatImages || hadFakeOrders || neededV3Repair || !supaState) {
+      saveDatabase();
+    }
   }
 
   async function saveDatabase(auditAction) {
     if (!AppState.db) return;
+    AppState.db = normalizeAndRepairDatabase(AppState.db);
+
     if (auditAction) {
       AppState.db.auditLog = AppState.db.auditLog || [];
       AppState.db.auditLog.unshift({
@@ -264,16 +888,21 @@
     } catch (e) {
       console.warn('Aviso: limite de armazenamento local atingido.', e);
     }
-    try {
-      const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
-      await fetch(apiBase + '/api/state', {
+
+    const syncPromises = [];
+    if (window.ByAngelyCloud && window.ByAngelyCloud.saveStateToSupabase) {
+      syncPromises.push(window.ByAngelyCloud.saveStateToSupabase(AppState.db).catch(() => {}));
+    }
+    const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+    syncPromises.push(
+      fetch(apiBase + '/api/state', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(AppState.db)
-      });
-    } catch (e) {
-      // Silencioso se rodando sem servidor Node ativo
-    }
+      }).catch(() => {})
+    );
+
+    await Promise.allSettled(syncPromises);
   }
 
   function loadLocalClientState() {
@@ -327,7 +956,7 @@
     const settings = AppState.db.storeSettings;
     const isAdminLogged = Boolean(AppState.currentAdmin);
 
-    // Barra de anúncio superior (sem expor números/dados crus para visitantes)
+    // Barra de anúncio superior
     const announcementTextEl = document.getElementById('announcement-text');
     if (announcementTextEl) {
       const rawBar = settings.announcementBar || 'BY ANGÉLY • Moda Feminina Contemporânea • Itaperuna, RJ';
@@ -359,16 +988,16 @@
     const footerBrandEl = document.getElementById('footer-brand-logo');
     if (footerBrandEl) footerBrandEl.innerHTML = renderBrandMarkup(true);
 
-    // Strip de categorias no cabeçalho
+    // Strip de categorias no cabeçalho (Navegação rápida por categorias inteligentes)
     const stripEl = document.getElementById('header-category-strip');
     if (stripEl) {
       const cats = [...AppState.db.categories].sort((a, b) => (a.order || 0) - (b.order || 0));
       stripEl.innerHTML = `
-        <button type="button" class="category-pill-link ${AppState.currentView === 'catalog' && AppState.filters.category === 'all' ? 'active' : ''}" data-action="filter-category" data-category="all">
+        <button type="button" class="category-pill-link ${AppState.currentView === 'catalog' && AppState.filters.category === 'all' && AppState.filters.availability !== 'promo' ? 'active' : ''}" data-action="filter-category" data-category="all">
           Todas as Peças
         </button>
         ${cats.map((c) => `
-          <button type="button" class="category-pill-link ${AppState.currentView === 'catalog' && AppState.filters.category === c.slug ? 'active' : ''}" data-action="filter-category" data-category="${escapeHtml(c.slug)}">
+          <button type="button" class="category-pill-link ${AppState.currentView === 'catalog' && matchesCategory({ category: AppState.filters.category }, c.slug) && AppState.filters.category !== 'all' ? 'active' : ''}" data-action="filter-category" data-category="${escapeHtml(c.slug)}">
             ${escapeHtml(c.name)}
           </button>
         `).join('')}
@@ -430,7 +1059,7 @@
   }
 
   // =========================================================================
-  // RENDERIZAÇÃO DE CARTÃO DE PRODUTO
+  // RENDERIZAÇÃO DE CARTÃO DE PRODUTO (VITRINE COMERCIAL 2 COLUNAS NO MOBILE)
   // =========================================================================
   function renderProductCard(product) {
     const effectivePrice = getEffectivePrice(product);
@@ -440,18 +1069,27 @@
       : 0;
     const totalStock = getTotalProductStock(product);
     const isFav = AppState.wishlist.includes(product.id);
-    const firstImage = (product.media && product.media.find((m) => m.type === 'image')) || (product.media && product.media[0]) || {
-      url: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=800&q=80',
+    const normCat = normalizeCategorySlug(product.category || product.categoryName || 'vestidos');
+    const fallbackUrl = CATEGORY_COVER_FALLBACKS[normCat] || CATEGORY_COVER_FALLBACKS.vestidos;
+    const firstImage = (product.media && product.media.find((m) => m.type === 'image' && m.url)) || (product.media && product.media[0]) || {
+      url: fallbackUrl,
       alt: product.name
     };
     const hasVideo = product.media && product.media.some((m) => m.type === 'video');
     const isAdminLogged = Boolean(AppState.currentAdmin);
 
+    const stockStatusClass = totalStock <= 0 ? 'out-stock' : totalStock <= 3 ? 'low-stock' : 'in-stock';
+    const stockStatusText = totalStock <= 0
+      ? 'Esgotado'
+      : totalStock <= 3
+      ? `Últimas peças (${totalStock} un.)`
+      : 'Em estoque';
+
     return `
       <article class="product-card" data-product-id="${escapeHtml(product.id)}">
         <div class="product-card-media" data-action="open-product" data-product-id="${escapeHtml(product.id)}" role="button" tabindex="0" aria-label="Ver detalhes de ${escapeHtml(product.name)}">
           <div class="product-badges">
-            ${isAdminLogged && product.isDemo ? '<span class="badge-tag badge-demo" title="Visão Admin: Peça demonstrativa">Demo (Admin)</span>' : ''}
+            ${isAdminLogged && product.isDemo ? '<span class="badge-tag badge-demo" title="Visão Admin: Peça demonstrativa">Demo</span>' : ''}
             ${hasPromo ? `<span class="badge-tag badge-promo">-${discountPercent}%</span>` : ''}
             ${product.isNew && !hasPromo ? '<span class="badge-tag badge-new">Novidade</span>' : ''}
             ${hasVideo ? '<span class="badge-tag badge-video">Vídeo</span>' : ''}
@@ -459,12 +1097,12 @@
           <button type="button" class="wishlist-btn-card ${isFav ? 'active' : ''}" data-action="toggle-wishlist" data-product-id="${escapeHtml(product.id)}" aria-label="${isFav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}" title="Favoritar peça">
             ${isFav ? '♥' : '♡'}
           </button>
-          <img src="${escapeHtml(firstImage.url)}" alt="${escapeHtml(firstImage.alt || product.name)}" loading="lazy" />
+          <img src="${escapeHtml(firstImage.url)}" alt="${escapeHtml(firstImage.alt || product.name)}" loading="lazy" onerror="this.onerror=null;this.src='${escapeHtml(fallbackUrl)}';" />
         </div>
         <div class="product-card-body">
           <div class="product-card-meta">
             <span>${escapeHtml(product.categoryName || product.category)}</span>
-            <span>${escapeHtml(product.style || '')}</span>
+            <span class="stock-availability-indicator ${stockStatusClass}">${escapeHtml(stockStatusText)}</span>
           </div>
           <h3 class="product-card-title" data-action="open-product" data-product-id="${escapeHtml(product.id)}">
             ${escapeHtml(product.name)}
@@ -480,11 +1118,11 @@
             <span class="size-chips-mini">Tam: ${(product.sizes || []).join(', ')}</span>
           </div>
           <div class="product-card-actions">
-            <button type="button" class="btn btn-primary btn-sm" data-action="open-product" data-product-id="${escapeHtml(product.id)}" ${totalStock <= 0 ? 'disabled' : ''}>
-              ${totalStock > 0 ? 'Escolher Opções' : 'Esgotado'}
+            <button type="button" class="btn btn-primary btn-sm" data-action="card-add-to-cart" data-product-id="${escapeHtml(product.id)}" ${totalStock <= 0 ? 'disabled' : ''}>
+              ${totalStock > 0 ? 'Adicionar à Sacola' : 'Esgotado'}
             </button>
-            <button type="button" class="btn btn-outline btn-sm" data-action="share-product" data-product-id="${escapeHtml(product.id)}" aria-label="Compartilhar ${escapeHtml(product.name)}" title="Compartilhar produto">
-              ↗
+            <button type="button" class="btn btn-outline btn-sm" data-action="open-product" data-product-id="${escapeHtml(product.id)}" aria-label="Ver detalhes de ${escapeHtml(product.name)}" title="Ver detalhes e medidas">
+              Detalhes
             </button>
           </div>
         </div>
@@ -499,6 +1137,14 @@
     AppState.currentView = view;
     if (options.policyTab) AppState.activePolicyTab = options.policyTab;
     if (options.accountTab) AppState.activeAccountTab = options.accountTab;
+
+    // Fecha modais e gavetas abertas ao navegar entre telas
+    const pdpModal = document.getElementById('product-detail-modal');
+    if (pdpModal) {
+      pdpModal.classList.remove('open');
+      pdpModal.setAttribute('aria-hidden', 'true');
+    }
+    closeCartDrawer();
 
     // Atualiza links ativos do menu
     document.querySelectorAll('[data-nav-view]').forEach((el) => {
@@ -552,20 +1198,29 @@
   }
 
   // -------------------------------------------------------------------------
-  // 1. PÁGINA INICIAL (HOME)
+  // 1. PÁGINA INICIAL (HOME) — VITRINE COMERCIAL PRIORIZANDO OS PRODUTOS
   // -------------------------------------------------------------------------
   function renderHomeView() {
     const settings = AppState.db.storeSettings;
     const hero = settings.heroBanner || {};
     const story = settings.brandStory || {};
     const publishedProducts = AppState.db.products.filter((p) => p.status === 'published');
-    const featuredProducts = publishedProducts.filter((p) => p.isFeatured).slice(0, 4);
+    // Garante que produtos reais da proprietária e peças em destaque apareçam imediatamente
+    const featuredProducts = [
+      ...publishedProducts.filter((p) => !p.isDemo),
+      ...publishedProducts.filter((p) => p.isDemo && p.isFeatured),
+      ...publishedProducts.filter((p) => p.isDemo && !p.isFeatured)
+    ].slice(0, 8);
     const newProducts = publishedProducts.filter((p) => p.isNew).slice(0, 4);
     const promoProducts = publishedProducts.filter((p) => p.isPromo).slice(0, 4);
+    const bestSellerProducts = publishedProducts
+      .filter((p) => (Number(p.salesCount) || 0) > 0)
+      .sort((a, b) => (Number(b.salesCount) || 0) - (Number(a.salesCount) || 0))
+      .slice(0, 4);
     const categories = [...AppState.db.categories].sort((a, b) => (a.order || 0) - (b.order || 0));
 
     return `
-      <!-- Hero Editorial -->
+      <!-- Hero Editorial Compacto -->
       <section class="hero-section" aria-label="Apresentação da Coleção By Angély">
         <div class="container hero-grid">
           <div class="hero-content">
@@ -596,7 +1251,7 @@
             </div>
           </div>
           <div class="hero-media-wrapper">
-            <img src="${escapeHtml(hero.imageUrl)}" alt="${escapeHtml(hero.imageAlt || 'Coleção By Angély')}" />
+            <img src="${escapeHtml(hero.imageUrl || CATEGORY_COVER_FALLBACKS.vestidos)}" alt="${escapeHtml(hero.imageAlt || 'Coleção By Angély')}" onerror="this.onerror=null;this.src='${escapeHtml(CATEGORY_COVER_FALLBACKS.vestidos)}';" />
             ${Boolean(AppState.currentAdmin) && hero.isDemoImage ? `
               <div class="media-credit-badge">
                 <span>VISÃO ADMIN • IMAGEM DEMONSTRATIVA</span>
@@ -607,41 +1262,16 @@
         </div>
       </section>
 
-      <!-- Categorias da Loja -->
-      <section class="section-block" aria-labelledby="sec-cat-title">
-        <div class="container">
-          <div class="section-header">
-            <div>
-              <span class="section-eyebrow">Curadoria por Peça</span>
-              <h2 id="sec-cat-title" class="section-title">Explore por Categoria</h2>
-              <p class="section-description">Modelagens femininas adultas desenhadas para valorizar diferentes silhuetas e ocasiões.</p>
-            </div>
-            <button type="button" class="btn btn-outline btn-sm" data-action="go-catalog">Ver Catálogo Completo</button>
-          </div>
-          <div class="categories-grid">
-            ${categories.map((cat) => `
-              <button type="button" class="category-card" data-action="filter-category" data-category="${escapeHtml(cat.slug)}" aria-label="Explorar categoria ${escapeHtml(cat.name)}">
-                <img src="${escapeHtml(cat.imageUrl)}" alt="Categoria ${escapeHtml(cat.name)} — Imagem Ilustrativa" loading="lazy" />
-                <div class="category-card-overlay">
-                  <span class="category-card-title">${escapeHtml(cat.name)}</span>
-                  <span class="category-card-sub">Explorar peças →</span>
-                </div>
-              </button>
-            `).join('')}
-          </div>
-        </div>
-      </section>
-
-      <!-- Produtos em Destaque -->
+      <!-- Vitrine Principal: Produtos em Destaque Visíveis Imediatamente -->
       <section class="section-block bg-surface" aria-labelledby="sec-feat-title">
         <div class="container">
           <div class="section-header">
             <div>
-              <span class="section-eyebrow">Seleção Especial</span>
-              <h2 id="sec-feat-title" class="section-title">Destaques da Coleção</h2>
-              <p class="section-description">Peças demonstrativas com tabela de medidas, galeria interativa e controle de estoque por tamanho e cor.</p>
+              <span class="section-eyebrow">Vitrine Oficial • By Angély</span>
+              <h2 id="sec-feat-title" class="section-title">Peças em Destaque</h2>
+              <p class="section-description">Toque em qualquer peça para ver detalhes, medidas, cores disponíveis ou adicionar diretamente à sacola.</p>
             </div>
-            <button type="button" class="btn btn-outline btn-sm" data-action="go-catalog">Ver Todos (${publishedProducts.length})</button>
+            <button type="button" class="btn btn-outline btn-sm" data-action="go-catalog">Ver Catálogo (${publishedProducts.length})</button>
           </div>
           <div class="products-grid">
             ${featuredProducts.map(renderProductCard).join('')}
@@ -649,31 +1279,64 @@
         </div>
       </section>
 
+      <!-- Categorias Inteligentes da Loja -->
+      <section class="section-block" aria-labelledby="sec-cat-title">
+        <div class="container">
+          <div class="section-header">
+            <div>
+              <span class="section-eyebrow">Curadoria por Peça</span>
+              <h2 id="sec-cat-title" class="section-title">Explore por Categoria</h2>
+              <p class="section-description">Selecione uma categoria para visualizar imediatamente as peças disponíveis.</p>
+            </div>
+            <button type="button" class="btn btn-outline btn-sm" data-action="go-catalog">Ver Todas as Categorias</button>
+          </div>
+          <div class="categories-grid">
+            ${categories.map((cat) => {
+              const normSlug = normalizeCategorySlug(cat.slug || cat.name);
+              const fbImg = CATEGORY_COVER_FALLBACKS[normSlug] || CATEGORY_COVER_FALLBACKS.vestidos;
+              const imgUrl = (cat.imageUrl && String(cat.imageUrl).trim().length > 8) ? cat.imageUrl : fbImg;
+              const countInCat = publishedProducts.filter((p) => matchesCategory(p, cat.slug)).length;
+              return `
+                <button type="button" class="category-card" data-action="filter-category" data-category="${escapeHtml(cat.slug)}" aria-label="Explorar categoria ${escapeHtml(cat.name)}">
+                  <img src="${escapeHtml(imgUrl)}" alt="Categoria ${escapeHtml(cat.name)}" loading="lazy" onerror="this.onerror=null;this.src='${escapeHtml(fbImg)}';" />
+                  <div class="category-card-overlay">
+                    <span class="category-card-title">${escapeHtml(cat.name)}</span>
+                    <span class="category-card-sub">${countInCat > 0 ? countInCat + (countInCat === 1 ? ' peça →' : ' peças →') : 'Explorar peças →'}</span>
+                  </div>
+                </button>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      </section>
+
       <!-- Novidades -->
-      <section class="section-block" aria-labelledby="sec-new-title">
+      ${newProducts.length > 0 ? `
+      <section class="section-block bg-surface" aria-labelledby="sec-new-title">
         <div class="container">
           <div class="section-header">
             <div>
               <span class="section-eyebrow">Recém-Chegados</span>
-              <h2 id="sec-new-title" class="section-title">Novidades</h2>
+              <h2 id="sec-new-title" class="section-title">Novidades da Coleção</h2>
             </div>
-            <button type="button" class="btn btn-outline btn-sm" data-action="go-catalog">Explorar Novidades</button>
+            <button type="button" class="btn btn-outline btn-sm" data-action="go-catalog">Ver Todas as Novidades</button>
           </div>
           <div class="products-grid">
             ${newProducts.map(renderProductCard).join('')}
           </div>
         </div>
       </section>
+      ` : ''}
 
-      <!-- Promoções e Condições Especiais -->
+      <!-- Ofertas Especiais / Promoções -->
       ${promoProducts.length > 0 ? `
-      <section class="section-block bg-surface" aria-labelledby="sec-promo-title">
+      <section class="section-block" aria-labelledby="sec-promo-title">
         <div class="container">
           <div class="section-header">
             <div>
-              <span class="section-eyebrow">Oportunidades</span>
-              <h2 id="sec-promo-title" class="section-title">Seleção em Promoção</h2>
-              <p class="section-description">Valores promocionais claros com indicação do preço anterior e percentual de economia.</p>
+              <span class="section-eyebrow">Condições Especiais</span>
+              <h2 id="sec-promo-title" class="section-title">Ofertas Especiais</h2>
+              <p class="section-description">Peças selecionadas com desconto real e indicação transparente do valor anterior.</p>
             </div>
             <button type="button" class="btn btn-gold btn-sm" data-action="filter-promo">Ver Todas as Promoções</button>
           </div>
@@ -684,12 +1347,30 @@
       </section>
       ` : ''}
 
+      <!-- Mais Vendidos (Exibido apenas quando existem vendas reais registradas) -->
+      ${bestSellerProducts.length > 0 ? `
+      <section class="section-block bg-surface" aria-labelledby="sec-best-title">
+        <div class="container">
+          <div class="section-header">
+            <div>
+              <span class="section-eyebrow">Preferidas das Clientes</span>
+              <h2 id="sec-best-title" class="section-title">Mais Vendidos</h2>
+            </div>
+            <button type="button" class="btn btn-outline btn-sm" data-action="go-catalog">Ver Catálogo</button>
+          </div>
+          <div class="products-grid">
+            ${bestSellerProducts.map(renderProductCard).join('')}
+          </div>
+        </div>
+      </section>
+      ` : ''}
+
       <!-- Apresentação Institucional da Marca -->
       <section class="section-block" aria-labelledby="sec-story-title">
         <div class="container">
           <div class="hero-grid" style="min-height:auto;">
             <div class="hero-media-wrapper" style="aspect-ratio: 4 / 3.2;">
-              <img src="${escapeHtml(story.imageUrl)}" alt="Apresentação institucional By Angély" loading="lazy" />
+              <img src="${escapeHtml(story.imageUrl || CATEGORY_COVER_FALLBACKS.conjuntos)}" alt="Apresentação institucional By Angély" loading="lazy" onerror="this.onerror=null;this.src='${escapeHtml(CATEGORY_COVER_FALLBACKS.conjuntos)}';" />
               ${Boolean(AppState.currentAdmin) && story.isDemoImage ? `
                 <div class="media-credit-badge">
                   <span>VISÃO ADMIN • SUBSTITUÍVEL NO PAINEL</span>
@@ -699,7 +1380,7 @@
             <div class="hero-content">
               <span class="section-eyebrow">Sobre a Marca • Itaperuna, RJ</span>
               <h2 id="sec-story-title" class="section-title" style="margin-bottom:16px;">${escapeHtml(story.title)}</h2>
-              <p style="font-size:1.06rem;font-weight:500;color:var(--text-primary);margin-bottom:14px;">
+              <p style="font-size:1.04rem;font-weight:500;color:var(--text-primary);margin-bottom:14px;">
                 ${escapeHtml(story.lead)}
               </p>
               <p style="color:var(--text-secondary);margin-bottom:24px;">
@@ -717,7 +1398,7 @@
               </div>
               <div style="display:flex;gap:12px;flex-wrap:wrap;">
                 ${Boolean(AppState.currentAdmin) ? `
-                  <button type="button" class="btn btn-primary btn-sm" data-action="go-view" data-view="admin">🔐 Painel da Proprietária</button>
+                  <button type="button" class="btn btn-primary btn-sm" data-action="go-view" data-view="admin">Painel da Proprietária</button>
                 ` : ''}
                 <button type="button" class="btn btn-outline btn-sm" data-action="go-policies" data-tab="privacy">Políticas e Transparência</button>
               </div>
@@ -851,7 +1532,7 @@
                   <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Seu Nome Completo *</label>
                   <input type="text" name="name" class="form-control" required placeholder="Digite seu nome" value="${AppState.currentCustomer ? escapeHtml(AppState.currentCustomer.name) : ''}" />
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+                <div class="sac-form-grid">
                   <div>
                     <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Seu E-mail *</label>
                     <input type="email" name="email" class="form-control" required placeholder="seu@email.com" value="${AppState.currentCustomer ? escapeHtml(AppState.currentCustomer.email) : ''}" />
@@ -885,7 +1566,7 @@
   }
 
   // -------------------------------------------------------------------------
-  // 2. CATÁLOGO COM BUSCA E FILTROS COMPLETOS
+  // 2. CATÁLOGO REESTRUTURADO (VITRINE IMEDIATA + PAINEL DE FILTROS RECOLHIDO)
   // -------------------------------------------------------------------------
   function getFilteredProducts() {
     const f = AppState.filters;
@@ -898,9 +1579,10 @@
           const matchDesc = (p.shortDescription || '').toLowerCase().includes(q);
           const matchSku = (p.sku || '').toLowerCase().includes(q);
           const matchStyle = (p.style || '').toLowerCase().includes(q);
-          if (!matchName && !matchDesc && !matchSku && !matchStyle) return false;
+          const matchCat = (p.categoryName || '').toLowerCase().includes(q);
+          if (!matchName && !matchDesc && !matchSku && !matchStyle && !matchCat) return false;
         }
-        if (f.category !== 'all' && p.category !== f.category) return false;
+        if (f.category !== 'all' && !matchesCategory(p, f.category)) return false;
         if (f.size !== 'all' && !(p.sizes || []).includes(f.size)) return false;
         if (f.color !== 'all' && !(p.colors || []).some((c) => c.name === f.color)) return false;
         if (f.style !== 'all' && p.style !== f.style) return false;
@@ -920,113 +1602,119 @@
         if (f.sortBy === 'price_asc') return getEffectivePrice(a) - getEffectivePrice(b);
         if (f.sortBy === 'price_desc') return getEffectivePrice(b) - getEffectivePrice(a);
         if (f.sortBy === 'newest') return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+        // Padrão ('featured'): prioriza produtos reais da proprietária primeiro, depois destaques
+        const aReal = !a.isDemo ? 1 : 0;
+        const bReal = !b.isDemo ? 1 : 0;
+        if (aReal !== bReal) return bReal - aReal;
         return (b.isFeatured ? 1 : 0) - (a.isFeatured ? 1 : 0);
       });
+  }
+
+  function countActiveCatalogFilters() {
+    const f = AppState.filters;
+    let count = 0;
+    if (f.search && f.search.trim()) count++;
+    if (f.category && f.category !== 'all') count++;
+    if (f.size && f.size !== 'all') count++;
+    if (f.color && f.color !== 'all') count++;
+    if (f.style && f.style !== 'all') count++;
+    if (f.priceRange && f.priceRange !== 'all') count++;
+    if (f.availability && f.availability !== 'all') count++;
+    if (f.sortBy && f.sortBy !== 'featured') count++;
+    return count;
   }
 
   function renderCatalogView() {
     const published = AppState.db.products.filter((p) => p.status === 'published');
     const filtered = getFilteredProducts();
-    const categories = AppState.db.categories;
-
-    // Coleta dinâmica de tamanhos, cores e estilos disponíveis
-    const allSizes = Array.from(new Set(published.flatMap((p) => p.sizes || [])));
-    const allColors = Array.from(new Set(published.flatMap((p) => (p.colors || []).map((c) => c.name))));
-    const allStyles = Array.from(new Set(published.map((p) => p.style).filter(Boolean)));
-
+    const categories = AppState.db.categories || [];
     const f = AppState.filters;
 
+    const selectedCatObj = f.category !== 'all'
+      ? categories.find((c) => matchesCategory({ category: c.slug, categoryName: c.name }, f.category))
+      : null;
+
+    const categoryTitle = f.availability === 'promo'
+      ? 'Promoções & Ofertas Especiais'
+      : selectedCatObj
+      ? selectedCatObj.name
+      : 'Catálogo Completo';
+
+    const activeFiltersCount = countActiveCatalogFilters();
+
+    const activeChips = [];
+    if (selectedCatObj) activeChips.push({ label: `Categoria: ${selectedCatObj.name}`, key: 'category' });
+    if (f.size !== 'all') activeChips.push({ label: `Tamanho: ${f.size}`, key: 'size' });
+    if (f.color !== 'all') activeChips.push({ label: `Cor: ${f.color}`, key: 'color' });
+    if (f.style !== 'all') activeChips.push({ label: `Estilo: ${f.style}`, key: 'style' });
+    if (f.priceRange === 'up_to_250') activeChips.push({ label: 'Até R$ 250', key: 'priceRange' });
+    if (f.priceRange === '250_to_380') activeChips.push({ label: 'R$ 250 a R$ 380', key: 'priceRange' });
+    if (f.priceRange === 'above_380') activeChips.push({ label: 'Acima de R$ 380', key: 'priceRange' });
+    if (f.availability === 'promo') activeChips.push({ label: 'Em promoção', key: 'availability' });
+    if (f.availability === 'in_stock') activeChips.push({ label: 'Com estoque', key: 'availability' });
+
     return `
-      <section class="section-block" aria-labelledby="catalog-heading">
+      <section class="section-block" style="padding-top:20px;" aria-labelledby="catalog-heading">
         <div class="container">
-          <div class="section-header" style="margin-bottom:24px;">
-            <div>
-              <span class="section-eyebrow">Coleção By Angély</span>
-              <h1 id="catalog-heading" class="section-title">Catálogo de Moda Feminina</h1>
+          <!-- Ordem 3, 4 e 5: Título da Categoria, Quantidade de Produtos Encontrados e Botão Discreto "FILTRAR E ORDENAR" -->
+          <div class="catalog-header-compact">
+            <div class="catalog-header-info">
+              <h1 id="catalog-heading">${escapeHtml(categoryTitle)}</h1>
+              <span class="catalog-count-text" id="catalog-product-count">
+                ${filtered.length} ${filtered.length === 1 ? 'produto encontrado' : 'produtos encontrados'}
+              </span>
+            </div>
+
+            <div class="catalog-controls-bar">
+              <div style="position:relative;flex:1;min-width:160px;max-width:260px;">
+                <input
+                  type="search"
+                  id="filter-search"
+                  class="form-control"
+                  placeholder="Buscar peça..."
+                  aria-label="Buscar peça por nome, tecido ou SKU"
+                  value="${escapeHtml(f.search)}"
+                  style="min-height:42px;padding-left:12px;font-size:0.84rem;"
+                />
+              </div>
+
+              <button
+                type="button"
+                class="btn-filter-trigger"
+                data-action="open-filter-drawer"
+                aria-label="Abrir painel de filtros e ordenação"
+              >
+                <svg class="lucide-icon" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+                <span>FILTRAR E ORDENAR</span>
+                ${activeFiltersCount > 0 ? `<span class="filter-count-badge">${activeFiltersCount}</span>` : ''}
+              </button>
             </div>
           </div>
 
-          <!-- Barra de Filtros -->
-          <div class="catalog-toolbar" role="region" aria-label="Filtros do catálogo">
-            <div class="catalog-filters-grid">
-              <div class="filter-group">
-                <label for="filter-search">Buscar peça, estilo ou código</label>
-                <input type="search" id="filter-search" class="form-control" placeholder="Ex.: vestido linho, pantalona, blazer..." value="${escapeHtml(f.search)}" />
-              </div>
-              <div class="filter-group">
-                <label for="filter-category">Tipo de Peça</label>
-                <select id="filter-category" class="form-control">
-                  <option value="all">Todas as categorias</option>
-                  ${categories.map((c) => `<option value="${escapeHtml(c.slug)}" ${f.category === c.slug ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}
-                </select>
-              </div>
-              <div class="filter-group">
-                <label for="filter-size">Tamanho</label>
-                <select id="filter-size" class="form-control">
-                  <option value="all">Todos</option>
-                  ${allSizes.map((s) => `<option value="${escapeHtml(s)}" ${f.size === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('')}
-                </select>
-              </div>
-              <div class="filter-group">
-                <label for="filter-color">Cor</label>
-                <select id="filter-color" class="form-control">
-                  <option value="all">Todas as cores</option>
-                  ${allColors.map((c) => `<option value="${escapeHtml(c)}" ${f.color === c ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
-                </select>
-              </div>
-              <div class="filter-group">
-                <label for="filter-style">Estilo</label>
-                <select id="filter-style" class="form-control">
-                  <option value="all">Todos os estilos</option>
-                  ${allStyles.map((st) => `<option value="${escapeHtml(st)}" ${f.style === st ? 'selected' : ''}>${escapeHtml(st)}</option>`).join('')}
-                </select>
-              </div>
-              <div class="filter-group">
-                <label for="filter-price">Faixa de Preço</label>
-                <select id="filter-price" class="form-control">
-                  <option value="all" ${f.priceRange === 'all' ? 'selected' : ''}>Qualquer valor</option>
-                  <option value="up_to_250" ${f.priceRange === 'up_to_250' ? 'selected' : ''}>Até R$ 250,00</option>
-                  <option value="250_to_380" ${f.priceRange === '250_to_380' ? 'selected' : ''}>R$ 250 a R$ 380</option>
-                  <option value="above_380" ${f.priceRange === 'above_380' ? 'selected' : ''}>Acima de R$ 380,00</option>
-                </select>
-              </div>
+          ${activeChips.length > 0 ? `
+            <div class="active-filters-strip" aria-label="Filtros aplicados">
+              ${activeChips.map((chip) => `
+                <button type="button" class="active-filter-chip" data-action="remove-single-filter" data-filter-key="${escapeHtml(chip.key)}" title="Remover filtro">
+                  <span>${escapeHtml(chip.label)}</span>
+                  <span aria-hidden="true">✕</span>
+                </button>
+              `).join('')}
+              <button type="button" class="btn btn-subtle btn-sm" data-action="reset-catalog-filters" style="min-height:30px;padding:4px 10px;font-size:0.72rem;">
+                Limpar todos
+              </button>
             </div>
+          ` : ''}
 
-            <div class="catalog-active-meta">
-              <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-                <span>Exibindo <strong>${filtered.length}</strong> de ${published.length} peças</span>
-                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
-                  <input type="checkbox" id="filter-only-promo" ${f.availability === 'promo' ? 'checked' : ''} />
-                  <span>Somente em promoção</span>
-                </label>
-                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
-                  <input type="checkbox" id="filter-only-stock" ${f.availability === 'in_stock' ? 'checked' : ''} />
-                  <span>Somente com estoque disponível</span>
-                </label>
-              </div>
-              <div style="display:flex;align-items:center;gap:10px;">
-                <label for="filter-sort" style="font-size:0.78rem;font-weight:600;">Ordenar por:</label>
-                <select id="filter-sort" class="form-control" style="width:auto;min-height:36px;padding:4px 10px;">
-                  <option value="featured" ${f.sortBy === 'featured' ? 'selected' : ''}>Destaques</option>
-                  <option value="newest" ${f.sortBy === 'newest' ? 'selected' : ''}>Novidades</option>
-                  <option value="price_asc" ${f.sortBy === 'price_asc' ? 'selected' : ''}>Menor Preço</option>
-                  <option value="price_desc" ${f.sortBy === 'price_desc' ? 'selected' : ''}>Maior Preço</option>
-                </select>
-                <button type="button" class="btn btn-subtle btn-sm" id="btn-reset-filters">Limpar Filtros</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Lista de Produtos -->
+          <!-- Ordem 6: Grade de Produtos Visível Imediatamente -->
           ${filtered.length > 0 ? `
             <div class="products-grid" id="catalog-results-grid">
               ${filtered.map(renderProductCard).join('')}
             </div>
           ` : `
             <div class="admin-card" style="text-align:center;padding:48px 20px;">
-              <h3 style="font-family:var(--font-serif);font-size:1.6rem;margin-bottom:8px;">Nenhuma peça encontrada com esses filtros</h3>
-              <p style="color:var(--text-secondary);margin-bottom:18px;">Experimente limpar os filtros selecionados ou buscar por outro termo.</p>
-              <button type="button" class="btn btn-primary btn-sm" data-action="reset-catalog-filters">Mostrar Todas as Peças</button>
+              <h2 style="font-family:var(--font-serif);font-size:1.6rem;margin-bottom:8px;">Nenhuma peça encontrada com esses filtros</h2>
+              <p style="color:var(--text-secondary);margin-bottom:18px;">Experimente limpar os filtros selecionados ou visualizar todas as peças da loja.</p>
+              <button type="button" class="btn btn-primary btn-sm" data-action="reset-catalog-filters">Mostrar Todas as Peças (${published.length})</button>
             </div>
           `}
         </div>
@@ -1034,18 +1722,160 @@
     `;
   }
 
+  function openFilterDrawer() {
+    renderFilterDrawerBody();
+    const backdrop = document.getElementById('filter-drawer-backdrop');
+    if (backdrop) {
+      backdrop.classList.add('open');
+      backdrop.setAttribute('aria-hidden', 'false');
+    }
+  }
+
+  function closeFilterDrawer() {
+    const backdrop = document.getElementById('filter-drawer-backdrop');
+    if (backdrop) {
+      backdrop.classList.remove('open');
+      backdrop.setAttribute('aria-hidden', 'true');
+    }
+  }
+
+  function renderFilterDrawerBody() {
+    const bodyEl = document.getElementById('filter-drawer-body');
+    if (!bodyEl) return;
+
+    const published = AppState.db.products.filter((p) => p.status === 'published');
+    const categories = AppState.db.categories || [];
+    const allSizes = Array.from(new Set(published.flatMap((p) => p.sizes || [])));
+    const allColors = Array.from(new Set(published.flatMap((p) => (p.colors || []).map((c) => c.name))));
+    const allStyles = Array.from(new Set(published.map((p) => p.style).filter(Boolean)));
+    const f = AppState.filters;
+
+    bodyEl.innerHTML = `
+      <form id="drawer-filters-form">
+        <!-- Ordenação -->
+        <div class="filter-section-group">
+          <label class="filter-section-label" for="drawer-filter-sort">Ordenar por</label>
+          <select id="drawer-filter-sort" class="form-control">
+            <option value="featured" ${f.sortBy === 'featured' ? 'selected' : ''}>Destaques da Coleção</option>
+            <option value="newest" ${f.sortBy === 'newest' ? 'selected' : ''}>Novidades (Mais recentes)</option>
+            <option value="price_asc" ${f.sortBy === 'price_asc' ? 'selected' : ''}>Menor Preço</option>
+            <option value="price_desc" ${f.sortBy === 'price_desc' ? 'selected' : ''}>Maior Preço</option>
+          </select>
+        </div>
+
+        <!-- Tipo de Peça (Categoria) -->
+        <div class="filter-section-group">
+          <label class="filter-section-label" for="drawer-filter-category">Tipo de peça</label>
+          <select id="drawer-filter-category" class="form-control">
+            <option value="all">Todas as categorias</option>
+            ${categories.map((c) => `
+              <option value="${escapeHtml(c.slug)}" ${matchesCategory({ category: f.category }, c.slug) && f.category !== 'all' ? 'selected' : ''}>
+                ${escapeHtml(c.name)}
+              </option>
+            `).join('')}
+          </select>
+        </div>
+
+        <!-- Tamanho -->
+        <div class="filter-section-group">
+          <label class="filter-section-label" for="drawer-filter-size">Tamanho</label>
+          <select id="drawer-filter-size" class="form-control">
+            <option value="all">Todos os tamanhos</option>
+            ${allSizes.map((s) => `<option value="${escapeHtml(s)}" ${f.size === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('')}
+          </select>
+        </div>
+
+        <!-- Cor -->
+        <div class="filter-section-group">
+          <label class="filter-section-label" for="drawer-filter-color">Cor</label>
+          <select id="drawer-filter-color" class="form-control">
+            <option value="all">Todas as cores</option>
+            ${allColors.map((c) => `<option value="${escapeHtml(c)}" ${f.color === c ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
+          </select>
+        </div>
+
+        <!-- Estilo -->
+        <div class="filter-section-group">
+          <label class="filter-section-label" for="drawer-filter-style">Estilo</label>
+          <select id="drawer-filter-style" class="form-control">
+            <option value="all">Todos os estilos</option>
+            ${allStyles.map((st) => `<option value="${escapeHtml(st)}" ${f.style === st ? 'selected' : ''}>${escapeHtml(st)}</option>`).join('')}
+          </select>
+        </div>
+
+        <!-- Faixa de Preço -->
+        <div class="filter-section-group">
+          <label class="filter-section-label" for="drawer-filter-price">Faixa de preço</label>
+          <select id="drawer-filter-price" class="form-control">
+            <option value="all" ${f.priceRange === 'all' ? 'selected' : ''}>Qualquer valor</option>
+            <option value="up_to_250" ${f.priceRange === 'up_to_250' ? 'selected' : ''}>Até R$ 250,00</option>
+            <option value="250_to_380" ${f.priceRange === '250_to_380' ? 'selected' : ''}>De R$ 250,00 a R$ 380,00</option>
+            <option value="above_380" ${f.priceRange === 'above_380' ? 'selected' : ''}>Acima de R$ 380,00</option>
+          </select>
+        </div>
+
+        <!-- Opções Rápidas: Promoção e Estoque -->
+        <div class="filter-section-group">
+          <span class="filter-section-label">Disponibilidade e Ofertas</span>
+          <label class="filter-checkbox-row" for="drawer-filter-only-promo">
+            <input type="checkbox" id="drawer-filter-only-promo" ${f.availability === 'promo' ? 'checked' : ''} />
+            <span>Somente em promoção</span>
+          </label>
+          <label class="filter-checkbox-row" for="drawer-filter-only-stock">
+            <input type="checkbox" id="drawer-filter-only-stock" ${f.availability === 'in_stock' ? 'checked' : ''} />
+            <span>Somente com estoque disponível</span>
+          </label>
+        </div>
+      </form>
+    `;
+
+    const promoChk = document.getElementById('drawer-filter-only-promo');
+    const stockChk = document.getElementById('drawer-filter-only-stock');
+    if (promoChk && stockChk) {
+      promoChk.addEventListener('change', () => {
+        if (promoChk.checked) stockChk.checked = false;
+      });
+      stockChk.addEventListener('change', () => {
+        if (stockChk.checked) promoChk.checked = false;
+      });
+    }
+  }
+
+  function applyFilterDrawer() {
+    const sortEl = document.getElementById('drawer-filter-sort');
+    const catEl = document.getElementById('drawer-filter-category');
+    const sizeEl = document.getElementById('drawer-filter-size');
+    const colorEl = document.getElementById('drawer-filter-color');
+    const styleEl = document.getElementById('drawer-filter-style');
+    const priceEl = document.getElementById('drawer-filter-price');
+    const promoChk = document.getElementById('drawer-filter-only-promo');
+    const stockChk = document.getElementById('drawer-filter-only-stock');
+
+    if (sortEl) AppState.filters.sortBy = sortEl.value;
+    if (catEl) AppState.filters.category = catEl.value;
+    if (sizeEl) AppState.filters.size = sizeEl.value;
+    if (colorEl) AppState.filters.color = colorEl.value;
+    if (styleEl) AppState.filters.style = styleEl.value;
+    if (priceEl) AppState.filters.priceRange = priceEl.value;
+    if (promoChk && promoChk.checked) {
+      AppState.filters.availability = 'promo';
+    } else if (stockChk && stockChk.checked) {
+      AppState.filters.availability = 'in_stock';
+    } else {
+      AppState.filters.availability = 'all';
+    }
+
+    closeFilterDrawer();
+    if (AppState.currentView !== 'catalog') {
+      navigateTo('catalog');
+    } else {
+      updateGlobalChrome();
+      renderMainView();
+    }
+  }
+
   function bindCatalogFilterEvents() {
     const searchEl = document.getElementById('filter-search');
-    const catEl = document.getElementById('filter-category');
-    const sizeEl = document.getElementById('filter-size');
-    const colorEl = document.getElementById('filter-color');
-    const styleEl = document.getElementById('filter-style');
-    const priceEl = document.getElementById('filter-price');
-    const sortEl = document.getElementById('filter-sort');
-    const promoCheck = document.getElementById('filter-only-promo');
-    const stockCheck = document.getElementById('filter-only-stock');
-    const resetBtn = document.getElementById('btn-reset-filters');
-
     if (searchEl) {
       searchEl.addEventListener('input', (e) => {
         AppState.filters.search = e.target.value;
@@ -1055,30 +1885,6 @@
           inputAfter.focus();
           inputAfter.setSelectionRange(inputAfter.value.length, inputAfter.value.length);
         }
-      });
-    }
-    if (catEl) catEl.addEventListener('change', (e) => { AppState.filters.category = e.target.value; renderMainView(); });
-    if (sizeEl) sizeEl.addEventListener('change', (e) => { AppState.filters.size = e.target.value; renderMainView(); });
-    if (colorEl) colorEl.addEventListener('change', (e) => { AppState.filters.color = e.target.value; renderMainView(); });
-    if (styleEl) styleEl.addEventListener('change', (e) => { AppState.filters.style = e.target.value; renderMainView(); });
-    if (priceEl) priceEl.addEventListener('change', (e) => { AppState.filters.priceRange = e.target.value; renderMainView(); });
-    if (sortEl) sortEl.addEventListener('change', (e) => { AppState.filters.sortBy = e.target.value; renderMainView(); });
-    if (promoCheck) {
-      promoCheck.addEventListener('change', (e) => {
-        AppState.filters.availability = e.target.checked ? 'promo' : 'all';
-        renderMainView();
-      });
-    }
-    if (stockCheck) {
-      stockCheck.addEventListener('change', (e) => {
-        AppState.filters.availability = e.target.checked ? 'in_stock' : 'all';
-        renderMainView();
-      });
-    }
-    if (resetBtn) {
-      resetBtn.addEventListener('click', () => {
-        resetFilters();
-        renderMainView();
       });
     }
   }
@@ -1128,7 +1934,7 @@
   }
 
   // =========================================================================
-  // MODAL DE DETALHE DO PRODUTO (GALERIA DE FOTOS/VÍDEO, MEDIDAS, AVALIAÇÕES)
+  // MODAL DE DETALHE DO PRODUTO (GALERIA, TAMANHOS, CORES, QUANTIDADE, SACOLA, COMPRAR AGORA E WHATSAPP)
   // =========================================================================
   function openProductModal(productId) {
     const product = AppState.db.products.find((p) => p.id === productId);
@@ -1139,6 +1945,7 @@
       productId: product.id,
       selectedColor: firstAvailableVar ? firstAvailableVar.color : (product.colors && product.colors[0] ? product.colors[0].name : ''),
       selectedSize: firstAvailableVar ? firstAvailableVar.size : (product.sizes && product.sizes[0] ? product.sizes[0] : ''),
+      quantity: 1,
       mediaIndex: 0
     };
 
@@ -1159,8 +1966,13 @@
     const effectivePrice = getEffectivePrice(product);
     const hasPromo = effectivePrice < Number(product.price);
     const currentVarStock = getVariationStock(product, state.selectedSize, state.selectedColor);
+    const selectedQty = Math.max(1, Math.min(Number(state.quantity) || 1, Math.max(1, currentVarStock)));
+    state.quantity = selectedQty;
+
+    const normCat = normalizeCategorySlug(product.category || product.categoryName || 'vestidos');
+    const fallbackUrl = CATEGORY_COVER_FALLBACKS[normCat] || CATEGORY_COVER_FALLBACKS.vestidos;
     const mediaList = product.media && product.media.length > 0 ? product.media : [
-      { type: 'image', url: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=900&q=80', alt: product.name }
+      { type: 'image', url: fallbackUrl, alt: product.name }
     ];
     const activeMedia = mediaList[state.mediaIndex] || mediaList[0];
     const productReviews = (AppState.db.reviews || []).filter((r) => r.productId === product.id);
@@ -1174,9 +1986,9 @@
             ${activeMedia.type === 'video' ? `
               <video src="${escapeHtml(activeMedia.url)}" poster="${escapeHtml(activeMedia.poster || '')}" controls playsinline aria-label="${escapeHtml(activeMedia.alt || product.name)}"></video>
             ` : `
-              <img src="${escapeHtml(activeMedia.url)}" alt="${escapeHtml(activeMedia.alt || product.name)}" id="pdp-active-img" />
+              <img src="${escapeHtml(activeMedia.url)}" alt="${escapeHtml(activeMedia.alt || product.name)}" id="pdp-active-img" onerror="this.onerror=null;this.src='${escapeHtml(fallbackUrl)}';" />
               <button type="button" class="pdp-zoom-btn" data-action="zoom-image" data-url="${escapeHtml(activeMedia.url)}" data-alt="${escapeHtml(activeMedia.alt || product.name)}">
-                🔍 Ampliar Imagem
+                Ampliar Imagem
               </button>
             `}
           </div>
@@ -1189,16 +2001,16 @@
             ${mediaList.map((m, idx) => `
               <button type="button" class="pdp-thumb-btn ${idx === state.mediaIndex ? 'active' : ''}" data-action="select-pdp-media" data-index="${idx}" aria-label="${m.type === 'video' ? 'Reproduzir vídeo' : 'Ver foto ' + (idx + 1)}">
                 ${m.type === 'video' ? `
-                  <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#161514;color:#FFF;font-size:0.75rem;font-weight:700;">▶ VÍDEO</div>
+                  <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#292522;color:#FFF;font-size:0.72rem;font-weight:700;">▶ VÍDEO</div>
                 ` : `
-                  <img src="${escapeHtml(m.url)}" alt="Miniatura ${idx + 1}" />
+                  <img src="${escapeHtml(m.url)}" alt="Miniatura ${idx + 1}" onerror="this.onerror=null;this.src='${escapeHtml(fallbackUrl)}';" />
                 `}
               </button>
             `).join('')}
           </div>
         </div>
 
-        <!-- Coluna Direita: Informações, Variações, Estoque e Medidas -->
+        <!-- Coluna Direita: Informações, Variações, Quantidade e Ações -->
         <div>
           ${Boolean(AppState.currentAdmin) && product.isDemo ? `
             <div class="alert-box alert-warning" style="padding:10px 14px;font-size:0.78rem;">
@@ -1206,28 +2018,28 @@
             </div>
           ` : ''}
 
-          <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.76rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">
             <span>${escapeHtml(product.categoryName || product.category)} • ${escapeHtml(product.style || '')}</span>
             <span>Cód: ${escapeHtml(product.sku)}</span>
           </div>
 
-          <h2 style="font-family:var(--font-serif);font-size:2rem;font-weight:500;line-height:1.15;margin-bottom:12px;">
+          <h2 style="font-family:var(--font-serif);font-size:1.95rem;font-weight:600;line-height:1.15;margin-bottom:10px;">
             ${escapeHtml(product.name)}
           </h2>
 
-          <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:16px;">
-            <span style="font-size:1.55rem;font-weight:700;color:var(--text-primary);">${formatBRL(effectivePrice)}</span>
-            ${hasPromo ? `<span style="font-size:1rem;color:var(--text-muted);text-decoration:line-through;">${formatBRL(product.price)}</span>` : ''}
+          <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:14px;">
+            <span style="font-size:1.5rem;font-weight:700;color:var(--accent-brown);">${formatBRL(effectivePrice)}</span>
+            ${hasPromo ? `<span style="font-size:0.98rem;color:var(--text-muted);text-decoration:line-through;">${formatBRL(product.price)}</span>` : ''}
           </div>
 
-          <p style="color:var(--text-secondary);margin-bottom:20px;font-size:0.93rem;">
+          <p style="color:var(--text-secondary);margin-bottom:18px;font-size:0.9rem;">
             ${escapeHtml(product.shortDescription || '')}
           </p>
 
           <!-- Seleção de Cor -->
           <div class="option-selector-group">
             <div class="option-selector-label">
-              <span>Cor Selecionada: <strong>${escapeHtml(state.selectedColor)}</strong></span>
+              <span>Cor selecionada: <strong>${escapeHtml(state.selectedColor)}</strong></span>
             </div>
             <div class="option-pills">
               ${(product.colors || []).map((c) => `
@@ -1239,12 +2051,12 @@
             </div>
           </div>
 
-          <!-- Seleção de Tamanho -->
+          <!-- Seleção de Tamanho e Estoque -->
           <div class="option-selector-group">
             <div class="option-selector-label">
               <span>Tamanho: <strong>${escapeHtml(state.selectedSize)}</strong></span>
-              <span style="font-size:0.78rem;color:${currentVarStock > 0 ? 'var(--status-success-text)' : 'var(--status-danger-text)'};">
-                ${currentVarStock > 0 ? `Disponível (${currentVarStock} un. nesta variação)` : 'Indisponível nesta combinação'}
+              <span style="font-size:0.76rem;color:${currentVarStock > 0 ? 'var(--status-success-text)' : 'var(--status-danger-text)'};">
+                ${currentVarStock > 0 ? `Disponível (${currentVarStock} un.)` : 'Indisponível nesta combinação'}
               </span>
             </div>
             <div class="option-pills">
@@ -1259,39 +2071,59 @@
             </div>
           </div>
 
-          <!-- Ações Principais -->
-          <div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;margin:22px 0 12px;">
+          <!-- Seleção de Quantidade e Favoritar -->
+          <div class="option-selector-group" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:16px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Quantidade:</span>
+              <div class="qty-stepper" role="group" aria-label="Selecionar quantidade">
+                <button type="button" data-action="pdp-qty-dec" aria-label="Diminuir quantidade" ${selectedQty <= 1 ? 'disabled' : ''}>−</button>
+                <span aria-live="polite">${selectedQty}</span>
+                <button type="button" data-action="pdp-qty-inc" aria-label="Aumentar quantidade" ${selectedQty >= currentVarStock ? 'disabled' : ''}>+</button>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:8px;">
+              <button type="button" class="btn btn-outline btn-sm" data-action="toggle-wishlist" data-product-id="${escapeHtml(product.id)}" aria-label="Favoritar produto">
+                ${isFav ? '♥ Salvo' : '♡ Favoritar'}
+              </button>
+              <button type="button" class="btn btn-outline btn-sm" data-action="share-product" data-product-id="${escapeHtml(product.id)}" aria-label="Compartilhar peça" title="Compartilhar">
+                ↗
+              </button>
+            </div>
+          </div>
+
+          <!-- Botões Principais: Adicionar à Sacola + Comprar Agora -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:18px 0 10px;">
             <button type="button" class="btn btn-primary" data-action="add-to-cart-modal" ${currentVarStock <= 0 ? 'disabled' : ''}>
               ${currentVarStock > 0 ? 'Adicionar à Sacola' : 'Variação Esgotada'}
             </button>
-            <button type="button" class="btn btn-outline" data-action="toggle-wishlist" data-product-id="${escapeHtml(product.id)}" aria-label="Favoritar produto">
-              ${isFav ? '♥ Salvo' : '♡ Favoritar'}
-            </button>
-            <button type="button" class="btn btn-outline" data-action="share-product" data-product-id="${escapeHtml(product.id)}" aria-label="Compartilhar">
-              ↗
+            <button type="button" class="btn btn-gold" data-action="buy-now-modal" ${currentVarStock <= 0 ? 'disabled' : ''}>
+              Comprar Agora
             </button>
           </div>
+
+          <!-- Botão de Atendimento WhatsApp Identificando o Produto (Preservado integralmente) -->
           <div style="margin-bottom:18px;">
-            <a href="${escapeHtml(getProductWhatsappUrl(product, state.selectedSize, state.selectedColor))}" target="_blank" rel="noopener noreferrer" class="contact-btn-action whatsapp-style" style="width:100%;" id="pdp-whatsapp-product-link">
+            <a href="${escapeHtml(getProductWhatsappUrl(product, state.selectedSize, state.selectedColor, state.quantity))}" target="_blank" rel="noopener noreferrer" class="contact-btn-action whatsapp-style" style="width:100%;" id="pdp-whatsapp-product-link">
               ${OFFICIAL_ICONS.whatsapp}
-              <span>Falar no WhatsApp sobre esta peça (${escapeHtml(state.selectedSize)} • ${escapeHtml(state.selectedColor)})</span>
+              <span>FALAR NO WHATSAPP SOBRE ESTA PEÇA</span>
             </a>
           </div>
 
           <!-- Descrição, Composição e Tabela de Medidas -->
-          <div style="border-top:1px solid var(--border-subtle);padding-top:16px;margin-top:16px;">
-            <details open style="margin-bottom:12px;">
-              <summary style="font-weight:600;font-size:0.9rem;cursor:pointer;padding:6px 0;">Descrição e Composição</summary>
-              <div style="font-size:0.86rem;color:var(--text-secondary);padding-top:8px;">
+          <div style="border-top:1px solid var(--border-subtle);padding-top:14px;margin-top:14px;">
+            <details open style="margin-bottom:10px;">
+              <summary style="font-weight:600;font-size:0.88rem;cursor:pointer;padding:6px 0;">Descrição e Composição</summary>
+              <div style="font-size:0.85rem;color:var(--text-secondary);padding-top:8px;">
                 <p style="margin-bottom:8px;">${escapeHtml(product.description || '')}</p>
-                <p style="margin-bottom:4px;"><strong>Composição:</strong> ${escapeHtml(product.fabricInfo || 'A confirmar pela proprietária')}</p>
+                <p style="margin-bottom:4px;"><strong>Composição:</strong> ${escapeHtml(product.fabricInfo || 'Consulte a etiqueta da peça')}</p>
                 <p><strong>Conservação:</strong> ${escapeHtml(product.careInfo || 'Seguir instruções da etiqueta interna.')}</p>
               </div>
             </details>
 
             ${product.sizeChart && product.sizeChart.length > 0 ? `
-              <details style="margin-bottom:12px;border-top:1px solid var(--border-subtle);padding-top:10px;">
-                <summary style="font-weight:600;font-size:0.9rem;cursor:pointer;padding:6px 0;">📏 Tabela de Medidas Referencial</summary>
+              <details style="margin-bottom:10px;border-top:1px solid var(--border-subtle);padding-top:10px;">
+                <summary style="font-weight:600;font-size:0.88rem;cursor:pointer;padding:6px 0;">Tabela de Medidas Referencial</summary>
                 <div style="padding-top:8px;overflow-x:auto;">
                   <table class="size-chart-table">
                     <thead>
@@ -1321,10 +2153,12 @@
 
             <!-- Avaliações de Clientes -->
             <details style="border-top:1px solid var(--border-subtle);padding-top:10px;">
-              <summary style="font-weight:600;font-size:0.9rem;cursor:pointer;padding:6px 0;">★ Avaliações sobre a Peça (${productReviews.length})</summary>
+              <summary style="font-weight:600;font-size:0.88rem;cursor:pointer;padding:6px 0;">Avaliações sobre a Peça (${productReviews.length})</summary>
               <div style="padding-top:10px;">
-                ${productReviews.map((rev) => `
-                  <div style="background:var(--bg-primary);padding:10px 12px;border-radius:6px;margin-bottom:8px;font-size:0.82rem;">
+                ${productReviews.length === 0 ? `
+                  <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:10px;">Seja a primeira cliente a avaliar esta peça.</p>
+                ` : productReviews.map((rev) => `
+                  <div style="background:var(--bg-primary);padding:10px 12px;border-radius:8px;margin-bottom:8px;font-size:0.82rem;">
                     <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
                       <strong>${escapeHtml(rev.customerName)}</strong>
                       <span style="color:var(--accent-gold);">${'★'.repeat(rev.rating || 5)} • ${escapeHtml(rev.date)}</span>
@@ -1332,7 +2166,7 @@
                     <p style="color:var(--text-secondary);">${escapeHtml(rev.comment)}</p>
                   </div>
                 `).join('')}
-                <form id="pdp-review-form" data-product-id="${escapeHtml(product.id)}" style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--border-subtle);">
+                <form id="pdp-review-form" data-product-id="${escapeHtml(product.id)}" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border-subtle);">
                   <p style="font-size:0.8rem;font-weight:600;margin-bottom:8px;">Deixe sua avaliação sobre esta peça:</p>
                   <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-bottom:8px;">
                     <input type="text" name="customerName" class="form-control" required placeholder="Seu nome" value="${AppState.currentCustomer ? escapeHtml(AppState.currentCustomer.name) : ''}" />
@@ -1355,7 +2189,7 @@
     const reviewForm = document.getElementById('pdp-review-form');
     const floatingWa = document.querySelector('.floating-whatsapp-concierge');
     if (floatingWa) {
-      floatingWa.href = getProductWhatsappUrl(product, state.selectedSize, state.selectedColor);
+      floatingWa.href = getProductWhatsappUrl(product, state.selectedSize, state.selectedColor, state.quantity);
     }
     if (reviewForm) {
       reviewForm.addEventListener('submit', (e) => {
@@ -1378,16 +2212,16 @@
   }
 
   // =========================================================================
-  // SACOLA DE COMPRAS (CARRINHO, CUPOM, SIMULADOR DE FRETE)
+  // SACOLA DE COMPRAS (CARRINHO, SUBTOTAIS, CUPOM, SIMULADOR DE FRETE)
   // =========================================================================
-  function addToCart(productId, size, color, qty = 1) {
+  function addToCart(productId, size, color, qty = 1, options = {}) {
     const product = AppState.db.products.find((p) => p.id === productId);
-    if (!product) return;
+    if (!product) return false;
 
     const available = getVariationStock(product, size, color);
     if (available <= 0) {
       showToast('Esta variação de tamanho e cor está sem estoque.', 'danger');
-      return;
+      return false;
     }
 
     const key = `${productId}__${size}__${color}`;
@@ -1396,11 +2230,13 @@
     if (existing) {
       if (existing.quantity + qty > available) {
         showToast(`Estoque máximo atingido (${available} un. disponíveis para ${size} / ${color}).`, 'warning');
-        return;
+        return false;
       }
       existing.quantity += qty;
     } else {
-      const firstImg = (product.media && product.media.find((m) => m.type === 'image')) || { url: '' };
+      const normCat = normalizeCategorySlug(product.category || product.categoryName || 'vestidos');
+      const fb = CATEGORY_COVER_FALLBACKS[normCat] || CATEGORY_COVER_FALLBACKS.vestidos;
+      const firstImg = (product.media && product.media.find((m) => m.type === 'image' && m.url)) || { url: fb };
       AppState.cart.push({
         key,
         productId: product.id,
@@ -1417,8 +2253,11 @@
 
     saveCart();
     renderCartDrawer();
-    openCartDrawer();
+    if (!options.skipOpenDrawer) {
+      openCartDrawer();
+    }
     showToast(`"${product.name}" (${size} • ${color}) adicionado à sacola!`, 'success');
+    return true;
   }
 
   function calculateCartTotals() {
@@ -1491,32 +2330,37 @@
     const shippingMethods = (AppState.db.shippingSettings.methods || []).filter((m) => m.enabled);
 
     bodyEl.innerHTML = `
-      <div style="display:flex;flex-direction:column;gap:14px;">
-        ${AppState.cart.map((item) => `
-          <div style="display:grid;grid-template-columns:68px 1fr auto;gap:12px;padding-bottom:14px;border-bottom:1px solid var(--border-subtle);align-items:center;">
-            <img src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.name)}" style="width:68px;height:86px;object-fit:cover;border-radius:4px;background:var(--bg-Muted);" />
-            <div>
-              <strong style="font-size:0.9rem;display:block;line-height:1.25;">${escapeHtml(item.name)}</strong>
-              <span style="font-size:0.78rem;color:var(--text-secondary);display:block;margin:3px 0;">
-                Tam: <strong>${escapeHtml(item.size)}</strong> • Cor: <strong>${escapeHtml(item.color)}</strong>
-              </span>
-              <span style="font-size:0.88rem;font-weight:700;">${formatBRL(item.unitPrice)}</span>
-              <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-                <button type="button" class="btn btn-subtle btn-sm" style="min-height:28px;padding:2px 9px;" data-action="cart-qty-dec" data-key="${escapeHtml(item.key)}" aria-label="Diminuir quantidade">-</button>
-                <span style="font-size:0.85rem;font-weight:600;">${item.quantity}</span>
-                <button type="button" class="btn btn-subtle btn-sm" style="min-height:28px;padding:2px 9px;" data-action="cart-qty-inc" data-key="${escapeHtml(item.key)}" aria-label="Aumentar quantidade">+</button>
+      <div>
+        ${AppState.cart.map((item) => {
+          const itemSubtotal = (Number(item.unitPrice) || 0) * (Number(item.quantity) || 1);
+          return `
+            <div class="cart-item-card">
+              <img src="${escapeHtml(item.imageUrl || CATEGORY_COVER_FALLBACKS.vestidos)}" alt="${escapeHtml(item.name)}" class="cart-item-thumb" onerror="this.onerror=null;this.src='${escapeHtml(CATEGORY_COVER_FALLBACKS.vestidos)}';" />
+              <div style="min-width:0;">
+                <strong style="font-size:0.88rem;display:block;line-height:1.28;color:var(--text-primary);">${escapeHtml(item.name)}</strong>
+                <span style="font-size:0.76rem;color:var(--text-secondary);display:block;margin:3px 0;">
+                  Tam: <strong>${escapeHtml(item.size)}</strong> • Cor: <strong>${escapeHtml(item.color)}</strong>
+                </span>
+                <div style="font-size:0.76rem;color:var(--text-muted);margin-bottom:6px;">
+                  Unitário: ${formatBRL(item.unitPrice)} • <strong style="color:var(--accent-brown);">Subtotal: ${formatBRL(itemSubtotal)}</strong>
+                </div>
+                <div class="qty-stepper" style="height:32px;">
+                  <button type="button" style="width:30px;height:30px;font-size:0.9rem;" data-action="cart-qty-dec" data-key="${escapeHtml(item.key)}" aria-label="Diminuir quantidade">−</button>
+                  <span style="min-width:26px;font-size:0.82rem;">${item.quantity}</span>
+                  <button type="button" style="width:30px;height:30px;font-size:0.9rem;" data-action="cart-qty-inc" data-key="${escapeHtml(item.key)}" aria-label="Aumentar quantidade">+</button>
+                </div>
               </div>
+              <button type="button" class="btn btn-subtle btn-sm" style="min-height:32px;padding:4px 8px;" data-action="cart-remove" data-key="${escapeHtml(item.key)}" aria-label="Remover item" title="Remover item">✕</button>
             </div>
-            <button type="button" class="btn btn-subtle btn-sm" style="min-height:32px;padding:4px 8px;" data-action="cart-remove" data-key="${escapeHtml(item.key)}" aria-label="Remover item" title="Remover item">✕</button>
-          </div>
-        `).join('')}
+          `;
+        }).join('')}
       </div>
 
       <!-- Cupom de Desconto -->
-      <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border-subtle);">
-        <label for="cart-coupon-input" style="display:block;font-size:0.75rem;font-weight:600;text-transform:uppercase;margin-bottom:6px;">Cupom de Desconto</label>
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border-subtle);">
+        <label for="cart-coupon-input" style="display:block;font-size:0.74rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Cupom de Desconto</label>
         <div style="display:flex;gap:8px;">
-          <input type="text" id="cart-coupon-input" class="form-control" placeholder="Ex.: BEMVINDA10" value="${AppState.appliedCoupon ? escapeHtml(AppState.appliedCoupon.code) : ''}" style="min-height:38px;" />
+          <input type="text" id="cart-coupon-input" class="form-control" placeholder="Ex.: BEMVINDA10" value="${AppState.appliedCoupon ? escapeHtml(AppState.appliedCoupon.code) : ''}" style="min-height:40px;" />
           <button type="button" class="btn btn-outline btn-sm" data-action="apply-coupon">Aplicar</button>
         </div>
         ${AppState.appliedCoupon ? `
@@ -1528,8 +2372,8 @@
 
       <!-- Opção de Entrega / Retirada -->
       <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border-subtle);">
-        <label for="cart-shipping-select" style="display:block;font-size:0.75rem;font-weight:600;text-transform:uppercase;margin-bottom:6px;">Modalidade de Entrega / Retirada</label>
-        <select id="cart-shipping-select" class="form-control" style="min-height:38px;">
+        <label for="cart-shipping-select" style="display:block;font-size:0.74rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Modalidade de Entrega / Retirada</label>
+        <select id="cart-shipping-select" class="form-control" style="min-height:40px;">
           ${shippingMethods.map((m) => `
             <option value="${escapeHtml(m.id)}" ${totals.shippingMethod && totals.shippingMethod.id === m.id ? 'selected' : ''}>
               ${escapeHtml(m.name)} — ${m.priceStatus === 'confirmed' ? (m.price === 0 ? 'Grátis' : formatBRL(m.price)) : 'Valor a confirmar'}
@@ -1544,10 +2388,13 @@
       </div>
     `;
 
+    const activePayOpts = getAvailableCheckoutPaymentOptions(AppState.db.paymentSettings);
+    const isOnlyWhatsapp = activePayOpts.length === 1 && activePayOpts[0].id === 'whatsapp';
+
     footerEl.innerHTML = `
       <div style="font-size:0.86rem;margin-bottom:12px;">
         <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-          <span>Subtotal:</span>
+          <span>Subtotal dos itens:</span>
           <span>${formatBRL(totals.subtotal)}</span>
         </div>
         ${totals.discount > 0 ? `
@@ -1560,13 +2407,13 @@
           <span>Entrega:</span>
           <span>${totals.shippingMethod ? (totals.shippingMethod.priceStatus === 'confirmed' ? formatBRL(totals.shippingCost) : 'A confirmar pela proprietária') : 'A confirmar'}</span>
         </div>
-        <div style="display:flex;justify-content:space-between;font-size:1.1rem;font-weight:700;padding-top:8px;border-top:1px solid var(--border-subtle);">
+        <div style="display:flex;justify-content:space-between;font-size:1.1rem;font-weight:700;padding-top:8px;border-top:1px solid var(--border-subtle);color:var(--text-primary);">
           <span>Total do Pedido:</span>
           <span>${formatBRL(totals.total)}</span>
         </div>
       </div>
-      <button type="button" class="btn btn-primary btn-block" data-action="proceed-to-checkout">
-        Finalizar Compra com Segurança
+      <button type="button" class="btn btn-primary btn-block" data-action="proceed-to-checkout" id="btn-cart-proceed-checkout">
+        ${isOnlyWhatsapp ? `${OFFICIAL_ICONS.whatsapp} <span>Finalizar Pedido pelo WhatsApp</span>` : 'Finalizar Compra com Segurança'}
       </button>
     `;
 
@@ -1605,14 +2452,14 @@
     const totals = calculateCartTotals();
     const paySettings = AppState.db.paymentSettings;
     const shipMethods = (AppState.db.shippingSettings.methods || []).filter((m) => m.enabled);
-    const activePaymentOptions = [];
-    if (paySettings.pix && paySettings.pix.enabled) activePaymentOptions.push({ id: 'pix', label: 'Pix (QR Code EMV e Copia e Cola)' });
-    if (paySettings.creditCard && paySettings.creditCard.enabled) activePaymentOptions.push({ id: 'creditCard', label: 'Cartão de Crédito (Ambiente Externo Seguro)' });
-    if (paySettings.payOnPickup && paySettings.payOnPickup.enabled) activePaymentOptions.push({ id: 'payOnPickup', label: paySettings.payOnPickup.title || 'Pagamento na Retirada (Itaperuna - RJ)' });
+    const activePaymentOptions = getAvailableCheckoutPaymentOptions(paySettings);
 
     if (activePaymentOptions.length > 0 && !activePaymentOptions.some((o) => o.id === AppState.selectedPaymentMethod)) {
       AppState.selectedPaymentMethod = activePaymentOptions[0].id;
     }
+
+    const isOnlyWhatsapp = activePaymentOptions.length === 1 && activePaymentOptions[0].id === 'whatsapp';
+    const isWhatsappSelected = isOnlyWhatsapp || AppState.selectedPaymentMethod === 'whatsapp';
 
     const cust = AppState.currentCustomer || {};
     const defaultAddr = (cust.addresses && cust.addresses[0]) || {};
@@ -1622,47 +2469,51 @@
         <div class="container">
           <div class="section-header" style="margin-bottom:24px;">
             <div>
-              <span class="section-eyebrow">Checkout Transparente (Decreto nº 7.962/2013)</span>
-              <h1 class="section-title">Finalização e Revisão do Pedido</h1>
+              <span class="section-eyebrow">BY ANGÉLY • Finalização de Pedido</span>
+              <h1 class="section-title">Identificação, Entrega e Revisão do Pedido</h1>
             </div>
             <button type="button" class="btn btn-outline btn-sm" data-action="go-catalog">← Continuar Comprando</button>
           </div>
 
           <form id="checkout-order-form" class="checkout-layout">
-            <!-- Coluna Principal: Dados, Entrega e Pagamento -->
+            <!-- Coluna Principal: Dados, Entrega e Pagamento (quando aplicável) -->
             <div>
               <!-- Etapa 1: Identificação -->
               <div class="admin-card">
                 <h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:14px;">1. Seus Dados para o Pedido</h2>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+                <div class="sac-form-grid">
                   <div>
                     <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Nome Completo *</label>
                     <input type="text" name="customerName" class="form-control" required value="${escapeHtml(cust.name || '')}" placeholder="Ex.: Maria Clara Silva" />
                   </div>
                   <div>
-                    <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">E-mail para Confirmações *</label>
-                    <input type="email" name="customerEmail" class="form-control" required value="${escapeHtml(cust.email || '')}" placeholder="seu@email.com" />
+                    <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">WhatsApp / Telefone com DDD *</label>
+                    <input type="tel" name="customerPhone" class="form-control" required value="${escapeHtml(cust.phone || '')}" placeholder="(28) 99999-9999" />
                   </div>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+                <div class="sac-form-grid">
                   <div>
-                    <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">WhatsApp / Telefone com DDD *</label>
-                    <input type="tel" name="customerPhone" class="form-control" required value="${escapeHtml(cust.phone || '')}" placeholder="(22) 99999-9999" />
+                    <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">E-mail para Acompanhamento *</label>
+                    <input type="email" name="customerEmail" class="form-control" required value="${escapeHtml(cust.email || '')}" placeholder="seu@email.com" />
                   </div>
                   <div>
-                    <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">CPF (Para Nota Fiscal — protegido pela LGPD)</label>
+                    <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">CPF (Opcional — protegido pela LGPD)</label>
                     <input type="text" name="customerCpf" class="form-control" value="${escapeHtml(cust.cpf || '')}" placeholder="000.000.000-00" />
                   </div>
                 </div>
+                <div style="margin-bottom:10px;">
+                  <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Observações do Pedido (Opcional)</label>
+                  <input type="text" name="customerNotes" class="form-control" placeholder="Ex.: Horário de preferência para entrega/retirada ou observação sobre a peça" />
+                </div>
                 <label style="display:flex;align-items:flex-start;gap:8px;font-size:0.82rem;color:var(--text-secondary);cursor:pointer;margin-top:8px;">
                   <input type="checkbox" name="marketingOptIn" style="margin-top:4px;" />
-                  <span>Desejo receber novidades e promoções da By Angély por e-mail ou WhatsApp. (Consentimento opcional conforme a LGPD — você pode cancelar a qualquer momento na Área da Cliente).</span>
+                  <span>Desejo receber novidades e promoções da By Angély por e-mail ou WhatsApp. (Consentimento opcional conforme a LGPD).</span>
                 </label>
               </div>
 
               <!-- Etapa 2: Entrega ou Retirada -->
               <div class="admin-card">
-                <h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:14px;">2. Modalidade de Entrega e Endereço</h2>
+                <h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:14px;">2. Forma de Recebimento e Endereço</h2>
                 <div style="margin-bottom:16px;">
                   <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:6px;">Escolha como deseja receber seu pedido *</label>
                   <div style="display:flex;flex-direction:column;gap:8px;">
@@ -1683,7 +2534,7 @@
                   </div>
                 </div>
 
-                <div style="display:grid;grid-template-columns:1fr 2fr;gap:12px;margin-bottom:12px;">
+                <div class="sac-form-grid">
                   <div>
                     <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">CEP *</label>
                     <input type="text" name="zipCode" id="checkout-cep" class="form-control" required value="${escapeHtml(defaultAddr.zipCode || '28300-000')}" placeholder="28300-000" />
@@ -1693,7 +2544,7 @@
                     <input type="text" name="street" id="checkout-street" class="form-control" required value="${escapeHtml(defaultAddr.street || '')}" placeholder="Nome da rua ou avenida" />
                   </div>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+                <div class="sac-form-grid">
                   <div>
                     <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Número / Compl. *</label>
                     <input type="text" name="number" class="form-control" required value="${escapeHtml(defaultAddr.number || '')}" placeholder="Nº e Apto" />
@@ -1702,22 +2553,25 @@
                     <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Bairro *</label>
                     <input type="text" name="neighborhood" id="checkout-neighborhood" class="form-control" required value="${escapeHtml(defaultAddr.neighborhood || '')}" placeholder="Bairro" />
                   </div>
-                  <div>
-                    <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Cidade / UF *</label>
-                    <input type="text" name="cityState" id="checkout-city" class="form-control" required value="${escapeHtml(defaultAddr.cityState || 'Itaperuna - RJ')}" placeholder="Itaperuna - RJ" />
-                  </div>
+                </div>
+                <div>
+                  <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Cidade / UF *</label>
+                  <input type="text" name="cityState" id="checkout-city" class="form-control" required value="${escapeHtml(defaultAddr.cityState || 'Itaperuna - RJ')}" placeholder="Itaperuna - RJ" />
                 </div>
               </div>
 
-              <!-- Etapa 3: Forma de Pagamento (Somente opções ativas configuradas pela proprietária) -->
-              <div class="admin-card">
-                <h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:14px;">3. Forma de Pagamento</h2>
-                ${activePaymentOptions.length === 0 ? `
-                  <div class="alert-box alert-danger">
-                    Nenhuma forma de pagamento está ativa no momento. A proprietária deve ativar pelo menos uma opção no Painel Administrativo.
+              <!-- Etapa 3: Exibida SOMENTE quando há opções online ativas ou múltiplas formas ativas.
+                   Quando SOMENTE o WhatsApp está ativo, oculta completamente a seleção de pagamento online! -->
+              ${isOnlyWhatsapp ? '' : activePaymentOptions.length === 0 ? `
+                <div class="admin-card" id="checkout-no-payment-warning">
+                  <div class="alert-box alert-danger" style="margin-bottom:0;">
+                    A finalização de pedidos está temporariamente indisponível para atualização de configurações da loja. Por favor, fale diretamente conosco pelo WhatsApp ou tente novamente em instantes.
                   </div>
-                ` : `
-                  <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;">
+                </div>
+              ` : `
+                <div class="admin-card" id="checkout-payment-step-card">
+                  <h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:14px;">3. Forma de Finalização e Pagamento</h2>
+                  <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;" id="checkout-active-payment-list">
                     ${activePaymentOptions.map((opt) => `
                       <label style="display:flex;align-items:center;gap:10px;padding:12px;border:1px solid ${AppState.selectedPaymentMethod === opt.id ? 'var(--accent-gold)' : 'var(--border-subtle)'};border-radius:6px;background:${AppState.selectedPaymentMethod === opt.id ? 'var(--bg-accent-subtle)' : 'var(--bg-surface)'};cursor:pointer;">
                         <input type="radio" name="paymentMethod" value="${escapeHtml(opt.id)}" ${AppState.selectedPaymentMethod === opt.id ? 'checked' : ''} />
@@ -1726,50 +2580,57 @@
                     `).join('')}
                   </div>
 
-                  <!-- Detalhamento transparente da opção escolhida -->
+                  ${AppState.selectedPaymentMethod === 'whatsapp' ? `
+                    <div class="alert-box alert-info" style="margin-bottom:0;">
+                      <p style="margin-bottom:4px;"><strong>Atendimento e Finalização pelo WhatsApp Oficial:</strong></p>
+                      <p style="font-size:0.82rem;">${escapeHtml(paySettings.whatsapp.instructions || 'Seu pedido será registrado como aguardando confirmação e enviado completo para o WhatsApp oficial da BY ANGÉLY.')}</p>
+                    </div>
+                  ` : ''}
+
                   ${AppState.selectedPaymentMethod === 'pix' ? `
-                    <div class="alert-box alert-info">
-                      <p style="margin-bottom:6px;"><strong>Pagamento Instantâneo via Pix (Padrão EMV Banco Central):</strong></p>
-                      <p style="margin-bottom:6px;">Ao confirmar o pedido, geraremos o <strong>QR Code Pix</strong> e o código <strong>Pix Copia e Cola</strong> com o valor exato de <strong>${formatBRL(totals.total)}</strong> e a identificação do seu pedido.</p>
+                    <div class="alert-box alert-info" style="margin-bottom:0;">
+                      <p style="margin-bottom:6px;"><strong>Pagamento via Pix pelo Site (Padrão EMV Banco Central):</strong></p>
+                      <p style="margin-bottom:6px;">Ao confirmar o pedido, geraremos o <strong>QR Code Pix</strong> e o código <strong>Pix Copia e Cola</strong> com o valor exato de <strong>${formatBRL(totals.total)}</strong>.</p>
                       <p style="font-size:0.8rem;">
-                        <strong>Recebedor configurado:</strong> ${escapeHtml(paySettings.pix.recipientName)} • <strong>Chave:</strong> ${escapeHtml(paySettings.pix.pixKey)} • <strong>Cidade:</strong> ${escapeHtml(paySettings.pix.recipientCity)}
-                      </p>
-                      <p style="font-size:0.8rem;margin-top:6px;">
-                        <em>Status pós-pedido:</em> ${paySettings.pix.pspWebhookConfigured ? 'Confirmação automática via integração.' : 'Seu pedido ficará como <strong>"Aguardando confirmação de pagamento"</strong> até a conferência do recebimento pela loja.'}
+                        <strong>Recebedor:</strong> ${escapeHtml(paySettings.pix.recipientName)} • <strong>Chave:</strong> ${escapeHtml(paySettings.pix.pixKey)} • <strong>Cidade:</strong> ${escapeHtml(paySettings.pix.recipientCity)}
                       </p>
                     </div>
                   ` : ''}
 
                   ${AppState.selectedPaymentMethod === 'creditCard' ? `
-                    <div class="alert-box alert-info">
-                      <p style="margin-bottom:6px;"><strong>Segurança em Pagamento por Cartão (PCI-DSS):</strong></p>
-                      <p style="margin-bottom:6px;">A By Angély <strong>não coleta nem armazena números completos de cartão</strong> em seu site. Ao confirmar o pedido, você receberá o direcionamento seguro para o serviço de pagamento configurado (${escapeHtml(paySettings.creditCard.providerName)}).</p>
-                      <p style="font-size:0.8rem;">
-                        <strong>Aviso de Transparência:</strong> Um link de pagamento externo genérico não identifica automaticamente o valor individual de cada pedido nem aprova o status sozinho. Seu pedido ficará registrado como <strong>"Aguardando confirmação"</strong> até que o pagamento seja validado.
-                      </p>
+                    <div class="alert-box alert-info" style="margin-bottom:0;">
+                      <p style="margin-bottom:6px;"><strong>Pagamento por Cartão de Crédito (${escapeHtml(paySettings.creditCard.providerName)}):</strong></p>
+                      <p style="font-size:0.82rem;">${escapeHtml(paySettings.creditCard.instructions)}</p>
+                    </div>
+                  ` : ''}
+
+                  ${AppState.selectedPaymentMethod === 'debitCard' ? `
+                    <div class="alert-box alert-info" style="margin-bottom:0;">
+                      <p style="margin-bottom:6px;"><strong>Pagamento por Cartão de Débito (${escapeHtml(paySettings.debitCard.providerName)}):</strong></p>
+                      <p style="font-size:0.82rem;">${escapeHtml(paySettings.debitCard.instructions)}</p>
                     </div>
                   ` : ''}
 
                   ${AppState.selectedPaymentMethod === 'payOnPickup' ? `
-                    <div class="alert-box alert-info">
+                    <div class="alert-box alert-info" style="margin-bottom:0;">
                       <p style="margin-bottom:6px;"><strong>${escapeHtml(paySettings.payOnPickup.title)}:</strong></p>
                       <p style="font-size:0.82rem;">${escapeHtml(paySettings.payOnPickup.instructions)}</p>
                     </div>
                   ` : ''}
-                `}
-              </div>
+                </div>
+              `}
             </div>
 
-            <!-- Coluna Lateral: Revisão Completa do Pedido (Art. 4º Decreto 7.962/2013) -->
+            <!-- Coluna Lateral: Revisão Completa do Pedido -->
             <div>
               <div class="admin-card" style="position:sticky;top:98px;">
-                <h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:14px;">Resumo para Revisão</h2>
+                <h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:14px;">Resumo do Pedido</h2>
                 <div style="display:flex;flex-direction:column;gap:10px;max-height:280px;overflow-y:auto;margin-bottom:14px;padding-right:4px;">
                   ${AppState.cart.map((item) => `
                     <div style="display:flex;justify-content:space-between;font-size:0.84rem;padding-bottom:8px;border-bottom:1px solid var(--border-subtle);">
                       <div>
                         <strong>${escapeHtml(item.name)}</strong>
-                        <div style="font-size:0.75rem;color:var(--text-secondary);">Tam: ${escapeHtml(item.size)} | Cor: ${escapeHtml(item.color)} | Qtd: ${item.quantity}</div>
+                        <div style="font-size:0.75rem;color:var(--text-secondary);">Tam: ${escapeHtml(item.size)} | Cor: ${escapeHtml(item.color)} | Qtd: ${item.quantity}x (${formatBRL(item.unitPrice)})</div>
                       </div>
                       <span style="font-weight:600;white-space:nowrap;">${formatBRL(item.unitPrice * item.quantity)}</span>
                     </div>
@@ -1778,7 +2639,7 @@
 
                 <div style="font-size:0.88rem;border-top:1px solid var(--border-subtle);padding-top:12px;margin-bottom:16px;">
                   <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-                    <span>Subtotal dos itens:</span>
+                    <span>Total dos produtos:</span>
                     <span>${formatBRL(totals.subtotal)}</span>
                   </div>
                   ${totals.discount > 0 ? `
@@ -1789,19 +2650,21 @@
                   ` : ''}
                   <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
                     <span>Entrega (${totals.shippingMethod ? escapeHtml(totals.shippingMethod.name) : 'A definir'}):</span>
-                    <span>${totals.shippingMethod && totals.shippingMethod.priceStatus === 'confirmed' ? formatBRL(totals.shippingCost) : 'A confirmar pela proprietária'}</span>
+                    <span>${totals.shippingMethod && totals.shippingMethod.priceStatus === 'confirmed' ? formatBRL(totals.shippingCost) : 'A confirmar'}</span>
                   </div>
                   <div style="display:flex;justify-content:space-between;font-size:1.2rem;font-weight:700;padding-top:10px;border-top:1px solid var(--border-strong);">
-                    <span>Total a Pagar:</span>
+                    <span>Total do Pedido:</span>
                     <span>${formatBRL(totals.total)}</span>
                   </div>
                 </div>
 
-                <button type="submit" class="btn btn-primary btn-block" ${activePaymentOptions.length === 0 ? 'disabled' : ''}>
-                  Confirmar Pedido (${formatBRL(totals.total)})
+                <button type="submit" id="btn-submit-checkout" class="btn btn-primary btn-block" ${activePaymentOptions.length === 0 ? 'disabled' : ''}>
+                  ${isWhatsappSelected
+                    ? `${OFFICIAL_ICONS.whatsapp} <span>FINALIZAR PEDIDO PELO WHATSAPP</span>`
+                    : `Confirmar Pedido (${formatBRL(totals.total)})`}
                 </button>
                 <p style="font-size:0.74rem;color:var(--text-muted);text-align:center;margin-top:10px;">
-                  Ao confirmar, você concorda com os <button type="button" data-action="go-policies" data-tab="terms" style="text-decoration:underline;">Termos de Uso</button> e a <button type="button" data-action="go-policies" data-tab="privacy" style="text-decoration:underline;">Política de Privacidade</button>.
+                  Ao finalizar, seu pedido é registrado com segurança e você concorda com os <button type="button" data-action="go-policies" data-tab="terms" style="text-decoration:underline;">Termos de Uso</button> e a <button type="button" data-action="go-policies" data-tab="privacy" style="text-decoration:underline;">Política de Privacidade</button>.
                 </p>
               </div>
             </div>
@@ -1834,12 +2697,24 @@
     // Submissão do pedido
     form.addEventListener('submit', (e) => {
       e.preventDefault();
+      const activePaymentOptions = getAvailableCheckoutPaymentOptions(AppState.db.paymentSettings);
+      if (activePaymentOptions.length === 0) {
+        showToast('Nenhuma forma de pagamento está ativa no momento.', 'danger');
+        return;
+      }
+
+      const chosenMethod = activePaymentOptions.length === 1
+        ? activePaymentOptions[0].id
+        : (activePaymentOptions.some((o) => o.id === AppState.selectedPaymentMethod)
+            ? AppState.selectedPaymentMethod
+            : activePaymentOptions[0].id);
+
       const fd = new FormData(form);
       const totals = calculateCartTotals();
       const orderNumber = 'ANG-' + String(1001 + (AppState.db.orders ? AppState.db.orders.length : 0));
       const txid = ((AppState.db.paymentSettings.pix.txidPrefix || 'BYANGELY') + orderNumber.replace(/\D/g, '')).slice(0, 25);
 
-      // Deduz estoque das variações compradas
+      // Deduz estoque das variações reservadas no pedido
       AppState.cart.forEach((item) => {
         const prod = AppState.db.products.find((p) => p.id === item.productId);
         if (prod && Array.isArray(prod.variations)) {
@@ -1853,14 +2728,14 @@
 
       // Gera dados Pix se aplicável
       let pixData = null;
-      if (AppState.selectedPaymentMethod === 'pix') {
+      if (chosenMethod === 'pix') {
         const pixCfg = AppState.db.paymentSettings.pix;
         const keyToUse = (pixCfg.pixKey && !pixCfg.pixKey.toLowerCase().includes('a confirmar'))
           ? pixCfg.pixKey
-          : 'chave-a-confirmar@byangely.local';
+          : '+5528999871458';
         const nameToUse = (pixCfg.recipientName && !pixCfg.recipientName.toLowerCase().includes('a confirmar'))
           ? pixCfg.recipientName
-          : 'BY ANGELY ITAPERUNA';
+          : 'BY ANGELY';
 
         const payload = window.ByAngelyPix.generatePixPayload({
           pixKey: keyToUse,
@@ -1881,20 +2756,24 @@
         };
       }
 
+      const isWhatsappOrder = chosenMethod === 'whatsapp';
+      const methodLabels = {
+        whatsapp: 'Atendimento e Finalização pelo WhatsApp',
+        pix: 'Pix pelo Site (QR Code / Copia e Cola)',
+        creditCard: 'Cartão de Crédito pelo Site',
+        debitCard: 'Cartão de Débito pelo Site',
+        payOnPickup: 'Pagamento na Retirada (Itaperuna - RJ)'
+      };
+
       const newOrder = {
         id: 'ord-' + Date.now(),
         orderNumber,
         createdAt: new Date().toISOString(),
-        // NUNCA simula aprovação de pagamento! Permanece "awaiting_confirmation"
-        status: 'awaiting_confirmation',
-        statusLabel: 'Aguardando confirmação de pagamento',
-        paymentMethod: AppState.selectedPaymentMethod,
-        paymentMethodLabel:
-          AppState.selectedPaymentMethod === 'pix'
-            ? 'Pix (QR Code / Copia e Cola)'
-            : AppState.selectedPaymentMethod === 'creditCard'
-            ? 'Cartão de Crédito (Link / Provedor Externo)'
-            : 'Pagamento na Retirada (Itaperuna - RJ)',
+        // NUNCA marca como pago automaticamente!
+        status: isWhatsappOrder ? 'awaiting_whatsapp' : 'awaiting_confirmation',
+        statusLabel: isWhatsappOrder ? 'Aguardando confirmação pelo WhatsApp' : 'Aguardando pagamento',
+        paymentMethod: chosenMethod,
+        paymentMethodLabel: methodLabels[chosenMethod] || chosenMethod,
         customer: {
           name: fd.get('customerName'),
           email: fd.get('customerEmail'),
@@ -1922,15 +2801,19 @@
         couponCode: AppState.appliedCoupon ? AppState.appliedCoupon.code : null,
         total: totals.total,
         pixData,
+        customerNotes: String(fd.get('customerNotes') || '').trim(),
         customerPaymentNote: '',
         notificationsLog: [
           {
             date: new Date().toISOString(),
-            channel: 'Painel da Cliente',
-            message: `Pedido ${orderNumber} registrado com status "Aguardando confirmação de pagamento".`
+            channel: isWhatsappOrder ? 'WhatsApp Oficial' : 'Painel da Cliente',
+            message: `Pedido ${orderNumber} registrado com status "${isWhatsappOrder ? 'Aguardando confirmação pelo WhatsApp' : 'Aguardando pagamento'}".`
           }
         ]
       };
+
+      newOrder.whatsappMessage = buildOrderWhatsappMessage(newOrder);
+      newOrder.whatsappOrderUrl = getOrderWhatsappUrl(newOrder);
 
       AppState.db.orders.unshift(newOrder);
       if (window.ByAngelyCloud && window.ByAngelyCloud.insertOrderToSupabase) {
@@ -1966,10 +2849,18 @@
       AppState.appliedCoupon = null;
       saveCart();
       AppState.lastCreatedOrder = newOrder;
-      saveDatabase(`Novo pedido ${orderNumber} criado (${formatBRL(newOrder.total)}) — Aguardando confirmação.`);
+      saveDatabase(`Novo pedido ${orderNumber} criado (${formatBRL(newOrder.total)}) — ${newOrder.statusLabel}.`);
       renderMainView();
       window.scrollTo({ top: 0, behavior: 'smooth' });
-      showToast(`Pedido ${orderNumber} gerado! Confira as instruções de pagamento.`, 'success');
+
+      if (isWhatsappOrder) {
+        showToast(`Pedido ${orderNumber} registrado! Abrindo conversa no WhatsApp da BY ANGÉLY...`, 'success');
+        try {
+          window.open(newOrder.whatsappOrderUrl, '_blank', 'noopener,noreferrer');
+        } catch (err) {}
+      } else {
+        showToast(`Pedido ${orderNumber} gerado! Confira as instruções de pagamento.`, 'success');
+      }
     });
   }
 
@@ -1979,6 +2870,8 @@
     if (order.paymentMethod === 'pix' && order.pixData && order.pixData.payload) {
       qrSvg = window.ByAngelyPix.renderQrSvg(order.pixData.payload);
     }
+    const waOrderUrl = order.whatsappOrderUrl || getOrderWhatsappUrl(order);
+    const waOrderText = order.whatsappMessage || buildOrderWhatsappMessage(order);
 
     return `
       <section class="section-block">
@@ -1986,7 +2879,7 @@
           <div class="admin-card">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:18px;padding-bottom:16px;border-bottom:1px solid var(--border-subtle);">
               <div>
-                <span class="section-eyebrow">Pedido Registrado</span>
+                <span class="section-eyebrow">Solicitação Registrada</span>
                 <h1 style="font-family:var(--font-serif);font-size:2.1rem;">Pedido ${escapeHtml(order.orderNumber)}</h1>
                 <p style="font-size:0.86rem;color:var(--text-secondary);">Realizado em ${formatDateBR(order.createdAt)}</p>
               </div>
@@ -1995,20 +2888,32 @@
               </span>
             </div>
 
-            <div class="alert-box alert-warning">
-              <strong>Atenção — Status Real do Pagamento:</strong> O seu pedido encontra-se como <strong>"Aguardando confirmação de pagamento"</strong>. A loja nunca simula aprovação automática: o status será atualizado para <em>"Pagamento confirmado"</em> assim que o recebimento for validado pela administração ou pelo provedor de pagamento configurado.
-            </div>
+            ${order.paymentMethod === 'whatsapp' ? `
+              <div style="background:var(--bg-primary);border:1px solid var(--border-strong);border-radius:8px;padding:22px;margin-bottom:22px;">
+                <h2 style="font-family:var(--font-serif);font-size:1.65rem;margin-bottom:8px;">Finalize o Atendimento no WhatsApp Oficial (${formatBRL(order.total)})</h2>
+                <p style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:16px;">
+                  Seu pedido <strong>${escapeHtml(order.orderNumber)}</strong> foi salvo como <strong>"Aguardando confirmação pelo WhatsApp"</strong>. Caso a janela do WhatsApp não tenha aberto automaticamente, clique no botão abaixo para enviar a mensagem completa do seu pedido:
+                </p>
+                <div style="margin-bottom:16px;">
+                  <a href="${escapeHtml(waOrderUrl)}" target="_blank" rel="noopener noreferrer" class="contact-btn-action whatsapp-style" id="btn-open-whatsapp-order" style="width:100%;max-width:440px;">
+                    ${OFFICIAL_ICONS.whatsapp}
+                    <span>ENVIAR PEDIDO NO WHATSAPP DA BY ANGÉLY</span>
+                  </a>
+                </div>
+                <details style="background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;padding:12px;">
+                  <summary style="font-size:0.82rem;font-weight:600;cursor:pointer;">Conferir mensagem completa gerada para o WhatsApp</summary>
+                  <pre style="white-space:pre-wrap;font-family:var(--font-sans);font-size:0.8rem;color:var(--text-secondary);margin-top:10px;line-height:1.5;">${escapeHtml(waOrderText)}</pre>
+                </details>
+              </div>
+            ` : `
+              <div class="alert-box alert-warning">
+                <strong>Atenção — Status Real do Pedido:</strong> O seu pedido encontra-se como <strong>"${escapeHtml(order.statusLabel)}"</strong>. A loja nunca simula aprovação automática: o status será atualizado para <em>"Pagamento confirmado"</em> assim que o recebimento for validado pela administração.
+              </div>
+            `}
 
             ${order.paymentMethod === 'pix' && order.pixData ? `
               <div style="background:var(--bg-primary);border:1px solid var(--border-strong);border-radius:8px;padding:22px;margin-bottom:22px;text-align:center;">
                 <h2 style="font-family:var(--font-serif);font-size:1.6rem;margin-bottom:8px;">Pagamento via Pix (${formatBRL(order.total)})</h2>
-                ${!order.pixData.isOwnerKeyConfirmed ? `
-                  <div class="alert-box alert-warning" style="text-align:left;">
-                    <strong>Nota de Implantação:</strong> A chave Pix definitiva da By Angély ainda está marcada como <em>"A confirmar pela proprietária"</em> no Painel Administrativo. O QR Code abaixo é gerado no padrão oficial EMV do Banco Central para demonstração técnica da cobrança com valor exato (${formatBRL(order.total)}) e identificador <code>${escapeHtml(order.pixData.txid)}</code>.
-                  </div>
-                ` : ''}
-
-                <!-- Dados do Recebedor para Conferência antes do pagamento -->
                 <div style="max-width:480px;margin:0 auto 14px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:6px;padding:12px;text-align:left;font-size:0.84rem;">
                   <strong style="display:block;margin-bottom:6px;color:var(--accent-gold);text-transform:uppercase;font-size:0.74rem;">Confira os Dados do Recebedor antes de pagar:</strong>
                   <div><strong>Recebedor:</strong> ${escapeHtml(order.pixData.recipientName)}</div>
@@ -2042,11 +2947,21 @@
                   <a href="${escapeHtml(paySettings.creditCard.externalPaymentLink)}" target="_blank" rel="noopener noreferrer" class="btn btn-gold">
                     Ir para Página Segura de Pagamento (${escapeHtml(paySettings.creditCard.providerName)}) ↗
                   </a>
-                ` : `
-                  <div class="alert-box alert-warning">
-                    <strong>Link de pagamento externo pendente de configuração:</strong> A proprietária ainda não cadastrou o link externo ou provedor de cartão no Painel Administrativo. Seu pedido nº <strong>${escapeHtml(order.orderNumber)}</strong> está salvo como <em>Aguardando confirmação</em>.
-                  </div>
-                `}
+                ` : ''}
+              </div>
+            ` : ''}
+
+            ${order.paymentMethod === 'debitCard' ? `
+              <div style="background:var(--bg-primary);border:1px solid var(--border-strong);border-radius:8px;padding:22px;margin-bottom:22px;">
+                <h2 style="font-family:var(--font-serif);font-size:1.6rem;margin-bottom:8px;">Pagamento por Cartão de Débito (${formatBRL(order.total)})</h2>
+                <p style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:14px;">
+                  ${escapeHtml(paySettings.debitCard.instructions)}
+                </p>
+                ${paySettings.debitCard.externalPaymentLink ? `
+                  <a href="${escapeHtml(paySettings.debitCard.externalPaymentLink)}" target="_blank" rel="noopener noreferrer" class="btn btn-gold">
+                    Ir para Página Segura de Pagamento (${escapeHtml(paySettings.debitCard.providerName)}) ↗
+                  </a>
+                ` : ''}
               </div>
             ` : ''}
 
@@ -2061,10 +2976,10 @@
 
             <!-- Envio opcional de comprovante / observação do pagamento pelo cliente -->
             <div style="border-top:1px solid var(--border-subtle);padding-top:16px;margin-bottom:20px;">
-              <h3 style="font-size:0.95rem;margin-bottom:8px;">Já realizou o pagamento? Informe o comprovante ou observação para agilizar a conferência:</h3>
+              <h3 style="font-size:0.95rem;margin-bottom:8px;">Deseja enviar alguma informação adicional ou comprovante sobre este pedido?</h3>
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <input type="text" id="order-payment-note-input" class="form-control" style="flex:1;" placeholder="Ex.: Pix enviado às 14h30 pelo banco Itaú (ID E12345...)" value="${escapeHtml(order.customerPaymentNote || '')}" />
-                <button type="button" class="btn btn-outline btn-sm" data-action="save-payment-note" data-order-id="${escapeHtml(order.id)}">Enviar Aviso de Pagamento</button>
+                <input type="text" id="order-payment-note-input" class="form-control" style="flex:1;" placeholder="Informe uma observação ou código de comprovante..." value="${escapeHtml(order.customerPaymentNote || '')}" />
+                <button type="button" class="btn btn-outline btn-sm" data-action="save-payment-note" data-order-id="${escapeHtml(order.id)}">Salvar Observação</button>
               </div>
             </div>
 
@@ -2562,11 +3477,31 @@
   // =========================================================================
   function setupGlobalEvents() {
     document.addEventListener('click', (e) => {
+      // Fecha painéis se clicar diretamente no fundo escuro (backdrop)
+      if (e.target && e.target.id === 'mobile-menu-backdrop') {
+        closeMobileMenu();
+        return;
+      }
+      if (e.target && e.target.id === 'filter-drawer-backdrop') {
+        closeFilterDrawer();
+        return;
+      }
+      if (e.target && e.target.id === 'cart-drawer-backdrop') {
+        closeCartDrawer();
+        return;
+      }
+      if (e.target && e.target.id === 'product-detail-modal') {
+        e.target.classList.remove('open');
+        return;
+      }
+
       const target = e.target.closest('[data-action], [data-nav-view]');
       if (!target) return;
 
+      const action = target.getAttribute('data-action');
       const navView = target.getAttribute('data-nav-view');
-      if (navView) {
+
+      if (navView && !action) {
         e.preventDefault();
         AppState.lastCreatedOrder = null;
         closeMobileMenu();
@@ -2574,7 +3509,6 @@
         return;
       }
 
-      const action = target.getAttribute('data-action');
       if (!action) return;
 
       switch (action) {
@@ -2609,7 +3543,49 @@
         }
         case 'reset-catalog-filters': {
           resetFilters();
+          updateGlobalChrome();
           renderMainView();
+          break;
+        }
+        case 'remove-single-filter': {
+          const fKey = target.getAttribute('data-filter-key');
+          if (fKey && AppState.filters[fKey] !== undefined) {
+            AppState.filters[fKey] = 'all';
+            updateGlobalChrome();
+            renderMainView();
+          }
+          break;
+        }
+        case 'open-filter-drawer': {
+          openFilterDrawer();
+          break;
+        }
+        case 'close-filter-drawer': {
+          closeFilterDrawer();
+          break;
+        }
+        case 'apply-filter-drawer': {
+          applyFilterDrawer();
+          break;
+        }
+        case 'clear-filter-drawer': {
+          resetFilters();
+          renderFilterDrawerBody();
+          updateGlobalChrome();
+          renderMainView();
+          showToast('Filtros limpos.');
+          break;
+        }
+        case 'card-add-to-cart': {
+          const pid = target.getAttribute('data-product-id');
+          const prod = AppState.db.products.find((p) => p.id === pid);
+          if (!prod) break;
+          const availVar = (prod.variations || []).find((v) => Number(v.stock) > 0);
+          if (availVar) {
+            addToCart(prod.id, availVar.size, availVar.color, 1);
+          } else {
+            openProductModal(pid);
+          }
           break;
         }
         case 'open-product': {
@@ -2626,12 +3602,32 @@
         }
         case 'select-pdp-color': {
           AppState.activeProductModal.selectedColor = target.getAttribute('data-color');
+          AppState.activeProductModal.quantity = 1;
           renderProductModalContent();
           break;
         }
         case 'select-pdp-size': {
           AppState.activeProductModal.selectedSize = target.getAttribute('data-size');
+          AppState.activeProductModal.quantity = 1;
           renderProductModalContent();
+          break;
+        }
+        case 'pdp-qty-inc': {
+          const st = AppState.activeProductModal;
+          const prod = AppState.db.products.find((p) => p.id === st.productId);
+          const maxStock = getVariationStock(prod, st.selectedSize, st.selectedColor);
+          if ((st.quantity || 1) < maxStock) {
+            st.quantity = (st.quantity || 1) + 1;
+            renderProductModalContent();
+          }
+          break;
+        }
+        case 'pdp-qty-dec': {
+          const st = AppState.activeProductModal;
+          if ((st.quantity || 1) > 1) {
+            st.quantity = (st.quantity || 1) - 1;
+            renderProductModalContent();
+          }
           break;
         }
         case 'select-pdp-media': {
@@ -2658,9 +3654,22 @@
         }
         case 'add-to-cart-modal': {
           const st = AppState.activeProductModal;
-          addToCart(st.productId, st.selectedSize, st.selectedColor, 1);
-          const modal = document.getElementById('product-detail-modal');
-          if (modal) modal.classList.remove('open');
+          const added = addToCart(st.productId, st.selectedSize, st.selectedColor, Number(st.quantity) || 1);
+          if (added) {
+            const modal = document.getElementById('product-detail-modal');
+            if (modal) modal.classList.remove('open');
+          }
+          break;
+        }
+        case 'buy-now-modal': {
+          const st = AppState.activeProductModal;
+          const added = addToCart(st.productId, st.selectedSize, st.selectedColor, Number(st.quantity) || 1, { skipOpenDrawer: true });
+          if (added) {
+            const modal = document.getElementById('product-detail-modal');
+            if (modal) modal.classList.remove('open');
+            AppState.lastCreatedOrder = null;
+            navigateTo('checkout');
+          }
           break;
         }
         case 'toggle-wishlist': {
@@ -2822,7 +3831,12 @@
         }
         case 'switch-account-tab': {
           AppState.activeAccountTab = target.getAttribute('data-tab') || 'orders';
-          renderMainView();
+          closeMobileMenu();
+          if (AppState.currentView !== 'account') {
+            navigateTo('account', { accountTab: AppState.activeAccountTab });
+          } else {
+            renderMainView();
+          }
           break;
         }
         case 'customer-logout': {
@@ -2835,12 +3849,16 @@
         }
         case 'go-policies': {
           const tab = target.getAttribute('data-tab') || 'privacy';
+          closeMobileMenu();
           navigateTo('policies', { policyTab: tab });
           break;
         }
         case 'open-mobile-menu': {
           const dr = document.getElementById('mobile-menu-backdrop');
-          if (dr) dr.classList.add('open');
+          if (dr) {
+            dr.classList.add('open');
+            dr.setAttribute('aria-hidden', 'false');
+          }
           break;
         }
         case 'close-mobile-menu': {
@@ -2848,6 +3866,7 @@
           break;
         }
         case 'toggle-a11y-modal': {
+          closeMobileMenu();
           const m = document.getElementById('a11y-modal-backdrop');
           if (m) m.classList.toggle('open');
           break;
@@ -2881,6 +3900,7 @@
         document.getElementById('product-detail-modal')?.classList.remove('open');
         document.getElementById('lightbox-overlay')?.classList.remove('open');
         document.getElementById('a11y-modal-backdrop')?.classList.remove('open');
+        closeFilterDrawer();
         closeCartDrawer();
         closeMobileMenu();
       }
@@ -2889,7 +3909,10 @@
 
   function closeMobileMenu() {
     const dr = document.getElementById('mobile-menu-backdrop');
-    if (dr) dr.classList.remove('open');
+    if (dr) {
+      dr.classList.remove('open');
+      dr.setAttribute('aria-hidden', 'true');
+    }
   }
 
   // =========================================================================
@@ -2958,7 +3981,7 @@
     });
   }
 
-  // Exporta interface pública para o módulo Admin (`admin.js`)
+  // Exporta interface pública para o módulo Admin (`admin.js`) e testes
   window.ByAngelyApp = {
     getState: () => AppState,
     saveDatabase,
@@ -2969,38 +3992,69 @@
     escapeHtml,
     formatBRL,
     formatDateBR,
-    getTotalProductStock
+    getTotalProductStock,
+    getProductWhatsappUrl,
+    buildOrderWhatsappMessage,
+    getOrderWhatsappUrl,
+    isPaymentOptionConfigured,
+    getPaymentIntegrationStatus,
+    getAvailableCheckoutPaymentOptions,
+    getVariationStock,
+    renderProductCard,
+    addToCart,
+    calculateCartTotals,
+    openProductModal,
+    renderCartDrawer
   };
 
-  // Inicialização geral ao carregar o DOM
+  // Inicialização geral ao carregar o DOM (Renderização instantânea + Sincronização em nuvem)
   window.addEventListener('DOMContentLoaded', async () => {
     loadLocalClientState();
-    await loadDatabase();
+
+    // 1. Renderização instantânea (0ms) com estado local ou Seed oficial normalizado
+    let initialDb = null;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_DB);
+      if (saved) initialDb = JSON.parse(saved);
+    } catch (e) {}
+    AppState.db = normalizeAndRepairDatabase(initialDb || window.ByAngelySeed.createInitialDatabase());
+
     setupGlobalEvents();
     initAccessibilityControls();
     initCustomCursor();
     initCookieBanner();
-    updateGlobalChrome();
 
-    // Suporte a acesso camuflado ao painel administrativo via URL (#admin ou ?admin)
     try {
       const params = new URLSearchParams(window.location.search);
       if (window.location.hash === '#admin' || params.has('admin')) {
         AppState.currentView = 'admin';
+      } else if (window.location.hash === '#catalog' || params.has('catalogo')) {
+        AppState.currentView = 'catalog';
       }
+      updateGlobalChrome();
       renderMainView();
       const prodParam = params.get('produto');
       if (prodParam) {
         openProductModal(prodParam);
       }
     } catch (e) {
+      updateGlobalChrome();
       renderMainView();
     }
 
     window.addEventListener('hashchange', () => {
       if (window.location.hash === '#admin') {
         navigateTo('admin');
+      } else if (window.location.hash === '#catalog') {
+        navigateTo('catalog');
       }
     });
+
+    // 2. Sincroniza em segundo plano com Supabase e Render Backend e atualiza a vitrine
+    await loadDatabase();
+    updateGlobalChrome();
+    if (AppState.currentView !== 'admin') {
+      renderMainView();
+    }
   });
 })();

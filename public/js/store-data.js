@@ -1,13 +1,6 @@
 /**
- * By Angély — Dados Iniciais, Catálogo Demonstrativo Licenciado, Políticas e Configurações
+ * By Angély — Dados Iniciais, Catálogo Inicial Licenciado, Políticas e Configurações
  * Itaperuna, Rio de Janeiro — Brasil
- *
- * IMPORTANTE:
- * - Todos os produtos iniciais possuem 'isDemo: true' e são identificados ostensivamente
- *   como "PRODUTO DEMONSTRATIVO — IMAGEM ILUSTRATIVA".
- * - Nenhum dado comercial, fiscal, bancário ou de endereço privado da By Angély foi inventado;
- *   todos os campos sensíveis vêm sinalizados como "A confirmar pela proprietária" e são
- *   100% editáveis pelo Painel Administrativo.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
@@ -33,12 +26,12 @@
     city: 'Itaperuna',
     state: 'RJ',
     country: 'Brasil',
-    logoMode: 'typography',
+    logoMode: 'typography', // 'typography' | 'image'
     logoUrl: '',
     logoAlt: 'BY ANGÉLY — Moda Feminina',
     typographyStyle: 'editorial-serif',
     announcementBar: 'BY ANGÉLY • Moda Feminina Contemporânea • Itaperuna, RJ',
-    showDemoBanner: true,
+    showDemoBanner: false,
 
     legalName: 'A confirmar pela proprietária',
     cnpj: 'A confirmar pela proprietária',
@@ -65,10 +58,10 @@
       eyebrow: 'COLEÇÃO ATEMPORAL • ITAPERUNA, RJ',
       title: 'Elegância natural em cada detalhe.',
       subtitle: 'Modelagens precisas, tecidos nobres e caimento impecável pensados para acompanhar a mulher contemporânea em todos os momentos.',
-      ctaPrimaryText: 'Explorar Coleção',
-      ctaSecondaryText: 'Conhecer Destaques',
+      ctaPrimaryText: 'Ver Coleção',
+      ctaSecondaryText: 'Ofertas Especiais',
       imageUrl: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=1600&q=85',
-      imageAlt: 'Apresentação editorial de moda feminina adulta com peças em tons neutros (Imagem Ilustrativa de Demonstração)',
+      imageAlt: 'Coleção de moda feminina BY ANGÉLY',
       imageCredit: 'Foto por Alexandra Gorn no Unsplash (Licença Unsplash — Uso Comercial Permitido)',
       isDemoImage: true
     },
@@ -84,34 +77,53 @@
   };
 
   var INITIAL_PAYMENT_SETTINGS = {
-    pix: {
+    paymentConfigVersion: 2,
+    whatsapp: {
       enabled: true,
-      isConfirmedByOwner: false,
-      keyType: 'email',
-      pixKey: 'A confirmar pela proprietária',
-      recipientName: 'A confirmar pela proprietária',
+      whatsappNumber: '5528999871458',
+      whatsappDisplay: '+55 28 99987-1458',
+      title: 'Atendimento e Finalização pelo WhatsApp',
+      instructions: 'Ao clicar em Finalizar Pedido pelo WhatsApp, seu pedido será registrado como "Aguardando confirmação pelo WhatsApp" e uma conversa será aberta diretamente no WhatsApp oficial da BY ANGÉLY com todos os produtos, tamanhos, cores, quantidades e valores detalhados.'
+    },
+    pix: {
+      enabled: false,
+      isConfirmedByOwner: true,
+      keyType: 'telefone',
+      pixKey: '+5528999871458',
+      recipientName: 'BY ANGELY',
       recipientCity: 'ITAPERUNA',
       txidPrefix: 'BYANGELY',
       confirmationMode: 'manual',
       pspProviderName: '',
       pspWebhookConfigured: false,
-      instructions: 'Ao finalizar o pedido com Pix, confira atentamente os dados do recebedor antes de confirmar a transferência no aplicativo do seu banco. Enquanto não houver integração bancária automática via webhook ativa, seu pedido ficará com o status "Aguardando confirmação de pagamento" até a conferência pela administração da loja.'
+      instructions: 'Ao finalizar o pedido com Pix, confira atentamente os dados do recebedor antes de confirmar a transferência no aplicativo do seu banco. Seu pedido ficará com o status "Aguardando pagamento" até a conferência pela administração da loja.'
     },
     creditCard: {
-      enabled: true,
+      enabled: false,
       isConfirmedByOwner: false,
       mode: 'external_link',
-      providerName: 'A confirmar pela proprietária (Ex.: InfinitePay, Mercado Pago, PagBank, Pagar.me, Asaas)',
+      providerName: '',
       externalPaymentLink: '',
       pspApiConfigured: false,
-      installmentsInfo: 'Condições de parcelamento a confirmar pela proprietária',
-      instructions: 'O pagamento por cartão é processado exclusivamente em ambiente externo criptografado do provedor de pagamentos escolhido pela loja. A By Angély nunca coleta nem armazena números completos de cartão, data de validade ou código de segurança (CVV). Atenção: um link de pagamento genérico não identifica automaticamente o valor individual do pedido nem aprova o status sozinho — após concluir o pagamento na página segura do provedor, retorne ao site e acompanhe a confirmação do seu pedido.'
+      hasSecretCredentials: false,
+      installmentsInfo: 'Consulte as condições de parcelamento vigentes',
+      instructions: 'O pagamento por cartão de crédito é processado exclusivamente em ambiente externo criptografado do provedor de pagamentos configurado pela loja. A By Angély nunca coleta nem armazena números completos de cartão, data de validade ou código de segurança (CVV).'
+    },
+    debitCard: {
+      enabled: false,
+      isConfirmedByOwner: false,
+      mode: 'external_link',
+      providerName: '',
+      externalPaymentLink: '',
+      pspApiConfigured: false,
+      hasSecretCredentials: false,
+      instructions: 'O pagamento por cartão de débito é realizado em ambiente externo seguro do provedor configurado pela proprietária.'
     },
     payOnPickup: {
-      enabled: true,
+      enabled: false,
       isConfirmedByOwner: false,
       title: 'Pagamento na Retirada (Itaperuna - RJ)',
-      instructions: 'Opção destinada exclusivamente para clientes de Itaperuna - RJ que optarem por retirar o pedido presencialmente mediante agendamento. O pedido ficará registrado como "Aguardando confirmação" até a conclusão presencial. Local, horário e formas aceitas na retirada a confirmar pela proprietária.'
+      instructions: 'Opção destinada exclusivamente para clientes de Itaperuna - RJ que optarem por retirar o pedido presencialmente mediante agendamento. O pedido ficará registrado como "Aguardando pagamento" até a conclusão presencial.'
     }
   };
 
@@ -149,7 +161,7 @@
         priceStatus: 'to_confirm',
         estimatedDays: 'Valor e prazo conforme CEP (integração a confirmar pela proprietária)',
         enabled: true,
-        description: 'Envio nacional com código de rastreio. Requer configuração da tabela de frete ou integração (Correios/Melhor Envio) pela proprietária.'
+        description: 'Envio nacional com código de rastreio. Requer configuração da tabela de frete ou integração pela proprietária.'
       },
       {
         id: 'correios_sedex',
@@ -167,10 +179,11 @@
       emailProviderName: 'Não configurado (aguardando credenciais SMTP / API de E-mail)',
       whatsappServiceConfigured: false,
       whatsappProviderName: 'Não configurado (aguardando número oficial / API WhatsApp)',
-      transactionalNote: 'As atualizações de pedido, pagamento e código de rastreio ficam disponíveis em tempo real na Área da Cliente. O disparo automático por e-mail ou WhatsApp só é ativado após a proprietária configurar e validar as credenciais do serviço escolhido.'
+      transactionalNote: 'As atualizações de pedido, pagamento e código de rastreio ficam disponíveis em tempo real na Área da Cliente.'
     }
   };
 
+  // Categorias iniciais editáveis
   var INITIAL_CATEGORIES = [
     {
       id: 'cat-vestidos',
@@ -178,7 +191,7 @@
       name: 'Vestidos',
       description: 'Vestidos midi, longos e curtos com corte refinado e tecidos fluidos.',
       imageUrl: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=900&q=80',
-      imageCredit: 'Foto porengin akyurt / Unsplash (Licença Unsplash)',
+      imageCredit: 'Foto por Engin Akyurt / Unsplash (Licença Unsplash)',
       featured: true,
       order: 1
     },
@@ -195,8 +208,8 @@
     {
       id: 'cat-blusas',
       slug: 'blusas',
-      name: 'Blusas',
-      description: 'Camisas acetinadas, blusas de alfaiataria e regatas essenciais.',
+      name: 'Blusas & Camisas',
+      description: 'Camisas acetinadas, blusas de alfaiataria, blazers e regatas essenciais.',
       imageUrl: 'https://images.unsplash.com/photo-1551163943-3f6a855d1153?auto=format&fit=crop&w=900&q=80',
       imageCredit: 'Foto por Tamara Bellis no Unsplash (Licença Unsplash)',
       featured: true,
@@ -242,11 +255,12 @@
     { size: 'GG (44)', bust: '100 - 105 cm', waist: '83 - 88 cm', hips: '108 - 113 cm', length: '120 cm' }
   ];
 
+  // Produtos iniciais do catálogo (sem vendas ou avaliações inventadas; editáveis ou removíveis no painel)
   var INITIAL_PRODUCTS = [
     {
       id: 'prod-demo-01',
-      sku: 'DEMO-ANG-001',
-      name: 'Vestido Midi Linho Atelier (Demonstração)',
+      sku: 'ANG-001',
+      name: 'Vestido Midi Linho Atelier',
       category: 'vestidos',
       categoryName: 'Vestidos',
       style: 'Resort & Diurno',
@@ -257,10 +271,10 @@
       isNew: true,
       status: 'published',
       isDemo: true,
-      demoNotice: 'Produto fictício e imagens meramente ilustrativas para demonstração visual do sistema. Substitua pelo Painel Administrativo.',
+      demoNotice: 'Peça inicial do catálogo demonstrativo. Substitua ou edite pelo Painel Administrativo.',
       shortDescription: 'Vestido midi em misto de linho e viscose com alças largas, recorte anatômico no busto e fenda lateral discreta.',
-      description: 'Desenvolvido para demonstrar a apresentação de produtos na loja By Angély. Este modelo ilustrativo destaca como exibir descrição detalhada de caimento, forro interno, fechamento em zíper invisível e versatilidade da peça. A proprietária pode substituir textos, preços, medidas, fotos e vídeos diretamente pelo painel.',
-      fabricInfo: '55% Linho, 45% Viscose • Forro 100% Viscose (Dados ilustrativos)',
+      description: 'Vestido midi com caimento fluido, forro interno confortável, fechamento em zíper invisível e acabamento de alfaiataria leve.',
+      fabricInfo: '55% Linho, 45% Viscose • Forro 100% Viscose',
       careInfo: 'Lavagem delicada à mão com sabão neutro. Secar à sombra na horizontal.',
       sizes: ['PP', 'P', 'M', 'G'],
       colors: [
@@ -284,31 +298,24 @@
         {
           type: 'image',
           url: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=1100&q=85',
-          alt: 'Modelo adulta vestindo vestido elegante em tom neutro — Imagem ilustrativa de demonstração',
+          alt: 'Vestido Midi Linho Atelier — BY ANGÉLY',
           credit: 'Foto por Engin Akyurt no Unsplash (https://unsplash.com/license)'
         },
         {
           type: 'image',
           url: 'https://images.unsplash.com/photo-1539008835657-9e8e9680c956?auto=format&fit=crop&w=1100&q=85',
-          alt: 'Detalhe de acabamento e caimento de vestido feminino — Imagem ilustrativa de demonstração',
-          credit: 'Foto poruh G no Unsplash (https://unsplash.com/license)'
-        },
-        {
-          type: 'video',
-          url: 'https://assets.mixkit.co/videos/preview/mixkit-woman-modeling-a-stylish-outfit-in-a-studio-41736-large.mp4',
-          poster: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=800&q=80',
-          alt: 'Vídeo demonstrativo de caimento em movimento — Mídia ilustrativa',
-          credit: 'Vídeo demonstrativo livre para pré-visualização da galeria de vídeo'
+          alt: 'Detalhe de acabamento Vestido Midi — BY ANGÉLY',
+          credit: 'Foto por Tuấn Kiệt Jr. no Unsplash (https://unsplash.com/license)'
         }
       ],
       sizeChart: DEFAULT_SIZE_CHART,
-      salesCount: 14,
+      salesCount: 0,
       createdAt: '2026-11-01T10:00:00Z'
     },
     {
       id: 'prod-demo-02',
-      sku: 'DEMO-ANG-002',
-      name: 'Conjunto Alfaiataria Colete & Pantalona (Demonstração)',
+      sku: 'ANG-002',
+      name: 'Conjunto Alfaiataria Colete & Pantalona',
       category: 'conjuntos',
       categoryName: 'Conjuntos',
       style: 'Alfaiataria',
@@ -319,10 +326,10 @@
       isNew: true,
       status: 'published',
       isDemo: true,
-      demoNotice: 'Produto fictício e imagens meramente ilustrativas para demonstração visual do sistema.',
+      demoNotice: 'Peça inicial do catálogo demonstrativo.',
       shortDescription: 'Conjunto feminino composto por colete estruturado com botões forrados e calça pantalona de cintura alta com pregas frontais.',
-      description: 'Peça de demonstração ideal para ilustrar conjuntos de duas peças no catálogo. Permite à cliente selecionar tamanho e cor verificando a disponibilidade em tempo real e consultando a tabela de medidas.',
-      fabricInfo: '92% Viscose, 8% Poliéster (Alfaiataria Marant — Dados ilustrativos)',
+      description: 'Conjunto de duas peças em alfaiataria contemporânea com corte preciso, ideal para composições elegantes de trabalho e eventos.',
+      fabricInfo: '92% Viscose, 8% Poliéster (Alfaiataria Marant)',
       careInfo: 'Lavagem manual fria; passar pelo avesso em temperatura branda.',
       sizes: ['P', 'M', 'G', 'GG'],
       colors: [
@@ -344,26 +351,26 @@
         {
           type: 'image',
           url: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1100&q=85',
-          alt: 'Conjunto feminino contemporâneo em apresentação editorial — Imagem ilustrativa de demonstração',
+          alt: 'Conjunto Alfaiataria Colete & Pantalona — BY ANGÉLY',
           credit: 'Foto por Dom Hill no Unsplash (https://unsplash.com/license)'
         },
         {
           type: 'image',
           url: 'https://images.unsplash.com/photo-1487222477894-8943e31ef7b2?auto=format&fit=crop&w=1100&q=85',
-          alt: 'Segundo ângulo editorial do conjunto — Imagem ilustrativa de demonstração',
+          alt: 'Conjunto Alfaiataria segundo ângulo — BY ANGÉLY',
           credit: 'Foto por Brooke Cagle no Unsplash (https://unsplash.com/license)'
         }
       ],
       sizeChart: DEFAULT_SIZE_CHART,
-      salesCount: 19,
+      salesCount: 0,
       createdAt: '2026-11-02T10:00:00Z'
     },
     {
       id: 'prod-demo-03',
-      sku: 'DEMO-ANG-003',
-      name: 'Camisa Crepe Seda Manga Longa (Demonstração)',
+      sku: 'ANG-003',
+      name: 'Camisa Crepe Seda Manga Longa',
       category: 'blusas',
-      categoryName: 'Blusas',
+      categoryName: 'Blusas & Camisas',
       style: 'Trabalho',
       price: 259.90,
       promoPrice: 219.90,
@@ -372,10 +379,10 @@
       isNew: false,
       status: 'published',
       isDemo: true,
-      demoNotice: 'Produto fictício e imagens meramente ilustrativas para demonstração visual do sistema.',
+      demoNotice: 'Peça inicial do catálogo demonstrativo.',
       shortDescription: 'Camisa clássica feminina em crepe de toque acetinado, punhos abotoados e vista embutida minimalista.',
-      description: 'Item demonstrativo criado para exemplificar a categoria de Blusas & Camisas. Possui galeria com zoom, escolha de variações e alerta de baixo estoque.',
-      fabricInfo: '100% Poliéster Toque de Seda (Dados ilustrativos)',
+      description: 'Camisa feminina versátil com toque de seda, caimento leve e acabamento refinado para usar com alfaiataria ou jeans.',
+      fabricInfo: '100% Poliéster Toque de Seda',
       careInfo: 'Lavar à mão; não alvejar; secar em cabide à sombra.',
       sizes: ['PP', 'P', 'M', 'G'],
       colors: [
@@ -394,24 +401,24 @@
         {
           type: 'image',
           url: 'https://images.unsplash.com/photo-1551163943-3f6a855d1153?auto=format&fit=crop&w=1100&q=85',
-          alt: 'Camisa feminina elegante em tom claro — Imagem ilustrativa de demonstração',
+          alt: 'Camisa Crepe Seda Manga Longa — BY ANGÉLY',
           credit: 'Foto por Tamara Bellis no Unsplash (https://unsplash.com/license)'
         },
         {
           type: 'image',
           url: 'https://images.unsplash.com/photo-1564257631407-4deb1f99d992?auto=format&fit=crop&w=1100&q=85',
-          alt: 'Detalhe de camisa feminina de alfaiataria — Imagem ilustrativa de demonstração',
+          alt: 'Detalhe Camisa Crepe Seda — BY ANGÉLY',
           credit: 'Foto por Laura Chouette no Unsplash (https://unsplash.com/license)'
         }
       ],
       sizeChart: DEFAULT_SIZE_CHART,
-      salesCount: 11,
+      salesCount: 0,
       createdAt: '2026-11-03T10:00:00Z'
     },
     {
       id: 'prod-demo-04',
-      sku: 'DEMO-ANG-004',
-      name: 'Calça Pantalona Alfaiataria Pregas (Demonstração)',
+      sku: 'ANG-004',
+      name: 'Calça Pantalona Alfaiataria Pregas',
       category: 'calcas',
       categoryName: 'Calças',
       style: 'Alfaiataria',
@@ -422,10 +429,10 @@
       isNew: true,
       status: 'published',
       isDemo: true,
-      demoNotice: 'Produto fictício e imagens meramente ilustrativas para demonstração visual do sistema.',
+      demoNotice: 'Peça inicial do catálogo demonstrativo.',
       shortDescription: 'Calça pantalona de cintura alta com cós estruturado, passantes duplos e bolsos faca laterais.',
-      description: 'Demonstração para a categoria de Calças. Apresenta modelagem alongada e opções de cores clássicas para o guarda-roupa feminino.',
-      fabricInfo: '95% Poliéster, 5% Elastano — Gramatura encorpada (Dados ilustrativos)',
+      description: 'Modelagem alongada que valoriza a silhueta, confeccionada em tecido encorpado de ótimo caimento.',
+      fabricInfo: '95% Poliéster, 5% Elastano — Gramatura encorpada',
       careInfo: 'Lavagem delicada; não utilizar secadora.',
       sizes: ['P', 'M', 'G', 'GG'],
       colors: [
@@ -446,18 +453,18 @@
         {
           type: 'image',
           url: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=1100&q=85',
-          alt: 'Calça de alfaiataria feminina adulta em produção editorial — Imagem ilustrativa de demonstração',
+          alt: 'Calça Pantalona Alfaiataria Pregas — BY ANGÉLY',
           credit: 'Foto por Vladimir Fedotov no Unsplash (https://unsplash.com/license)'
         }
       ],
       sizeChart: DEFAULT_SIZE_CHART,
-      salesCount: 16,
+      salesCount: 0,
       createdAt: '2026-11-04T10:00:00Z'
     },
     {
       id: 'prod-demo-05',
-      sku: 'DEMO-ANG-005',
-      name: 'Saia Midi Acetinada Corte Viés (Demonstração)',
+      sku: 'ANG-005',
+      name: 'Saia Midi Acetinada Corte Viés',
       category: 'saias',
       categoryName: 'Saias',
       style: 'Festa & Eventos',
@@ -468,10 +475,10 @@
       isNew: true,
       status: 'published',
       isDemo: true,
-      demoNotice: 'Produto fictício e imagens meramente ilustrativas para demonstração visual do sistema.',
+      demoNotice: 'Peça inicial do catálogo demonstrativo.',
       shortDescription: 'Saia midi cortada no viés com brilho acetinado discreto e caimento fluido que acompanha a silhueta.',
-      description: 'Peça ilustrativa da categoria Saias, demonstrando promoção ativa, cálculo automático de percentual de desconto e seleção de tamanhos.',
-      fabricInfo: '100% Viscose Acetinada (Dados ilustrativos)',
+      description: 'Saia midi elegante com cós anatômico e movimento leve para composições diurnas ou noturnas.',
+      fabricInfo: '100% Viscose Acetinada',
       careInfo: 'Lavar à mão separadamente; passar com vapor.',
       sizes: ['PP', 'P', 'M', 'G'],
       colors: [
@@ -490,18 +497,18 @@
         {
           type: 'image',
           url: 'https://images.unsplash.com/photo-1583496661160-fb5886a0aaaa?auto=format&fit=crop&w=1100&q=85',
-          alt: 'Saia midi feminina em produção elegante — Imagem ilustrativa de demonstração',
+          alt: 'Saia Midi Acetinada Corte Viés — BY ANGÉLY',
           credit: 'Foto por Khaled Ghareeb no Unsplash (https://unsplash.com/license)'
         }
       ],
       sizeChart: DEFAULT_SIZE_CHART,
-      salesCount: 9,
+      salesCount: 0,
       createdAt: '2026-11-05T10:00:00Z'
     },
     {
       id: 'prod-demo-06',
-      sku: 'DEMO-ANG-006',
-      name: 'Bolsa Estruturada Couro Clássica (Demonstração)',
+      sku: 'ANG-006',
+      name: 'Bolsa Estruturada Couro Clássica',
       category: 'acessorios',
       categoryName: 'Acessórios',
       style: 'Casual Chic',
@@ -512,10 +519,10 @@
       isNew: false,
       status: 'published',
       isDemo: true,
-      demoNotice: 'Produto fictício e imagens meramente ilustrativas para demonstração visual do sistema.',
+      demoNotice: 'Peça inicial do catálogo demonstrativo.',
       shortDescription: 'Bolsa estruturada de mão e tiracolo com ferragens em banho dourado acetinado e divisória interna.',
-      description: 'Demonstração para itens de tamanho único na categoria Acessórios. A proprietária pode cadastrar bolsas, cintos, lenços e semijoias com controle individual de estoque.',
-      fabricInfo: 'Material sintético premium texturizado e forro em sarja (Dados ilustrativos)',
+      description: 'Acabamento texturizado elegante com alça removível regulável e fecho metálico seguro.',
+      fabricInfo: 'Material sintético premium texturizado e forro em sarja',
       careInfo: 'Limpar apenas com pano macio levemente úmido; guardar na embalagem protetora.',
       sizes: ['Único'],
       colors: [
@@ -530,20 +537,20 @@
         {
           type: 'image',
           url: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=1100&q=85',
-          alt: 'Bolsa feminina estruturada clássica — Imagem ilustrativa de demonstração',
+          alt: 'Bolsa Estruturada Couro Clássica — BY ANGÉLY',
           credit: 'Foto por Arno Senoner no Unsplash (https://unsplash.com/license)'
         }
       ],
       sizeChart: [
         { size: 'Único', bust: 'Largura: 26 cm', waist: 'Altura: 19 cm', hips: 'Profundidade: 10 cm', length: 'Alça: 110 cm ajustável' }
       ],
-      salesCount: 8,
+      salesCount: 0,
       createdAt: '2026-11-06T10:00:00Z'
     },
     {
       id: 'prod-demo-07',
-      sku: 'DEMO-ANG-007',
-      name: 'Vestido Longo Fluido Decote Assimétrico (Demonstração)',
+      sku: 'ANG-007',
+      name: 'Vestido Longo Fluido Decote Assimétrico',
       category: 'vestidos',
       categoryName: 'Vestidos',
       style: 'Festa & Eventos',
@@ -554,10 +561,10 @@
       isNew: true,
       status: 'published',
       isDemo: true,
-      demoNotice: 'Produto fictício e imagens meramente ilustrativas para demonstração visual do sistema.',
+      demoNotice: 'Peça inicial do catálogo demonstrativo.',
       shortDescription: 'Vestido longo de festa e eventos diurnos com drapeado no ombro e saia fluida de movimento leve.',
-      description: 'Modelo ilustrativo para ocasiões especiais. Demonstra como destacar peças de festa com múltiplas variações de tamanho e cor.',
-      fabricInfo: '100% Poliéster Musseline Toque Seda com forro duplo (Dados ilustrativos)',
+      description: 'Peça pensada para ocasiões especiais com caimento esvoaçante e forro duplo.',
+      fabricInfo: '100% Poliéster Musseline Toque Seda com forro duplo',
       careInfo: 'Lavagem profissional ou manual delicada.',
       sizes: ['PP', 'P', 'M', 'G'],
       colors: [
@@ -578,20 +585,20 @@
         {
           type: 'image',
           url: 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?auto=format&fit=crop&w=1100&q=85',
-          alt: 'Vestido longo feminino elegante para eventos — Imagem ilustrativa de demonstração',
+          alt: 'Vestido Longo Fluido Decote Assimétrico — BY ANGÉLY',
           credit: 'Foto por Terje Sollie / Unsplash (https://unsplash.com/license)'
         }
       ],
       sizeChart: DEFAULT_SIZE_CHART,
-      salesCount: 12,
+      salesCount: 0,
       createdAt: '2026-11-07T10:00:00Z'
     },
     {
       id: 'prod-demo-08',
-      sku: 'DEMO-ANG-008',
-      name: 'Blazer Alfaiataria Abotoamento Único (Demonstração)',
+      sku: 'ANG-008',
+      name: 'Blazer Alfaiataria Abotoamento Único',
       category: 'blusas',
-      categoryName: 'Blusas',
+      categoryName: 'Blusas & Camisas',
       style: 'Alfaiataria',
       price: 429.90,
       promoPrice: null,
@@ -600,10 +607,10 @@
       isNew: true,
       status: 'published',
       isDemo: true,
-      demoNotice: 'Produto fictício e imagens meramente ilustrativas para demonstração visual do sistema.',
+      demoNotice: 'Peça inicial do catálogo demonstrativo.',
       shortDescription: 'Blazer feminino forrado com lapela clássica, ombreiras sutis e corte levemente acinturado.',
-      description: 'Peça demonstrativa de alfaiataria que exemplifica sobreposições e terceiras peças no catálogo da loja.',
-      fabricInfo: '90% Viscose, 10% Poliéster • Forro acetinado (Dados ilustrativos)',
+      description: 'Terceira peça de alfaiataria estruturada que eleva qualquer produção.',
+      fabricInfo: '90% Viscose, 10% Poliéster • Forro acetinado',
       careInfo: 'Limpeza a seco recomendada.',
       sizes: ['P', 'M', 'G', 'GG'],
       colors: [
@@ -622,12 +629,12 @@
         {
           type: 'image',
           url: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?auto=format&fit=crop&w=1100&q=85',
-          alt: 'Blazer feminino de alfaiataria — Imagem ilustrativa de demonstração',
+          alt: 'Blazer Alfaiataria Abotoamento Único — BY ANGÉLY',
           credit: 'Foto por Mediamodifier / Unsplash (https://unsplash.com/license)'
         }
       ],
       sizeChart: DEFAULT_SIZE_CHART,
-      salesCount: 7,
+      salesCount: 0,
       createdAt: '2026-11-08T10:00:00Z'
     }
   ];
@@ -635,46 +642,38 @@
   var INITIAL_COUPONS = [
     {
       id: 'coup-1',
-      code: 'BEMVINDA10',
-      description: '10% de desconto de boas-vindas (Demonstração editável pela proprietária)',
+      code: 'BEMVINDO10',
+      description: '10% de desconto na primeira compra acima de R$ 150,00',
       type: 'percent',
       value: 10,
       minOrderAmount: 150,
+      startDate: '2026-01-01',
+      endDate: '2026-12-31',
+      usageLimit: 100,
+      usedCount: 0,
+      applyToPromo: true,
       active: true,
-      isDemo: true
+      isDemo: false
     },
     {
       id: 'coup-2',
-      code: 'ANGELY30',
-      description: 'R$ 30,00 de desconto para compras acima de R$ 350,00 (Demonstração)',
-      type: 'fixed',
-      value: 30,
-      minOrderAmount: 350,
+      code: 'ITAPERUNA5',
+      description: '5% de desconto especial para clientes de Itaperuna acima de R$ 200,00',
+      type: 'percent',
+      value: 5,
+      minOrderAmount: 200,
+      startDate: '2026-01-01',
+      endDate: '2026-12-31',
+      usageLimit: 100,
+      usedCount: 0,
+      applyToPromo: true,
       active: true,
-      isDemo: true
+      isDemo: false
     }
   ];
 
-  var INITIAL_REVIEWS = [
-    {
-      id: 'rev-demo-1',
-      productId: 'prod-demo-01',
-      customerName: 'Cliente Demonstrativa (M. S. — Itaperuna/RJ)',
-      rating: 5,
-      comment: 'Avaliação de exemplo para demonstrar o módulo de depoimentos de clientes na página de produto. A proprietária pode moderar ou remover avaliações pelo painel.',
-      date: '10/11/2026',
-      isDemo: true
-    },
-    {
-      id: 'rev-demo-2',
-      productId: 'prod-demo-02',
-      customerName: 'Cliente Demonstrativa (C. A. — RJ)',
-      rating: 5,
-      comment: 'Exemplo ilustrativo de avaliação verificada destacando a tabela de medidas e o atendimento.',
-      date: '12/11/2026',
-      isDemo: true
-    }
-  ];
+  // Sem avaliações inventadas
+  var INITIAL_REVIEWS = [];
 
   var INITIAL_POLICIES = {
     lastConsultationDate: CONSULTATION_DATE,
@@ -691,7 +690,7 @@
       content: [
         {
           heading: '1. Identificação da Controladora',
-          body: 'Esta Política de Privacidade aplica-se à loja virtual By Angély, localizada em Itaperuna, Estado do Rio de Janeiro, operada sob a Razão Social [A CONFIRMAR PELA PROPRIETÁRIA] e inscrita no CNPJ sob o nº [A CONFIRMAR PELA PROPRIETÁRIA], com canal de contato para privacidade em [A CONFIRMAR PELA PROPRIETÁRIA].'
+          body: 'Esta Política de Privacidade aplica-se à loja virtual By Angély, localizada em Itaperuna, Estado do Rio de Janeiro, operada sob a Razão Social [A CONFIRMAR PELA PROPRIETÁRIA] e inscrita no CNPJ sob o nº [A CONFIRMAR PELA PROPRIETÁRIA], com canal de contato para privacidade em byangely1@gmail.com.'
         },
         {
           heading: '2. Dados Coletados e Finalidade (Princípio da Necessidade — Art. 6º, III da LGPD)',
@@ -726,7 +725,7 @@
         },
         {
           heading: '2. Apresentação de Produtos, Preços e Estoque',
-          body: 'Cada produto exibe descrição clara, composição, tamanhos disponíveis, tabela orientativa de medidas, preço à vista e eventuais promoções vigentes. Durante a fase de implantação, quaisquer itens marcados com o selo "DEMONSTRAÇÃO • IMAGEM ILUSTRATIVA" têm finalidade meramente demonstrativa e não constituem oferta comercial até sua substituição pelos produtos reais da loja.'
+          body: 'Cada produto exibe descrição clara, composição, tamanhos disponíveis, tabela orientativa de medidas, preço à vista e eventuais promoções vigentes.'
         },
         {
           heading: '3. Revisão do Pedido e Confirmação de Pagamento',
@@ -746,7 +745,7 @@
       content: [
         {
           heading: '1. Modalidades de Envio e Retirada',
-          body: 'A By Angély (Itaperuna - RJ) disponibiliza apenas as modalidades de entrega e retirada ativas no Painel Administrativo. Os custos de frete e prazos estimados são exibidos antes da finalização da compra ou indicados como [A CONFIRMAR PELA PROPRIETÁRIA] enquanto a tabela logística estiver em revisão.'
+          body: 'A By Angély (Itaperuna - RJ) disponibiliza apenas as modalidades de entrega e retirada ativas no Painel Administrativo. Os custos de frete e prazos estimados são exibidos antes da finalização da compra.'
         },
         {
           heading: '2. Contagem de Prazo e Rastreamento',
@@ -754,7 +753,7 @@
         },
         {
           heading: '3. Retirada Local em Itaperuna - RJ',
-          body: 'Para pedidos com opção de retirada em Itaperuna - RJ, a cliente será avisada assim que o pedido atingir o status "Pronto para retirada". Endereço exato e janela de horário: [A CONFIRMAR PELA PROPRIETÁRIA].'
+          body: 'Para pedidos com opção de retirada em Itaperuna - RJ, a cliente será avisada assim que o pedido atingir o status "Pronto para retirada".'
         }
       ]
     },
@@ -777,7 +776,7 @@
         },
         {
           heading: '3. Condições das Peças e Trocas por Tamanho/Cor (Política Comercial da Loja)',
-          body: 'Para devoluções por arrependimento ou trocas de tamanho/cor [REGRAS COMPLEMENTARES DE TROCA CORTESIA A CONFIRMAR PELA PROPRIETÁRIA], a peça deve ser enviada sem indícios de uso ou lavagem, acompanhada da etiqueta original afixada e, quando aplicável, da nota fiscal. A solicitação pode ser aberta diretamente na Área da Cliente ("Meus Pedidos" > "Solicitar Troca ou Devolução") ou pelos canais de atendimento.'
+          body: 'Para devoluções por arrependimento ou trocas de tamanho/cor, a peça deve ser enviada sem indícios de uso ou lavagem, acompanhada da etiqueta original afixada e, quando aplicável, da nota fiscal. A solicitação pode ser aberta diretamente na Área da Cliente ("Meus Pedidos" > "Solicitar Troca ou Devolução") ou pelos canais de atendimento.'
         }
       ]
     }
@@ -806,7 +805,7 @@
       institution: 'Presidência da República / Portal da Legislação Planalto',
       url: 'https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm',
       consultedAt: CONSULTATION_DATE,
-      usageNote: 'Minimização de coleta de dados no checkout, mascaramento de dados pessoais no painel administrativo, consentimento explícito (opt-in desmarcado por padrão) para comunicações promocionais e opção imediata de revogação (opt-out).'
+      usageNote: 'Minimização de coleta de dados no checkout, mascaramento de dados pessoais no painel administrativo, consentimento explícito para comunicações promocionais e opção imediata de revogação.'
     },
     {
       category: 'Diretrizes Regulatórias — Cookies e Consentimento',
@@ -814,7 +813,7 @@
       institution: 'Autoridade Nacional de Proteção de Dados (ANPD — gov.br)',
       url: 'https://www.gov.br/anpd/pt-br/documentos-e-publicacoes/guia-orientativo-cookies-e-protecao-de-dados-pessoais.pdf',
       consultedAt: CONSULTATION_DATE,
-      usageNote: 'Implementação do banner e preferências de cookies com distinção clara entre cookies estritamente necessários e opcionais, botões simétricos ("Aceitar apenas necessários" e "Aceitar todos") e opt-in desativado por padrão.'
+      usageNote: 'Implementação do banner e preferências de cookies com distinção clara entre cookies estritamente necessários e opcionais.'
     },
     {
       category: 'Pagamentos Instantâneos — Especificação Técnica Pix',
@@ -822,23 +821,23 @@
       institution: 'Banco Central do Brasil (BCB)',
       url: 'https://www.bcb.gov.br/estabilidadefinanceira/pix',
       consultedAt: CONSULTATION_DATE,
-      usageNote: 'Geração de payload Pix Copia e Cola e QR Code no padrão EMV TLV (GUI br.gov.bcb.pix, moeda 986, valor exato, nome e cidade do recebedor, TXID e verificação de integridade por CRC16-CCITT 0x1021).'
+      usageNote: 'Geração de payload Pix Copia e Cola e QR Code no padrão EMV TLV com CRC16-CCITT 0x1021.'
     },
     {
       category: 'Segurança de Meios de Pagamento',
-      title: 'PCI DSS (Payment Card Industry Data Security Standard) — Boas Práticas para E-commerce',
+      title: 'PCI DSS (Payment Card Industry Data Security Standard)',
       institution: 'PCI Security Standards Council',
       url: 'https://www.pcisecuritystandards.org/',
       consultedAt: CONSULTATION_DATE,
-      usageNote: 'Não armazenamento de dados completos de cartão (PAN, validade ou CVV) na aplicação da loja; redirecionamento transparente para ambiente seguro do provedor de pagamento.'
+      usageNote: 'Não armazenamento de dados completos de cartão na aplicação da loja.'
     },
     {
-      category: 'Licenciamento de Imagens Demonstrativas',
+      category: 'Licenciamento de Imagens',
       title: 'Licença Oficial Unsplash (Unsplash License)',
       institution: 'Unsplash Inc.',
       url: 'https://unsplash.com/license',
       consultedAt: CONSULTATION_DATE,
-      usageNote: 'Permissão gratuita e irrevogável para uso comercial e não comercial em protótipos e demonstrações web, sem uso de imagens infantis ou fotos de terceiros sem permissão.'
+      usageNote: 'Permissão gratuita e irrevogável para uso comercial e não comercial.'
     }
   ];
 
@@ -848,7 +847,7 @@
       url: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=1600&q=85',
       author: 'Alexandra Gorn',
       source: 'Unsplash (https://unsplash.com/photos/WF0LSThlRmw)',
-      license: 'Unsplash License (https://unsplash.com/license) — Uso comercial permitido, atribuição registrada',
+      license: 'Unsplash License (https://unsplash.com/license)',
       consultedAt: CONSULTATION_DATE
     },
     {
@@ -856,95 +855,55 @@
       url: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1200&q=85',
       author: 'Freestocks',
       source: 'Unsplash (https://unsplash.com/photos/_3Q3tsJ01nc)',
-      license: 'Unsplash License (https://unsplash.com/license) — Uso comercial permitido, atribuição registrada',
+      license: 'Unsplash License (https://unsplash.com/license)',
       consultedAt: CONSULTATION_DATE
     },
     {
-      usageLocation: 'Categoria Vestidos & Produto DEMO-ANG-001 (Foto 1)',
+      usageLocation: 'Categoria Vestidos & ANG-001',
       url: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=1100&q=85',
       author: 'Engin Akyurt',
       source: 'Unsplash (https://unsplash.com/photos/5raPrOhbKQo)',
-      license: 'Unsplash License (https://unsplash.com/license) — Uso comercial permitido, atribuição registrada',
+      license: 'Unsplash License (https://unsplash.com/license)',
       consultedAt: CONSULTATION_DATE
     },
     {
-      usageLocation: 'Produto DEMO-ANG-001 (Foto 2)',
-      url: 'https://images.unsplash.com/photo-1539008835657-9e8e9680c956?auto=format&fit=crop&w=1100&q=85',
-      author: 'Tuấn Kiệt Jr.',
-      source: 'Unsplash (https://unsplash.com/photos/Q7wGvnbuwj0)',
-      license: 'Unsplash License (https://unsplash.com/license) — Uso comercial permitido, atribuição registrada',
-      consultedAt: CONSULTATION_DATE
-    },
-    {
-      usageLocation: 'Categoria Conjuntos & Produto DEMO-ANG-002 (Foto 1)',
+      usageLocation: 'Categoria Conjuntos & ANG-002',
       url: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1100&q=85',
       author: 'Dom Hill',
       source: 'Unsplash (https://unsplash.com/photos/nimElTcTNyY)',
-      license: 'Unsplash License (https://unsplash.com/license) — Uso comercial permitido, atribuição registrada',
+      license: 'Unsplash License (https://unsplash.com/license)',
       consultedAt: CONSULTATION_DATE
     },
     {
-      usageLocation: 'Produto DEMO-ANG-002 (Foto 2)',
-      url: 'https://images.unsplash.com/photo-1487222477894-8943e31ef7b2?auto=format&fit=crop&w=1100&q=85',
-      author: 'Brooke Cagle',
-      source: 'Unsplash (https://unsplash.com/photos/z1B9f48F5dc)',
-      license: 'Unsplash License (https://unsplash.com/license) — Uso comercial permitido, atribuição registrada',
-      consultedAt: CONSULTATION_DATE
-    },
-    {
-      usageLocation: 'Categoria Blusas & Produto DEMO-ANG-003 (Foto 1)',
+      usageLocation: 'Categoria Blusas & Camisas & ANG-003',
       url: 'https://images.unsplash.com/photo-1551163943-3f6a855d1153?auto=format&fit=crop&w=1100&q=85',
       author: 'Tamara Bellis',
       source: 'Unsplash (https://unsplash.com/photos/68csPWTnafo)',
-      license: 'Unsplash License (https://unsplash.com/license) — Uso comercial permitido, atribuição registrada',
+      license: 'Unsplash License (https://unsplash.com/license)',
       consultedAt: CONSULTATION_DATE
     },
     {
-      usageLocation: 'Produto DEMO-ANG-003 (Foto 2)',
-      url: 'https://images.unsplash.com/photo-1564257631407-4deb1f99d992?auto=format&fit=crop&w=1100&q=85',
-      author: 'Laura Chouette',
-      source: 'Unsplash (https://unsplash.com/photos/d7wSG9uPev4)',
-      license: 'Unsplash License (https://unsplash.com/license) — Uso comercial permitido, atribuição registrada',
-      consultedAt: CONSULTATION_DATE
-    },
-    {
-      usageLocation: 'Categoria Calças & Produto DEMO-ANG-004',
+      usageLocation: 'Categoria Calças & ANG-004',
       url: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=1100&q=85',
       author: 'Vladimir Fedotov',
       source: 'Unsplash (https://unsplash.com/photos/MPfy330ti3s)',
-      license: 'Unsplash License (https://unsplash.com/license) — Uso comercial permitido, atribuição registrada',
+      license: 'Unsplash License (https://unsplash.com/license)',
       consultedAt: CONSULTATION_DATE
     },
     {
-      usageLocation: 'Categoria Saias & Produto DEMO-ANG-005',
+      usageLocation: 'Categoria Saias & ANG-005',
       url: 'https://images.unsplash.com/photo-1583496661160-fb5886a0aaaa?auto=format&fit=crop&w=1100&q=85',
       author: 'Khaled Ghareeb',
       source: 'Unsplash (https://unsplash.com/photos/n84s3jgzhKk)',
-      license: 'Unsplash License (https://unsplash.com/license) — Uso comercial permitido, atribuição registrada',
+      license: 'Unsplash License (https://unsplash.com/license)',
       consultedAt: CONSULTATION_DATE
     },
     {
-      usageLocation: 'Categoria Acessórios & Produto DEMO-ANG-006',
+      usageLocation: 'Categoria Acessórios & ANG-006',
       url: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=1100&q=85',
       author: 'Arno Senoner',
       source: 'Unsplash (https://unsplash.com/photos/oCXVxwTFwqE)',
-      license: 'Unsplash License (https://unsplash.com/license) — Uso comercial permitido, atribuição registrada',
-      consultedAt: CONSULTATION_DATE
-    },
-    {
-      usageLocation: 'Produto DEMO-ANG-007 (Vestido Longo)',
-      url: 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?auto=format&fit=crop&w=1100&q=85',
-      author: 'Terje Sollie',
-      source: 'Unsplash (https://unsplash.com/photos/C_1jjFJioWg)',
-      license: 'Unsplash License (https://unsplash.com/license) — Uso comercial permitido, atribuição registrada',
-      consultedAt: CONSULTATION_DATE
-    },
-    {
-      usageLocation: 'Produto DEMO-ANG-008 (Blazer Alfaiataria)',
-      url: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?auto=format&fit=crop&w=1100&q=85',
-      author: 'Mediamodifier',
-      source: 'Unsplash (https://unsplash.com/photos/7cERndkOyDw)',
-      license: 'Unsplash License (https://unsplash.com/license) — Uso comercial permitido, atribuição registrada',
+      license: 'Unsplash License (https://unsplash.com/license)',
       consultedAt: CONSULTATION_DATE
     }
   ];
@@ -958,30 +917,12 @@
       roleLabel: 'Proprietária (Acesso Total)',
       permissions: ['products', 'categories', 'orders', 'customers', 'payments', 'shipping', 'branding', 'policies', 'users'],
       active: true
-    },
-    {
-      id: 'admin-owner',
-      name: 'Admin BY ANGÉLY',
-      email: 'proprietaria@byangely.local',
-      role: 'owner',
-      roleLabel: 'Proprietária (Acesso Total)',
-      permissions: ['products', 'categories', 'orders', 'customers', 'payments', 'shipping', 'branding', 'policies', 'users'],
-      active: true
-    },
-    {
-      id: 'admin-operator',
-      name: 'Atendimento & Pedidos (Equipe)',
-      email: 'equipe@byangely.local',
-      role: 'order_operator',
-      roleLabel: 'Operadora de Pedidos & Atendimento (Acesso Restrito)',
-      permissions: ['orders', 'customers'],
-      active: true
     }
   ];
 
   function createInitialDatabase() {
     return {
-      version: '1.0.0',
+      version: '1.1.0',
       updatedAt: new Date().toISOString(),
       storeSettings: JSON.parse(JSON.stringify(INITIAL_STORE_SETTINGS)),
       paymentSettings: JSON.parse(JSON.stringify(INITIAL_PAYMENT_SETTINGS)),
@@ -1003,7 +944,7 @@
           id: 'log-init',
           timestamp: new Date().toISOString(),
           actor: 'Sistema',
-          action: 'Inicialização da loja demonstrativa By Angély com dados pendentes sinalizados para revisão da proprietária.'
+          action: 'Loja BY ANGÉLY inicializada.'
         }
       ]
     };
@@ -1018,6 +959,7 @@
     INSTAGRAM_OFFICIAL_URL: INSTAGRAM_OFFICIAL_URL,
     EMAIL_OFFICIAL: EMAIL_OFFICIAL,
     EMAIL_MAILTO: EMAIL_MAILTO,
+    INITIAL_CATEGORIES: INITIAL_CATEGORIES,
     createInitialDatabase: createInitialDatabase
   };
 });
