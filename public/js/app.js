@@ -4249,5 +4249,2087 @@
   window.addEventListener('DOMContentLoaded', () => {
     sanitizeCartItems();
     setTimeout(sanitizeCartItems, 1200);
-  });
+
+                          
+const _origNormalizeAndRepairDatabase = typeof normalizeAndRepairDatabase === 'function' ? normalizeAndRepairDatabase : null;
+if (_origNormalizeAndRepairDatabase) {
+normalizeAndRepairDatabase = function (rawDb) {
+const repaired = _origNormalizeAndRepairDatabase(rawDb);
+repaired.storeSettings = repaired.storeSettings || {};
+repaired.storeSettings.homeSections = {
+showHero: true,
+showFeatured: true,
+showNewArrivals: true,
+showPromos: true,
+showCategories: true,
+showBestSellers: false,
+showBrandStory: true,
+showContactSection: false,
+...(repaired.storeSettings.homeSections || {})
+};
+repaired.paymentSettings = repaired.paymentSettings || {};
+const isPayV3 = repaired.paymentSettings.paymentConfigVersion >= 3;
+repaired.paymentSettings.paymentConfigVersion = 3;
+repaired.paymentSettings.pix = {
+...(repaired.paymentSettings.pix || {}),
+enabled: isPayV3 && typeof (repaired.paymentSettings.pix && repaired.paymentSettings.pix.enabled) === 'boolean'
+? repaired.paymentSettings.pix.enabled
+: true,
+keyType: 'telefone',
+pixKey: '+5528999871458',
+recipientName: 'BY ANGELY',
+recipientCity: 'ITAPERUNA',
+txidPrefix: 'BYANGELY',
+expirationMinutes: Math.max(1, Number(repaired.paymentSettings.pix && repaired.paymentSettings.pix.expirationMinutes) || 15),
+confirmationMode: 'webhook_auto',
+pspWebhookConfigured: true
+};
+return repaired;
+};
+}
+function ensureV3DomElements() {
+const header = document.getElementById('site-header');
+if (header && !document.getElementById('header-search-bar')) {
+const searchBar = document.createElement('div');
+searchBar.id = 'header-search-bar';
+searchBar.className = 'header-search-bar';
+searchBar.style.cssText = 'display:none;background:#F8F5F0;border-top:1px solid #E9DFD4;padding:12px 0;box-shadow:0 8px 20px rgba(41,37,34,0.06);';
+searchBar.innerHTML =
+'<div class="container" style="display:flex;align-items:center;gap:8px;max-width:740px;">' +
+'<form id="header-search-form" style="display:flex;align-items:center;gap:8px;flex:1;margin:0;" onsubmit="return false;">' +
+'<div style="position:relative;flex:1;display:flex;align-items:center;">' +
+'<input type="search" id="header-search-input" class="form-control" placeholder="Buscar por vestido, conjunto, blusa, calça, cor ou código..." aria-label="Buscar produtos na loja" style="width:100%;height:42px;padding:0 36px 0 14px;border-radius:999px;border:1px solid #D5C7B8;background:#FFFFFF;font-size:0.9rem;color:#292522;" autocomplete="off" />' +
+'<button type="button" id="header-search-clear" data-action="clear-header-search" aria-label="Limpar busca" title="Limpar texto" style="display:none;position:absolute;right:10px;background:none;border:none;color:#806044;font-size:1.1rem;cursor:pointer;padding:4px;line-height:1;">&times;</button>' +
+'</div>' +
+'<button type="submit" class="btn btn-primary btn-sm" id="header-search-submit" style="height:42px;padding:0 18px;border-radius:999px;font-size:0.8rem;font-weight:600;white-space:nowrap;">Buscar</button>' +
+'<button type="button" class="btn btn-outline btn-sm" data-action="close-header-search" aria-label="Fechar busca" style="height:42px;padding:0 12px;border-radius:999px;font-size:0.78rem;">Fechar</button>' +
+'</form>' +
+'</div>' +
+'<div id="header-search-results" class="container" style="max-width:740px;margin-top:8px;display:none;"></div>';
+header.appendChild(searchBar);
+}
+if (!document.getElementById('order-detail-modal')) {
+const modal = document.createElement('div');
+modal.id = 'order-detail-modal';
+modal.className = 'modal-backdrop';
+modal.setAttribute('aria-hidden', 'true');
+modal.setAttribute('role', 'dialog');
+modal.setAttribute('aria-modal', 'true');
+modal.setAttribute('aria-labelledby', 'order-detail-modal-title');
+modal.innerHTML =
+'<div class="modal-container" style="max-width:680px;">' +
+'<div class="modal-header">' +
+'<span class="modal-header-title" id="order-detail-modal-title">Detalhes do Pedido</span>' +
+'<button type="button" class="drawer-close" data-action="close-order-detail-modal" aria-label="Fechar detalhes do pedido"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>' +
+'</div>' +
+'<div id="order-detail-modal-body" style="padding:20px;max-height:78vh;overflow-y:auto;"></div>' +
+'</div>';
+document.body.appendChild(modal);
+}
+const legalLine = document.getElementById('footer-payment-legal-line') || Array.from(document.querySelectorAll('.footer-bottom p')).find((p) => p.textContent.includes('Compra segura'));
+if (legalLine) {
+legalLine.id = 'footer-payment-legal-line';
+legalLine.textContent = 'Compra segura • Pix Dinâmico com Confirmação Automática e Atendimento Oficial via WhatsApp • Conformidade LGPD (Lei nº 13.709/2018) e Decreto nº 7.962/2013.';
+}
+}
+if (document.readyState === 'loading') {
+document.addEventListener('DOMContentLoaded', ensureV3DomElements);
+} else {
+ensureV3DomElements();
+}
+AppState.selectedPaymentMethod = 'pix';
+AppState.pendingPurchaseIntent = null;
+AppState.showPurchaseAuthBanner = false;
+AppState.pixPollIntervalId = null;
+AppState.pixCountdownIntervalId = null;
+AppState.pixRemainingSecondsMap = {};
+const MANDATORY_LOGIN_MESSAGE =
+'Para realizar sua compra, entre na sua conta ou crie seu cadastro. Assim, seus dados ficam salvos para facilitar suas próximas compras.';
+const ORDER_STATUS_META = {
+awaiting_payment: {
+code: 'awaiting_payment',
+step: 1,
+label: 'Aguardando pagamento',
+paymentLabel: 'Aguardando pagamento',
+badgeClass: 'pending',
+customerMessage: 'Realize o pagamento via Pix dentro do prazo de 15 minutos para confirmação automática do seu pedido.'
+},
+awaiting_confirmation: {
+code: 'awaiting_confirmation',
+step: 1,
+label: 'Aguardando pagamento',
+paymentLabel: 'Aguardando pagamento',
+badgeClass: 'pending',
+customerMessage: 'Realize o pagamento via Pix dentro do prazo de 15 minutos para confirmação automática do seu pedido.'
+},
+awaiting_whatsapp: {
+code: 'awaiting_whatsapp',
+step: 1,
+label: 'Aguardando confirmação pelo WhatsApp',
+paymentLabel: 'Aguardando atendimento via WhatsApp',
+badgeClass: 'pending',
+customerMessage: 'Seu pedido foi registrado e encaminhado para confirmação pelo WhatsApp oficial da BY ANGÉLY.'
+},
+payment_approved: {
+code: 'payment_approved',
+step: 2,
+label: 'Pagamento aprovado • Aguardando separação',
+paymentLabel: 'Pagamento aprovado',
+badgeClass: 'confirmed',
+customerMessage: 'Pagamento confirmado! Seu pedido foi recebido pela BY ANGÉLY e está aguardando separação.'
+},
+paid: {
+code: 'paid',
+step: 2,
+label: 'Pagamento aprovado • Aguardando separação',
+paymentLabel: 'Pagamento aprovado',
+badgeClass: 'confirmed',
+customerMessage: 'Pagamento confirmado! Seu pedido foi recebido pela BY ANGÉLY e está aguardando separação.'
+},
+awaiting_separation: {
+code: 'awaiting_separation',
+step: 3,
+label: 'Aguardando separação',
+paymentLabel: 'Pagamento aprovado',
+badgeClass: 'confirmed',
+customerMessage: 'Pagamento confirmado! Seu pedido foi recebido pela BY ANGÉLY e está aguardando separação.'
+},
+in_separation: {
+code: 'in_separation',
+step: 4,
+label: 'Em separação',
+paymentLabel: 'Pagamento aprovado',
+badgeClass: 'confirmed',
+customerMessage: 'Seu pedido está em separação.'
+},
+preparing: {
+code: 'preparing',
+step: 4,
+label: 'Em separação',
+paymentLabel: 'Pagamento aprovado',
+badgeClass: 'confirmed',
+customerMessage: 'Seu pedido está em separação.'
+},
+ready_for_shipping: {
+code: 'ready_for_shipping',
+step: 5,
+label: 'Pedido pronto para envio ou retirada',
+paymentLabel: 'Pagamento aprovado',
+badgeClass: 'confirmed',
+customerMessage: 'Seu pedido está pronto para envio ou retirada!'
+},
+shipped: {
+code: 'shipped',
+step: 6,
+label: 'Enviado',
+paymentLabel: 'Pagamento aprovado',
+badgeClass: 'confirmed',
+customerMessage: 'Seu pedido foi enviado! Confira o código de rastreio abaixo.'
+},
+out_for_delivery: {
+code: 'out_for_delivery',
+step: 7,
+label: 'Saiu para entrega',
+paymentLabel: 'Pagamento aprovado',
+badgeClass: 'confirmed',
+customerMessage: 'Seu pedido saiu para entrega no endereço informado.'
+},
+delivered: {
+code: 'delivered',
+step: 8,
+label: 'Entregue',
+paymentLabel: 'Pagamento aprovado',
+badgeClass: 'confirmed',
+customerMessage: 'Pedido entregue! Agradecemos por escolher a BY ANGÉLY.'
+},
+cancelled_expired: {
+code: 'cancelled_expired',
+step: 9,
+label: 'Cancelado por falta de pagamento',
+paymentLabel: 'Expirado / Não pago',
+badgeClass: 'danger',
+customerMessage: 'O prazo de 15 minutos para pagamento do QR Code Pix expirou e o pedido foi cancelado automaticamente.'
+},
+cancelled: {
+code: 'cancelled',
+step: 9,
+label: 'Cancelado',
+paymentLabel: 'Cancelado',
+badgeClass: 'danger',
+customerMessage: 'Este pedido foi cancelado.'
+},
+late_payment_reconciliation: {
+code: 'late_payment_reconciliation',
+step: 3,
+label: 'Pagamento recebido após expiração (Em conciliação)',
+paymentLabel: 'Pago (Em conciliação prioritária)',
+badgeClass: 'pending',
+customerMessage: 'Recebemos a confirmação do seu pagamento após o vencimento do QR Code. Nossa equipe já foi alertada para concluir a conciliação prioritária ou estorno imediato.'
+}
+};
+function getOrderStatusMeta(order) {
+if (!order) return ORDER_STATUS_META.awaiting_payment;
+const raw = String(order.status || 'awaiting_payment').trim();
+if (ORDER_STATUS_META[raw]) return ORDER_STATUS_META[raw];
+return {
+code: raw,
+step: 1,
+label: order.statusLabel || 'Aguardando pagamento',
+paymentLabel: order.paymentStatus === 'paid' ? 'Pagamento aprovado' : 'Aguardando pagamento',
+badgeClass: order.paymentStatus === 'paid' ? 'confirmed' : 'pending',
+customerMessage: order.statusLabel || ''
+};
+}
+function normalizeSearchText(str) {
+if (!str) return '';
+return String(str)
+.toLowerCase()
+.normalize('NFD')
+.replace(/[\u0300-\u036f]/g, '')
+.trim();
+}
+function formatCountdownMMSS(totalSeconds) {
+const sec = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+const m = Math.floor(sec / 60);
+const s = sec % 60;
+return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+}
+function getAvailableCheckoutPaymentOptions(paySettings) {
+const pay = paySettings || (AppState.db && AppState.db.paymentSettings) || {};
+const options = [];
+if (pay.pix && pay.pix.enabled && isPaymentOptionConfigured('pix', pay)) {
+options.push({
+id: 'pix',
+label: 'Pix Automático (QR Code e Copia e Cola — Confirmação Imediata)'
+});
+}
+if (pay.whatsapp && pay.whatsapp.enabled && isPaymentOptionConfigured('whatsapp', pay)) {
+options.push({
+id: 'whatsapp',
+label: pay.whatsapp.title || 'Atendimento e Finalização pelo WhatsApp'
+});
+}
+if (pay.creditCard && pay.creditCard.enabled && isPaymentOptionConfigured('creditCard', pay)) {
+options.push({
+id: 'creditCard',
+label: 'Cartão de Crédito pelo Site (Ambiente Seguro)'
+});
+}
+if (pay.debitCard && pay.debitCard.enabled && isPaymentOptionConfigured('debitCard', pay)) {
+options.push({
+id: 'debitCard',
+label: 'Cartão de Débito pelo Site (Ambiente Seguro)'
+});
+}
+if (pay.payOnPickup && pay.payOnPickup.enabled && isPaymentOptionConfigured('payOnPickup', pay)) {
+options.push({
+id: 'payOnPickup',
+label: pay.payOnPickup.title || 'Pagamento na Retirada (Itaperuna - RJ)'
+});
+}
+return options;
+}
+function requireCustomerAuthForPurchase(intent) {
+if (AppState.currentCustomer && AppState.currentCustomer.email) {
+return true;
+}
+AppState.pendingPurchaseIntent = intent || null;
+AppState.showPurchaseAuthBanner = true;
+const pdpModal = document.getElementById('product-detail-modal');
+if (pdpModal) {
+pdpModal.classList.remove('open');
+pdpModal.setAttribute('aria-hidden', 'true');
+}
+closeCartDrawer();
+closeMobileMenu();
+showToast(MANDATORY_LOGIN_MESSAGE, 'info');
+navigateTo('account');
+return false;
+}
+function syncCustomerCartToServer() {
+if (!AppState.currentCustomer || !AppState.currentCustomer.id) return;
+AppState.currentCustomer.savedCart = JSON.parse(JSON.stringify(AppState.cart || []));
+try {
+localStorage.setItem(STORAGE_KEY_CUSTOMER_SESSION, JSON.stringify(AppState.currentCustomer));
+} catch (e) {}
+const dbCust = (AppState.db && AppState.db.customers || []).find(
+(c) => c.id === AppState.currentCustomer.id || (c.email && c.email.toLowerCase() === AppState.currentCustomer.email.toLowerCase())
+);
+if (dbCust) {
+dbCust.savedCart = JSON.parse(JSON.stringify(AppState.cart || []));
+}
+const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+const headers = { 'Content-Type': 'application/json' };
+if (AppState.currentCustomer.token) {
+headers['Authorization'] = 'Bearer ' + AppState.currentCustomer.token;
+}
+fetch(apiBase + '/api/customer/profile', {
+method: 'PUT',
+headers,
+body: JSON.stringify({
+customerId: AppState.currentCustomer.id,
+savedCart: AppState.cart
+})
+}).catch(() => {});
+}
+function resumePendingPurchaseIntent() {
+const intent = AppState.pendingPurchaseIntent;
+AppState.pendingPurchaseIntent = null;
+AppState.showPurchaseAuthBanner = false;
+if (!intent) return false;
+if (intent.type === 'add_to_cart' && intent.productId) {
+const added = addToCart(intent.productId, intent.size, intent.color, intent.qty || 1, intent.options || {});
+if (added && intent.options && intent.options.goToCheckout) {
+AppState.lastCreatedOrder = null;
+navigateTo('checkout');
+return true;
+}
+if (added) {
+navigateTo('catalog');
+openCartDrawer();
+return true;
+}
+}
+if (intent.type === 'checkout') {
+navigateTo('checkout');
+return true;
+}
+return false;
+}
+function addToCart(productId, size, color, qty = 1, options = {}) {
+if (!requireCustomerAuthForPurchase({ type: 'add_to_cart', productId, size, color, qty, options })) {
+return false;
+}
+const product = AppState.db.products.find((p) => p.id === productId);
+if (!product) return false;
+const cleanSize = isValidClothingSize(size)
+? String(size).trim()
+: (Array.isArray(product.sizes) ? (product.sizes.find(isValidClothingSize) || '') : '');
+const cleanColor = isValidColorName(color)
+? String(color).trim()
+: (Array.isArray(product.colors) && product.colors[0] ? (product.colors[0].name || '') : '');
+const available = getVariationStock(product, cleanSize, cleanColor);
+if (available <= 0) {
+showToast('Esta variação de tamanho e cor está sem estoque.', 'danger');
+return false;
+}
+const key = `${productId}__${cleanSize}__${cleanColor}`;
+const existing = AppState.cart.find((item) => item.key === key);
+if (existing) {
+if (existing.quantity + qty > available) {
+showToast(`Estoque máximo atingido (${available} un. disponíveis para ${cleanSize} / ${cleanColor}).`, 'warning');
+return false;
+}
+existing.quantity += qty;
+} else {
+const normCat = normalizeCategorySlug(product.category || product.categoryName || 'vestidos');
+const fb = CATEGORY_COVER_FALLBACKS[normCat] || CATEGORY_COVER_FALLBACKS.vestidos;
+const firstImg = (product.media && product.media.find((m) => m.type === 'image' && m.url)) || { url: fb };
+AppState.cart.push({
+key,
+productId: product.id,
+sku: product.sku,
+name: product.name,
+size: cleanSize,
+color: cleanColor,
+unitPrice: getEffectivePrice(product),
+imageUrl: firstImg.url,
+isDemo: !!product.isDemo,
+quantity: qty
+});
+}
+saveCart();
+syncCustomerCartToServer();
+renderCartDrawer();
+if (!options.skipOpenDrawer) {
+openCartDrawer();
+}
+showToast(`"${product.name}" (${cleanSize} • ${cleanColor}) adicionado à sacola!`, 'success');
+return true;
+}
+function getFilteredProducts() {
+const f = AppState.filters;
+const rawQuery = normalizeSearchText(f.search || '');
+const queryWords = rawQuery ? rawQuery.split(/\s+/).filter(Boolean) : [];
+return AppState.db.products
+.filter((p) => p.status === 'published')
+.filter((p) => {
+if (queryWords.length > 0) {
+const searchableBlob = normalizeSearchText([
+p.name,
+p.shortDescription,
+p.description,
+p.sku,
+p.style,
+p.categoryName,
+p.category,
+p.fabricInfo,
+...(Array.isArray(p.colors) ? p.colors.map((c) => c.name) : []),
+...(Array.isArray(p.sizes) ? p.sizes : [])
+].join(' '));
+const allWordsMatch = queryWords.every((w) => searchableBlob.includes(w));
+if (!allWordsMatch) return false;
+}
+if (f.category !== 'all' && !matchesCategory(p, f.category)) return false;
+if (f.size !== 'all' && !(p.sizes || []).includes(f.size)) return false;
+if (f.color !== 'all' && !(p.colors || []).some((c) => c.name === f.color)) return false;
+if (f.style !== 'all' && p.style !== f.style) return false;
+const price = getEffectivePrice(p);
+if (f.priceRange === 'up_to_250' && price > 250) return false;
+if (f.priceRange === '250_to_380' && (price < 250 || price > 380)) return false;
+if (f.priceRange === 'above_380' && price <= 380) return false;
+const stock = getTotalProductStock(p);
+if (f.availability === 'in_stock' && stock <= 0) return false;
+if (f.availability === 'promo' && !p.isPromo) return false;
+return true;
+})
+.sort((a, b) => {
+if (f.sortBy === 'price_asc') return getEffectivePrice(a) - getEffectivePrice(b);
+if (f.sortBy === 'price_desc') return getEffectivePrice(b) - getEffectivePrice(a);
+if (f.sortBy === 'newest') return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+const aReal = !a.isDemo ? 1 : 0;
+const bReal = !b.isDemo ? 1 : 0;
+if (aReal !== bReal) return bReal - aReal;
+return (b.isFeatured ? 1 : 0) - (a.isFeatured ? 1 : 0);
+});
+}
+function renderHomeView() {
+const settings = AppState.db.storeSettings || {};
+const hero = settings.heroBanner || {};
+const story = settings.brandStory || {};
+const vis = {
+hero: true,
+featured: true,
+newArrivals: true,
+promotions: true,
+categories: true,
+brandStory: true,
+...(settings.homeSections || {})
+};
+const publishedProducts = AppState.db.products.filter((p) => p.status === 'published');
+const featuredProducts = [
+...publishedProducts.filter((p) => !p.isDemo),
+...publishedProducts.filter((p) => p.isDemo && p.isFeatured),
+...publishedProducts.filter((p) => p.isDemo && !p.isFeatured)
+].slice(0, 8);
+const newProducts = publishedProducts.filter((p) => p.isNew).slice(0, 4);
+const promoProducts = publishedProducts.filter((p) => p.isPromo).slice(0, 4);
+const categories = [...(AppState.db.categories || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
+return `
+${vis.hero !== false ? `
+<section class="hero-section" aria-label="Apresentação da Coleção By Angély">
+<div class="container hero-grid">
+<div class="hero-content">
+<span class="hero-eyebrow">${escapeHtml(hero.eyebrow || 'MODA FEMININA • ITAPERUNA, RJ')}</span>
+<h1 class="hero-title">${escapeHtml(hero.title || 'Elegância natural em cada detalhe.')}</h1>
+<p class="hero-subtitle">${escapeHtml(hero.subtitle || '')}</p>
+<div class="hero-actions">
+<button type="button" class="btn btn-primary" data-action="go-catalog">
+${escapeHtml(hero.ctaPrimaryText || 'Ver Coleção')}
+</button>
+<button type="button" class="btn btn-outline" data-action="filter-promo">
+${escapeHtml(hero.ctaSecondaryText || 'Ofertas Especiais')}
+</button>
+</div>
+</div>
+<div class="hero-media-wrapper">
+<img src="${escapeHtml(hero.imageUrl || CATEGORY_COVER_FALLBACKS.vestidos)}" alt="${escapeHtml(hero.imageAlt || 'Coleção By Angély')}" onerror="this.onerror=null;this.src='${escapeHtml(CATEGORY_COVER_FALLBACKS.vestidos)}';" />
+</div>
+</div>
+</section>
+` : ''}
+${vis.featured !== false ? `
+<section class="section-block bg-surface" aria-labelledby="sec-feat-title">
+<div class="container">
+<div class="section-header">
+<div>
+<span class="section-eyebrow">Curadoria BY ANGÉLY</span>
+<h2 id="sec-feat-title" class="section-title">Peças em Destaque</h2>
+<p class="section-description">Modelagens elegantes e tecidos selecionados. Toque em qualquer peça para ver detalhes e tamanhos.</p>
+</div>
+<button type="button" class="btn btn-outline btn-sm" data-action="go-catalog">Ver Catálogo (${publishedProducts.length})</button>
+</div>
+<div class="products-grid">
+${featuredProducts.map(renderProductCard).join('')}
+</div>
+</div>
+</section>
+` : ''}
+${vis.newArrivals !== false && newProducts.length > 0 ? `
+<section class="section-block" aria-labelledby="sec-new-title">
+<div class="container">
+<div class="section-header">
+<div>
+<span class="section-eyebrow">Lançamentos</span>
+<h2 id="sec-new-title" class="section-title">Novidades da Coleção</h2>
+</div>
+<button type="button" class="btn btn-outline btn-sm" data-action="go-catalog">Ver Todas as Peças</button>
+</div>
+<div class="products-grid">
+${newProducts.map(renderProductCard).join('')}
+</div>
+</div>
+</section>
+` : ''}
+${vis.promotions !== false && promoProducts.length > 0 ? `
+<section class="section-block bg-surface" aria-labelledby="sec-promo-title">
+<div class="container">
+<div class="section-header">
+<div>
+<span class="section-eyebrow">Oportunidades</span>
+<h2 id="sec-promo-title" class="section-title">Promoções Selecionadas</h2>
+<p class="section-description">Peças com desconto especial por tempo limitado.</p>
+</div>
+<button type="button" class="btn btn-gold btn-sm" data-action="filter-promo">Ver Promoções</button>
+</div>
+<div class="products-grid">
+${promoProducts.map(renderProductCard).join('')}
+</div>
+</div>
+</section>
+` : ''}
+${vis.categories !== false ? `
+<section class="section-block" aria-labelledby="sec-cat-title">
+<div class="container">
+<div class="section-header">
+<div>
+<span class="section-eyebrow">Navegação Rápida</span>
+<h2 id="sec-cat-title" class="section-title">Explore por Categoria</h2>
+</div>
+<button type="button" class="btn btn-outline btn-sm" data-action="go-catalog">Catálogo Completo</button>
+</div>
+<div class="categories-grid">
+${categories.map((cat) => {
+const normSlug = normalizeCategorySlug(cat.slug || cat.name);
+const fbImg = CATEGORY_COVER_FALLBACKS[normSlug] || CATEGORY_COVER_FALLBACKS.vestidos;
+const imgUrl = (cat.imageUrl && String(cat.imageUrl).trim().length > 8) ? cat.imageUrl : fbImg;
+const countInCat = publishedProducts.filter((p) => matchesCategory(p, cat.slug)).length;
+return `
+<button type="button" class="category-card" data-action="filter-category" data-category="${escapeHtml(cat.slug)}" aria-label="Explorar categoria ${escapeHtml(cat.name)}">
+<img src="${escapeHtml(imgUrl)}" alt="Categoria ${escapeHtml(cat.name)}" loading="lazy" onerror="this.onerror=null;this.src='${escapeHtml(fbImg)}';" />
+<div class="category-card-overlay">
+<span class="category-card-title">${escapeHtml(cat.name)}</span>
+<span class="category-card-sub">${countInCat > 0 ? countInCat + (countInCat === 1 ? ' peça →' : ' peças →') : 'Explorar →'}</span>
+</div>
+</button>
+`;
+}).join('')}
+</div>
+</div>
+</section>
+` : ''}
+${vis.brandStory !== false ? `
+<section class="section-block bg-surface" aria-labelledby="sec-story-title">
+<div class="container">
+<div class="hero-grid" style="min-height:auto;">
+<div class="hero-media-wrapper" style="aspect-ratio: 4 / 3.2;">
+<img src="${escapeHtml(story.imageUrl || CATEGORY_COVER_FALLBACKS.conjuntos)}" alt="By Angély — Itaperuna, RJ" loading="lazy" onerror="this.onerror=null;this.src='${escapeHtml(CATEGORY_COVER_FALLBACKS.conjuntos)}';" />
+</div>
+<div class="hero-content">
+<span class="section-eyebrow">Boutique Feminina • Itaperuna, RJ</span>
+<h2 id="sec-story-title" class="section-title" style="margin-bottom:14px;">${escapeHtml(story.title || 'A Essência By Angély')}</h2>
+<p style="font-size:1.02rem;font-weight:500;color:var(--text-primary);margin-bottom:12px;">
+${escapeHtml(story.lead || '')}
+</p>
+<p style="color:var(--text-secondary);margin-bottom:20px;">
+${escapeHtml(story.body || '')}
+</p>
+<div style="display:flex;gap:12px;flex-wrap:wrap;">
+<a href="${escapeHtml(getOfficialContacts().instagramUrl)}" target="_blank" rel="noopener noreferrer" class="contact-btn-action instagram-style">
+${OFFICIAL_ICONS.instagram}
+<span>Instagram Oficial</span>
+</a>
+<a href="${escapeHtml(getOfficialContacts().whatsappUrl)}" target="_blank" rel="noopener noreferrer" class="contact-btn-action whatsapp-style">
+${OFFICIAL_ICONS.whatsapp}
+<span>Atendimento no WhatsApp</span>
+</a>
+</div>
+</div>
+</div>
+</div>
+</section>
+` : ''}
+`;
+}
+function renderProductModalContent() {
+const state = AppState.activeProductModal;
+const product = AppState.db.products.find((p) => p.id === state.productId);
+const container = document.getElementById('product-modal-body');
+if (!product || !container) return;
+const effectivePrice = getEffectivePrice(product);
+const hasPromo = effectivePrice < Number(product.price);
+const currentVarStock = getVariationStock(product, state.selectedSize, state.selectedColor);
+const selectedQty = Math.max(1, Math.min(Number(state.quantity) || 1, Math.max(1, currentVarStock)));
+state.quantity = selectedQty;
+const normCat = normalizeCategorySlug(product.category || product.categoryName || 'vestidos');
+const fallbackUrl = CATEGORY_COVER_FALLBACKS[normCat] || CATEGORY_COVER_FALLBACKS.vestidos;
+const mediaList = product.media && product.media.length > 0 ? product.media : [
+{ type: 'image', url: fallbackUrl, alt: product.name }
+];
+const activeMedia = mediaList[state.mediaIndex] || mediaList[0];
+const productReviews = (AppState.db.reviews || []).filter(
+(r) => r && r.productId === product.id && r.status !== 'hidden' && r.status !== 'rejected'
+);
+const avgRating = productReviews.length > 0
+? (productReviews.reduce((acc, r) => acc + (Number(r.rating) || 5), 0) / productReviews.length).toFixed(1)
+: null;
+const isFav = AppState.wishlist.includes(product.id);
+const cust = AppState.currentCustomer;
+const alreadyReviewed = Boolean(
+cust && productReviews.some(
+(r) =>
+(r.customerId && r.customerId === cust.id) ||
+(r.customerEmail && cust.email && r.customerEmail.toLowerCase() === cust.email.toLowerCase())
+)
+);
+container.innerHTML = `
+<div class="pdp-grid">
+<div>
+<div class="pdp-main-media">
+${activeMedia.type === 'video' ? `
+<video src="${escapeHtml(activeMedia.url)}" poster="${escapeHtml(activeMedia.poster || '')}" controls playsinline aria-label="${escapeHtml(activeMedia.alt || product.name)}"></video>
+` : `
+<img src="${escapeHtml(activeMedia.url)}" alt="${escapeHtml(activeMedia.alt || product.name)}" id="pdp-active-img" onerror="this.onerror=null;this.src='${escapeHtml(fallbackUrl)}';" />
+<button type="button" class="pdp-zoom-btn" data-action="zoom-image" data-url="${escapeHtml(activeMedia.url)}" data-alt="${escapeHtml(activeMedia.alt || product.name)}">
+Ampliar Imagem
+</button>
+`}
+</div>
+<div class="pdp-thumbs" role="tablist" aria-label="Galeria de fotos e vídeos do produto">
+${mediaList.map((m, idx) => `
+<button type="button" class="pdp-thumb-btn ${idx === state.mediaIndex ? 'active' : ''}" data-action="select-pdp-media" data-index="${idx}" aria-label="${m.type === 'video' ? 'Reproduzir vídeo' : 'Ver foto ' + (idx + 1)}">
+${m.type === 'video' ? `
+<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#292522;color:#FFF;font-size:0.72rem;font-weight:700;">▶ VÍDEO</div>
+` : `
+<img src="${escapeHtml(m.url)}" alt="Miniatura ${idx + 1}" onerror="this.onerror=null;this.src='${escapeHtml(fallbackUrl)}';" />
+`}
+</button>
+`).join('')}
+</div>
+</div>
+<div>
+<div style="display:flex;justify-content:space-between;align-items:center;font-size:0.75rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">
+<span>${escapeHtml(product.categoryName || product.category)} ${product.style ? '• ' + escapeHtml(product.style) : ''}</span>
+<span>Cód: ${escapeHtml(product.sku)}</span>
+</div>
+<h2 style="font-family:var(--font-serif);font-size:1.95rem;font-weight:600;line-height:1.15;margin-bottom:8px;">
+${escapeHtml(product.name)}
+</h2>
+${avgRating ? `
+<div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;font-size:0.84rem;color:var(--accent-gold);">
+<span>★ ${avgRating}</span>
+<span style="color:var(--text-secondary);">(${productReviews.length} ${productReviews.length === 1 ? 'avaliação' : 'avaliações'})</span>
+</div>
+` : ''}
+<div style="display:flex;align-items:baseline;gap:12px;margin-bottom:14px;">
+<span style="font-size:1.5rem;font-weight:700;color:var(--accent-brown);">${formatBRL(effectivePrice)}</span>
+${hasPromo ? `<span style="font-size:0.98rem;color:var(--text-muted);text-decoration:line-through;">${formatBRL(product.price)}</span>` : ''}
+</div>
+<p style="color:var(--text-secondary);margin-bottom:18px;font-size:0.9rem;">
+${escapeHtml(product.shortDescription || '')}
+</p>
+<div class="option-selector-group">
+<div class="option-selector-label">
+<span>Cor selecionada: <strong>${escapeHtml(state.selectedColor)}</strong></span>
+</div>
+<div class="option-pills">
+${(product.colors || []).map((c) => `
+<button type="button" class="option-pill ${state.selectedColor === c.name ? 'selected' : ''}" data-action="select-pdp-color" data-color="${escapeHtml(c.name)}">
+<span class="color-dot" style="background-color:${escapeHtml(c.hex || '#ccc')};"></span>
+<span>${escapeHtml(c.name)}</span>
+</button>
+`).join('')}
+</div>
+</div>
+<div class="option-selector-group">
+<div class="option-selector-label">
+<span>Tamanho: <strong>${escapeHtml(state.selectedSize)}</strong></span>
+<span style="font-size:0.76rem;color:${currentVarStock > 0 ? 'var(--status-success-text)' : 'var(--status-danger-text)'};">
+${currentVarStock > 0 ? `Disponível (${currentVarStock} un.)` : 'Indisponível nesta combinação'}
+</span>
+</div>
+<div class="option-pills">
+${(product.sizes || []).filter(isValidClothingSize).map((s) => {
+const st = getVariationStock(product, s, state.selectedColor);
+return `
+<button type="button" class="option-pill ${state.selectedSize === s ? 'selected' : ''} ${st <= 0 ? 'out-of-stock' : ''}" data-action="select-pdp-size" data-size="${escapeHtml(s)}">
+${escapeHtml(s)}
+</button>
+`;
+}).join('')}
+</div>
+</div>
+<div class="option-selector-group" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:16px;">
+<div style="display:flex;align-items:center;gap:10px;">
+<span style="font-size:0.76rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;">Quantidade:</span>
+<div class="qty-stepper" role="group" aria-label="Selecionar quantidade">
+<button type="button" data-action="pdp-qty-dec" aria-label="Diminuir quantidade" ${selectedQty <= 1 ? 'disabled' : ''}>−</button>
+<span aria-live="polite">${selectedQty}</span>
+<button type="button" data-action="pdp-qty-inc" aria-label="Aumentar quantidade" ${selectedQty >= currentVarStock ? 'disabled' : ''}>+</button>
+</div>
+</div>
+<div style="display:flex;gap:8px;">
+<button type="button" class="btn btn-outline btn-sm" data-action="toggle-wishlist" data-product-id="${escapeHtml(product.id)}" aria-label="Favoritar produto">
+${isFav ? '♥ Salvo' : '♡ Favoritar'}
+</button>
+<button type="button" class="btn btn-outline btn-sm" data-action="share-product" data-product-id="${escapeHtml(product.id)}" aria-label="Compartilhar peça" title="Compartilhar">
+↗
+</button>
+</div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:18px 0 10px;">
+<button type="button" class="btn btn-primary" data-action="add-to-cart-modal" ${currentVarStock <= 0 ? 'disabled' : ''}>
+${currentVarStock > 0 ? 'Adicionar à Sacola' : 'Variação Esgotada'}
+</button>
+<button type="button" class="btn btn-gold" data-action="buy-now-modal" ${currentVarStock <= 0 ? 'disabled' : ''}>
+Comprar Agora
+</button>
+</div>
+<div style="margin-bottom:18px;">
+<a href="${escapeHtml(getProductWhatsappUrl(product, state.selectedSize, state.selectedColor, state.quantity))}" target="_blank" rel="noopener noreferrer" class="contact-btn-action whatsapp-style" style="width:100%;" id="pdp-whatsapp-product-link">
+${OFFICIAL_ICONS.whatsapp}
+<span>FALAR NO WHATSAPP SOBRE ESTA PEÇA</span>
+</a>
+</div>
+<div style="border-top:1px solid var(--border-subtle);padding-top:14px;margin-top:14px;">
+<details open style="margin-bottom:10px;">
+<summary style="font-weight:600;font-size:0.88rem;cursor:pointer;padding:6px 0;">Descrição e Composição</summary>
+<div style="font-size:0.85rem;color:var(--text-secondary);padding-top:8px;">
+<p style="margin-bottom:8px;">${escapeHtml(product.description || '')}</p>
+<p style="margin-bottom:4px;"><strong>Composição:</strong> ${escapeHtml(product.fabricInfo || 'Consulte a etiqueta da peça')}</p>
+<p><strong>Conservação:</strong> ${escapeHtml(product.careInfo || 'Seguir instruções da etiqueta interna.')}</p>
+</div>
+</details>
+${product.sizeChart && product.sizeChart.length > 0 ? `
+<details style="margin-bottom:10px;border-top:1px solid var(--border-subtle);padding-top:10px;">
+<summary style="font-weight:600;font-size:0.88rem;cursor:pointer;padding:6px 0;">Tabela de Medidas Referencial</summary>
+<div style="padding-top:8px;overflow-x:auto;">
+<table class="size-chart-table">
+<thead>
+<tr>
+<th>Tamanho</th>
+<th>Busto / Largura</th>
+<th>Cintura / Altura</th>
+<th>Quadril / Prof.</th>
+<th>Comprimento</th>
+</tr>
+</thead>
+<tbody>
+${product.sizeChart.map((row) => `
+<tr>
+<td><strong>${escapeHtml(row.size)}</strong></td>
+<td>${escapeHtml(row.bust)}</td>
+<td>${escapeHtml(row.waist)}</td>
+<td>${escapeHtml(row.hips)}</td>
+<td>${escapeHtml(row.length)}</td>
+</tr>
+`).join('')}
+</tbody>
+</table>
+</div>
+</details>
+` : ''}
+<details open style="border-top:1px solid var(--border-subtle);padding-top:10px;">
+<summary style="font-weight:600;font-size:0.88rem;cursor:pointer;padding:6px 0;">
+Avaliações das Clientes (${productReviews.length}) ${avgRating ? `• ★ ${avgRating}` : ''}
+</summary>
+<div style="padding-top:10px;">
+${productReviews.length === 0 ? `
+<p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:10px;">Esta peça ainda não possui avaliações. Seja a primeira cliente a avaliar!</p>
+` : productReviews.map((rev) => `
+<div style="background:var(--bg-primary);padding:10px 12px;border-radius:8px;margin-bottom:8px;font-size:0.82rem;">
+<div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+<strong>${escapeHtml(rev.customerName)}</strong>
+<span style="color:var(--accent-gold);">${'★'.repeat(Math.max(1, Math.min(5, Number(rev.rating) || 5)))}${'☆'.repeat(5 - Math.max(1, Math.min(5, Number(rev.rating) || 5)))} • ${escapeHtml(rev.date)}</span>
+</div>
+${rev.comment ? `<p style="color:var(--text-secondary);">${escapeHtml(rev.comment)}</p>` : ''}
+</div>
+`).join('')}
+${!cust ? `
+<div style="margin-top:10px;padding:12px;background:var(--bg-primary);border:1px dashed var(--border-strong);border-radius:8px;text-align:center;">
+<p style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:8px;">Entre na sua conta para avaliar esta peça.</p>
+<button type="button" class="btn btn-outline btn-sm" data-action="close-pdp-go-login">Entrar para Avaliar</button>
+</div>
+` : alreadyReviewed ? `
+<p style="font-size:0.8rem;color:var(--status-success-text);margin-top:8px;">✓ Você já registrou sua avaliação para esta peça. Obrigada!</p>
+` : `
+<form id="pdp-review-form" data-product-id="${escapeHtml(product.id)}" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border-subtle);">
+<p style="font-size:0.8rem;font-weight:600;margin-bottom:8px;">Avaliar como ${escapeHtml(cust.name)}:</p>
+<div style="margin-bottom:8px;">
+<label style="display:block;font-size:0.75rem;margin-bottom:4px;">Nota (1 a 5 estrelas) *</label>
+<select name="rating" class="form-control" required>
+<option value="5">★★★★★ — 5 Estrelas (Excelente)</option>
+<option value="4">★★★★☆ — 4 Estrelas (Muito Bom)</option>
+<option value="3">★★★☆☆ — 3 Estrelas (Bom / Regular)</option>
+<option value="2">★★☆☆☆ — 2 Estrelas (Abaixo do esperado)</option>
+<option value="1">★☆☆☆☆ — 1 Estrela (Insatisfeita)</option>
+</select>
+</div>
+<textarea name="comment" rows="2" class="form-control" placeholder="Comentário opcional sobre caimento, tecido e acabamento..." style="margin-bottom:8px;"></textarea>
+<button type="submit" class="btn btn-subtle btn-sm">Enviar Avaliação</button>
+</form>
+`}
+</div>
+</details>
+</div>
+</div>
+</div>
+`;
+const reviewForm = document.getElementById('pdp-review-form');
+if (reviewForm) {
+reviewForm.addEventListener('submit', (e) => {
+e.preventDefault();
+if (!AppState.currentCustomer) {
+showToast('Entre na sua conta para enviar uma avaliação.', 'warning');
+return;
+}
+const existingDup = (AppState.db.reviews || []).some(
+(r) =>
+r &&
+r.productId === product.id &&
+((r.customerId && r.customerId === AppState.currentCustomer.id) ||
+(r.customerEmail && r.customerEmail.toLowerCase() === AppState.currentCustomer.email.toLowerCase()))
+);
+if (existingDup) {
+showToast('Você já avaliou este produto.', 'warning');
+return;
+}
+const fd = new FormData(reviewForm);
+const ratingNum = Math.max(1, Math.min(5, Number(fd.get('rating')) || 5));
+const commentText = String(fd.get('comment') || '').trim();
+AppState.db.reviews = AppState.db.reviews || [];
+AppState.db.reviews.unshift({
+id: 'rev-' + Date.now(),
+productId: product.id,
+productName: product.name,
+customerId: AppState.currentCustomer.id,
+customerName: AppState.currentCustomer.name,
+customerEmail: AppState.currentCustomer.email,
+rating: ratingNum,
+comment: commentText,
+status: 'approved',
+date: new Date().toLocaleDateString('pt-BR'),
+createdAt: new Date().toISOString(),
+isDemo: false
+});
+saveDatabase('Nova avaliação (' + ratingNum + '★) enviada para ' + product.name);
+renderProductModalContent();
+showToast('Avaliação registrada com sucesso!', 'success');
+});
+}
+}
+function renderCheckoutView() {
+if (AppState.lastCreatedOrder) {createdOrder.whatsappOrderUrl = getOrderWhatsappUrl(createdOrder);
+AppState.currentCustomer.name = String(fd.get('customerName') || AppState.currentCustomer.name).trim();
+AppState.currentCustomer.phone = String(fd.get('customerPhone') || AppState.currentCustomer.phone).trim();
+AppState.currentCustomer.cpf = String(fd.get('customerCpf') || AppState.currentCustomer.cpf || '').trim();
+if (!Array.isArray(AppState.currentCustomer.addresses) || AppState.currentCustomer.addresses.length === 0) {
+AppState.currentCustomer.addresses = [addressObj];
+} else {
+AppState.currentCustomer.addresses[0] = { ...AppState.currentCustomer.addresses[0], ...addressObj };
+}
+AppState.currentCustomer.savedCart = [];
+localStorage.setItem(STORAGE_KEY_CUSTOMER_SESSION, JSON.stringify(AppState.currentCustomer));
+await loadDatabase();
+const existingIdx = (AppState.db.orders || []).findIndex((o) => o.id === createdOrder.id);
+if (existingIdx >= 0) {
+AppState.db.orders[existingIdx] = createdOrder;
+} else {
+AppState.db.orders.unshift(createdOrder);
+}
+AppState.cart = [];
+AppState.appliedCoupon = null;
+saveCart();
+AppState.lastCreatedOrder = createdOrder;
+renderMainView();
+window.scrollTo({ top: 0, behavior: 'smooth' });
+if (chosenMethod === 'whatsapp') {
+showToast(`Pedido ${createdOrder.orderNumber} registrado! Abrindo WhatsApp...`, 'success');
+try {
+window.open(createdOrder.whatsappOrderUrl, '_blank', 'noopener,noreferrer');
+} catch (err) {}
+} else {
+showToast(`Pedido ${createdOrder.orderNumber} gerado! Realize o pagamento via Pix em até ${createdOrder.expirationMinutes || 15} minutos.`, 'success');
+}
+} catch (err) {
+console.error('Erro ao processar pedido:', err);
+showToast('Erro de conexão ao registrar o pedido. Tente novamente.', 'danger');
+if (submitBtn) {
+submitBtn.disabled = false;
+submitBtn.textContent = 'Confirmar Pedido';
+}
+}
+});
+}
+function stopPixPaymentPolling() {
+if (AppState.pixPollIntervalId) {
+clearInterval(AppState.pixPollIntervalId);
+AppState.pixPollIntervalId = null;
+}
+if (AppState.pixCountdownIntervalId) {
+clearInterval(AppState.pixCountdownIntervalId);
+AppState.pixCountdownIntervalId = null;
+}
+}
+function startPixPaymentPolling(orderId) {
+stopPixPaymentPolling();
+if (!orderId) return;
+const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+AppState.pixCountdownIntervalId = setInterval(() => {
+if (AppState.pixRemainingSecondsMap[orderId] !== undefined && AppState.pixRemainingSecondsMap[orderId] > 0) {
+AppState.pixRemainingSecondsMap[orderId] -= 1;
+const rem = AppState.pixRemainingSecondsMap[orderId];
+document.querySelectorAll(`[data-pix-timer-for="${orderId}"]`).forEach((el) => {
+el.textContent = formatCountdownMMSS(rem);
+});
+if (rem <= 0) {
+checkOrderStatusNow();
+}
+}
+}, 1000);
+async function checkOrderStatusNow() {
+try {
+const res = await fetch(`${apiBase}/api/orders/${encodeURIComponent(orderId)}/payment-status`, {
+cache: 'no-store'
+});
+if (!res.ok) return;
+const data = await res.json();
+if (!data || !data.ok) return;
+if (typeof data.remainingSeconds === 'number') {
+AppState.pixRemainingSecondsMap[orderId] = data.remainingSeconds;
+document.querySelectorAll(`[data-pix-timer-for="${orderId}"]`).forEach((el) => {
+el.textContent = formatCountdownMMSS(data.remainingSeconds);
+});
+}
+const localOrder = (AppState.db.orders || []).find((o) => o.id === orderId);
+const prevStatus = localOrder ? localOrder.status : (AppState.lastCreatedOrder && AppState.lastCreatedOrder.id === orderId ? AppState.lastCreatedOrder.status : null);
+if (localOrder) {
+localOrder.status = data.status;
+localOrder.statusLabel = data.statusLabel;
+localOrder.paymentStatus = data.paymentStatus;
+localOrder.paidAt = data.paidAt || localOrder.paidAt;
+localOrder.cancelledAt = data.cancelledAt || localOrder.cancelledAt;
+if (Array.isArray(data.notificationsLog)) {
+localOrder.notificationsLog = data.notificationsLog;
+}
+}
+if (AppState.lastCreatedOrder && AppState.lastCreatedOrder.id === orderId) {
+AppState.lastCreatedOrder.status = data.status;
+AppState.lastCreatedOrder.statusLabel = data.statusLabel;
+AppState.lastCreatedOrder.paymentStatus = data.paymentStatus;
+AppState.lastCreatedOrder.paidAt = data.paidAt || AppState.lastCreatedOrder.paidAt;
+AppState.lastCreatedOrder.cancelledAt = data.cancelledAt || AppState.lastCreatedOrder.cancelledAt;
+if (Array.isArray(data.notificationsLog)) {
+AppState.lastCreatedOrder.notificationsLog = data.notificationsLog;
+}
+}
+if (data.paymentStatus === 'paid' || data.status === 'payment_approved') {
+stopPixPaymentPolling();
+if (prevStatus !== data.status) {
+showToast('Pagamento confirmado! Seu pedido foi recebido pela BY ANGÉLY e está aguardando separação.', 'success');
+await loadDatabase();
+}
+if (AppState.currentView === 'checkout' || AppState.currentView === 'account') {
+renderMainView();
+}
+const detailModal = document.getElementById('order-detail-modal');
+if (detailModal && detailModal.classList.contains('open')) {
+openOrderDetailModal(orderId);
+}
+} else if (data.status === 'cancelled_expired' || data.status === 'cancelled') {
+stopPixPaymentPolling();
+if (prevStatus !== data.status) {
+showToast('O prazo de 15 minutos do QR Code Pix expirou e o pedido foi cancelado automaticamente.', 'warning');
+await loadDatabase();
+}
+if (AppState.currentView === 'checkout' || AppState.currentView === 'account') {
+renderMainView();
+}
+const detailModal = document.getElementById('order-detail-modal');
+if (detailModal && detailModal.classList.contains('open')) {
+openOrderDetailModal(orderId);
+}
+}
+} catch (e) {}
+}
+checkOrderStatusNow();
+AppState.pixPollIntervalId = setInterval(checkOrderStatusNow, 3000);
+}
+function renderOrderConfirmationScreen(order) {
+const meta = getOrderStatusMeta(order);
+const isPaid = order.paymentStatus === 'paid' || order.status === 'payment_approved' || order.status === 'awaiting_separation' || order.status === 'in_separation';
+const isExpiredOrCancelled = order.status === 'cancelled_expired' || order.status === 'cancelled';
+const isAwaitingPix = order.paymentMethod === 'pix' && !isPaid && !isExpiredOrCancelled;
+let qrSvg = '';
+if (order.paymentMethod === 'pix' && order.pixData && order.pixData.payload && window.ByAngelyPix) {
+qrSvg = window.ByAngelyPix.renderQrSvg(order.pixData.payload);
+}
+const expMs = order.expiresAt ? new Date(order.expiresAt).getTime() : (new Date(order.createdAt).getTime() + 15 * 60 * 1000);
+const initialRemainingSec = AppState.pixRemainingSecondsMap[order.id] !== undefined
+? AppState.pixRemainingSecondsMap[order.id]
+: Math.max(0, Math.floor((expMs - Date.now()) / 1000));
+AppState.pixRemainingSecondsMap[order.id] = initialRemainingSec;
+if (isAwaitingPix) {
+setTimeout(() => startPixPaymentPolling(order.id), 50);
+} else {
+stopPixPaymentPolling();
+}
+const waOrderUrl = order.whatsappOrderUrl || getOrderWhatsappUrl(order);
+return `
+<section class="section-block">
+<div class="container" style="max-width:860px;">
+<div class="admin-card">
+<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:18px;padding-bottom:16px;border-bottom:1px solid var(--border-subtle);">
+<div>
+<span class="section-eyebrow">Acompanhamento em Tempo Real</span>
+<h1 style="font-family:var(--font-serif);font-size:2.05rem;">Pedido ${escapeHtml(order.orderNumber)}</h1>
+<p style="font-size:0.86rem;color:var(--text-secondary);">Registrado em ${formatDateBR(order.createdAt)}</p>
+</div>
+<span class="status-pill ${meta.badgeClass}" id="order-screen-status-pill" style="font-size:0.86rem;padding:7px 14px;">
+${escapeHtml(meta.label)}
+</span>
+</div>
+<!-- Status Aprovado Automaticamente -->
+${isPaid ? `
+<div id="pix-approved-banner" style="background:#EDF7F1;border:1.5px solid #2E6F52;border-radius:12px;padding:22px;margin-bottom:22px;text-align:center;">
+<div style="width:48px;height:48px;border-radius:50%;background:#2E6F52;color:#FFFFFF;display:inline-flex;align-items:center;justify-content:center;font-size:1.4rem;margin-bottom:10px;">✓</div>
+<h2 style="font-family:var(--font-serif);font-size:1.65rem;color:#1E4D38;margin-bottom:8px;">
+Pagamento confirmado! Seu pedido foi recebido pela BY ANGÉLY e está aguardando separação.
+</h2>
+<p style="font-size:0.9rem;color:#2E6F52;margin-bottom:0;">
+O pagamento de <strong>${formatBRL(order.total)}</strong> foi reconhecido automaticamente. Não é necessário enviar comprovante.
+</p>
+</div>
+` : ''}
+<!-- Status Expirado / Cancelado Após 15 Minutos -->
+${isExpiredOrCancelled ? `
+<div id="pix-expired-banner" style="background:#FDF2F2;border:1.5px solid #B83A3A;border-radius:12px;padding:22px;margin-bottom:22px;text-align:center;">
+<h2 style="font-family:var(--font-serif);font-size:1.55rem;color:#8E2626;margin-bottom:8px;">
+${escapeHtml(meta.label)}
+</h2>
+<p style="font-size:0.9rem;color:#6E2828;margin-bottom:14px;">
+${escapeHtml(meta.customerMessage)} As peças reservadas voltaram para o estoque disponível da loja.
+</p>
+<button type="button" class="btn btn-primary btn-sm" data-action="finish-order-go-catalog">Fazer Novo Pedido</button>
+</div>
+` : ''}
+<!-- Pagamento via Pix Aguardando Confirmação (Com Cronômetro de 15 Minutos) -->
+${isAwaitingPix && order.pixData ? `
+<div id="pix-awaiting-box" style="background:var(--bg-primary);border:1px solid var(--border-strong);border-radius:12px;padding:22px;margin-bottom:22px;text-align:center;">
+<div style="display:inline-flex;align-items:center;gap:10px;background:#FFF8EB;border:1px solid #E2B96B;color:#7A5211;padding:8px 16px;border-radius:999px;font-size:0.86rem;font-weight:600;margin-bottom:14px;">
+<span>⏱️ Tempo restante para pagar:</span>
+<strong data-pix-timer-for="${escapeHtml(order.id)}" id="pix-countdown-timer" style="font-family:monospace;font-size:1.1rem;color:#806044;">${formatCountdownMMSS(initialRemainingSec)}</strong>
+<span style="font-size:0.76rem;opacity:0.85;">(Vence em ${formatDateBR(order.expiresAt)})</span>
+</div>
+<h2 style="font-family:var(--font-serif);font-size:1.65rem;margin-bottom:6px;">Escaneie o QR Code Pix (${formatBRL(order.total)})</h2>
+<p style="font-size:0.86rem;color:var(--text-secondary);max-width:560px;margin:0 auto 14px;">
+Abra o aplicativo do seu banco, escolha pagar via <strong>QR Code</strong> ou <strong>Pix Copia e Cola</strong>. A confirmação é <strong>100% automática</strong> nesta tela em poucos segundos após o pagamento!
+</p>
+<div class="pix-qr-box" style="margin:0 auto 14px;">
+${qrSvg}
+</div>
+<div style="max-width:520px;margin:0 auto 16px;">
+<label style="display:block;font-size:0.76rem;font-weight:700;text-transform:uppercase;margin-bottom:6px;">Código Pix Copia e Cola:</label>
+<div style="display:flex;gap:8px;">
+<input type="text" id="pix-copia-cola-input" class="form-control" readonly value="${escapeHtml(order.pixData.payload)}" style="font-family:monospace;font-size:0.78rem;" />
+<button type="button" class="btn btn-primary btn-sm" data-action="copy-pix-code">Copiar Código</button>
+</div>
+</div>
+<div style="max-width:520px;margin:0 auto 14px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:8px;padding:12px;text-align:left;font-size:0.82rem;">
+<div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span><strong>Pedido:</strong> ${escapeHtml(order.orderNumber)}</span><span><strong>Valor Exato:</strong> ${formatBRL(order.total)}</span></div>
+<div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span><strong>Recebedor:</strong> ${escapeHtml(order.pixData.recipientName)}</span><span><strong>Chave:</strong> ${escapeHtml(order.pixData.pixKey)}</span></div>
+<div><strong>Identificador da Cobrança:</strong> <code style="font-size:0.76rem;">${escapeHtml(order.pixData.chargeId || order.pixData.txid)}</code></div>
+</div>
+<div style="display:inline-flex;align-items:center;gap:8px;font-size:0.82rem;color:var(--accent-brown);font-weight:600;padding:8px 14px;background:rgba(128,96,68,0.08);border-radius:999px;">
+<span>🔄 Aguardando confirmação automática do banco...</span>
+</div>
+<p style="font-size:0.76rem;color:var(--text-muted);margin-top:10px;margin-bottom:0;">
+Aviso: caso o pagamento não seja confirmado em até ${Number(order.expirationMinutes) || 15} minutos, este QR Code expira e o pedido é cancelado automaticamente.
+</p>
+</div>
+` : ''}
+${order.paymentMethod === 'whatsapp' ? `
+<div style="background:var(--bg-primary);border:1px solid var(--border-strong);border-radius:8px;padding:22px;margin-bottom:22px;">
+<h2 style="font-family:var(--font-serif);font-size:1.65rem;margin-bottom:8px;">Atendimento no WhatsApp Oficial (${formatBRL(order.total)})</h2>
+<p style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:16px;">
+Seu pedido <strong>${escapeHtml(order.orderNumber)}</strong> está registrado. Clique abaixo caso queira abrir a conversa novamente no WhatsApp da BY ANGÉLY:
+</p>
+<a href="${escapeHtml(waOrderUrl)}" target="_blank" rel="noopener noreferrer" class="contact-btn-action whatsapp-style" id="btn-open-whatsapp-order" style="width:100%;max-width:440px;">
+${OFFICIAL_ICONS.whatsapp}
+<span>ENVIAR PEDIDO NO WHATSAPP DA BY ANGÉLY</span>
+</a>
+</div>
+` : ''}
+<!-- Resumo dos Produtos e Endereço do Pedido -->
+<div style="border-top:1px solid var(--border-subtle);padding-top:16px;margin-bottom:20px;">
+<h3 style="font-family:var(--font-serif);font-size:1.25rem;margin-bottom:10px;">Itens do Pedido</h3>
+<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+${(order.items || []).map((it) => `
+<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg-primary);border-radius:8px;font-size:0.85rem;">
+<div style="display:flex;align-items:center;gap:10px;">
+<img src="${escapeHtml(it.imageUrl || CATEGORY_COVER_FALLBACKS.vestidos)}" alt="${escapeHtml(it.name)}" style="width:40px;height:50px;object-fit:cover;border-radius:6px;" />
+<div>
+<strong>${escapeHtml(it.name)}</strong>
+<div style="font-size:0.76rem;color:var(--text-secondary);">Tam: ${escapeHtml(it.size)} • Cor: ${escapeHtml(it.color)} • Qtd: ${it.quantity}x (${formatBRL(it.unitPrice)})</div>
+</div>
+</div>
+<strong>${formatBRL(it.unitPrice * it.quantity)}</strong>
+</div>
+`).join('')}
+</div>
+</div>
+<div style="display:flex;gap:12px;justify-content:space-between;flex-wrap:wrap;">
+<button type="button" class="btn btn-primary" data-action="finish-order-go-account">
+Ver em Meus Pedidos
+</button>
+<button type="button" class="btn btn-outline" data-action="finish-order-go-catalog">
+Continuar na Loja
+</button>
+</div>
+</div>
+</div>
+</section>
+`;
+}
+function renderCustomerAuthScreen() {
+const showBanner = Boolean(AppState.showPurchaseAuthBanner);
+return `
+<section class="section-block">
+<div class="container">
+${showBanner ? `
+<div id="mandatory-auth-purchase-banner" style="background:#FFF8F3;border:1.5px solid #C99D91;border-radius:12px;padding:18px 22px;margin-bottom:24px;display:flex;align-items:center;gap:14px;box-shadow:0 6px 20px rgba(128,96,68,0.08);">
+<div style="width:40px;height:40px;border-radius:50%;background:#806044;color:#FFF;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1.1rem;">🔒</div>
+<div>
+<strong style="display:block;font-family:var(--font-serif);font-size:1.25rem;color:#292522;margin-bottom:2px;">Identificação Necessária para Comprar</strong>
+<p style="font-size:0.92rem;color:#5C5346;margin:0;">${escapeHtml(MANDATORY_LOGIN_MESSAGE)}</p>
+</div>
+</div>
+` : ''}
+<div class="checkout-layout" style="grid-template-columns:1fr 1.25fr;align-items:start;">
+<!-- Coluna 1: Entrar na Conta & Recuperar Senha -->
+<div class="admin-card">
+<span class="section-eyebrow">Cliente Cadastrada</span>
+<h1 style="font-family:var(--font-serif);font-size:1.8rem;margin-bottom:14px;">Entrar na Minha Conta</h1>
+<form id="customer-login-form">
+<div style="margin-bottom:12px;">
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">E-mail *</label>
+<input type="email" name="email" class="form-control" required placeholder="seu@email.com" />
+</div>
+<div style="margin-bottom:14px;">
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Senha *</label>
+<input type="password" name="password" class="form-control" required placeholder="••••••••" />
+</div>
+<button type="submit" class="btn btn-primary btn-block">Entrar na Conta</button>
+</form>
+<details style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border-subtle);">
+<summary style="font-size:0.82rem;font-weight:600;cursor:pointer;">Esqueceu sua senha? Recuperar senha</summary>
+<form id="customer-recover-form" style="margin-top:10px;">
+<p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:8px;">Informe seu e-mail cadastrado e defina uma nova senha:</p>
+<input type="email" name="email" class="form-control" required placeholder="E-mail da conta" style="margin-bottom:8px;" />
+<input type="password" name="newPassword" class="form-control" required placeholder="Nova senha (mín. 6 caracteres)" minlength="6" style="margin-bottom:8px;" />
+<button type="submit" class="btn btn-outline btn-sm">Redefinir Senha</button>
+</form>
+</details>
+</div>
+<!-- Coluna 2: Criar Conta Completa com Endereço Permanente -->
+<div class="admin-card">
+<span class="section-eyebrow">Novo Cadastro • BY ANGÉLY</span>
+<h2 style="font-family:var(--font-serif);font-size:1.8rem;margin-bottom:6px;">Criar Minha Conta</h2>
+<p style="font-size:0.84rem;color:var(--text-secondary);margin-bottom:14px;">Cadastre seus dados e endereço uma única vez para comprar com rapidez e acompanhar seus pedidos.</p>
+<form id="customer-register-form">
+<div class="sac-form-grid">
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Nome Completo *</label>
+<input type="text" name="name" class="form-control" required placeholder="Ex.: Ana Beatriz Souza" />
+</div>
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Telefone / WhatsApp *</label>
+<input type="tel" name="phone" class="form-control" required placeholder="(28) 99999-9999" />
+</div>
+</div>
+<div class="sac-form-grid">
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">E-mail *</label>
+<input type="email" name="email" class="form-control" required placeholder="seu@email.com" />
+</div>
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">CPF (Opcional)</label>
+<input type="text" name="cpf" class="form-control" placeholder="000.000.000-00" />
+</div>
+</div>
+<div style="margin-bottom:14px;">
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Crie uma Senha *</label>
+<input type="password" name="password" class="form-control" required minlength="6" placeholder="Mínimo de 6 caracteres" />
+</div>
+<div style="padding-top:12px;border-top:1px solid var(--border-subtle);margin-bottom:12px;">
+<strong style="display:block;font-size:0.84rem;color:var(--accent-brown);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Endereço Principal para Entrega</strong>
+<div class="sac-form-grid">
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">CEP *</label>
+<input type="text" name="zipCode" id="reg-cep-input" class="form-control" required placeholder="28300-000" value="28300-000" />
+</div>
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Endereço (Rua / Av.) *</label>
+<input type="text" name="street" id="reg-street-input" class="form-control" required placeholder="Nome da rua ou avenida" />
+</div>
+</div>
+<div class="sac-form-grid">
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Número *</label>
+<input type="text" name="number" class="form-control" required placeholder="Nº" />
+</div>
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Complemento</label>
+<input type="text" name="complement" class="form-control" placeholder="Apto, bloco, casa (opcional)" />
+</div>
+</div>
+<div class="sac-form-grid">
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Bairro *</label>
+<input type="text" name="neighborhood" id="reg-neighborhood-input" class="form-control" required placeholder="Bairro" />
+</div>
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;">
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Cidade *</label>
+<input type="text" name="city" id="reg-city-input" class="form-control" required value="Itaperuna" />
+</div>
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Estado *</label>
+<input type="text" name="state" id="reg-state-input" class="form-control" required maxlength="2" value="RJ" />
+</div>
+</div>
+</div>
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Referência para entrega (Opcional)</label>
+<input type="text" name="reference" class="form-control" placeholder="Ponto de referência (opcional)" />
+</div>
+</div>
+<label style="display:flex;align-items:flex-start;gap:8px;font-size:0.8rem;color:var(--text-secondary);margin-bottom:14px;cursor:pointer;">
+<input type="checkbox" name="marketingOptIn" style="margin-top:3px;" />
+<span>Aceito receber novidades promocionais da BY ANGÉLY (Opcional — LGPD).</span>
+</label>
+<button type="submit" class="btn btn-gold btn-block">Criar Conta e Continuar</button>
+</form>
+</div>
+</div>
+</div>
+</section>
+`;
+}
+function renderAccountView() {
+if (!AppState.currentCustomer || !AppState.currentCustomer.email) {
+return renderCustomerAuthScreen();
+}
+const cust = AppState.currentCustomer;
+const myOrders = (AppState.db.orders || []).filter((o) => {
+if (!o) return false;
+if (o.customerId && cust.id && o.customerId === cust.id) return true;
+const ordEmail = o.customer && o.customer.email ? o.customer.email.toLowerCase() : '';
+return ordEmail && ordEmail === cust.email.toLowerCase();
+});
+const myReturns = (AppState.db.returnRequests || []).filter(
+(r) => r.customerEmail && r.customerEmail.toLowerCase() === cust.email.toLowerCase()
+);
+const primaryAddr = (Array.isArray(cust.addresses) && cust.addresses[0]) || {};
+const splitCS = String(primaryAddr.cityState || '').split('-').map((s) => s.trim());
+return `
+<section class="section-block">
+<div class="container">
+<div class="section-header" style="margin-bottom:24px;">
+<div>
+<span class="section-eyebrow">Área da Cliente • BY ANGÉLY</span>
+<h1 class="section-title">Olá, ${escapeHtml(cust.name)}</h1>
+<p style="color:var(--text-secondary);font-size:0.88rem;">${escapeHtml(cust.email)} ${cust.phone ? '• ' + escapeHtml(cust.phone) : ''}</p>
+</div>
+<button type="button" class="btn btn-outline btn-sm" data-action="customer-logout">Sair da Conta</button>
+</div>
+<div style="display:flex;gap:10px;margin-bottom:24px;flex-wrap:wrap;">
+<button type="button" class="btn ${AppState.activeAccountTab === 'orders' ? 'btn-primary' : 'btn-subtle'} btn-sm" data-action="switch-account-tab" data-tab="orders">
+Meus Pedidos (${myOrders.length})
+</button>
+<button type="button" class="btn ${AppState.activeAccountTab === 'profile' ? 'btn-primary' : 'btn-subtle'} btn-sm" data-action="switch-account-tab" data-tab="profile">
+Meus Dados e Endereços (${(cust.addresses || []).length})
+</button>
+<button type="button" class="btn ${AppState.activeAccountTab === 'returns' ? 'btn-primary' : 'btn-subtle'} btn-sm" data-action="switch-account-tab" data-tab="returns">
+Trocas e Devoluções (${myReturns.length})
+</button>
+</div>
+${AppState.activeAccountTab === 'orders' ? `
+<div>
+${myOrders.length === 0 ? `
+<div class="admin-card" style="text-align:center;padding:40px 20px;">
+<p style="font-family:var(--font-serif);font-size:1.4rem;margin-bottom:8px;">Você ainda não possui pedidos realizados</p>
+<p style="color:var(--text-secondary);font-size:0.88rem;margin-bottom:16px;">Assim que você realizar sua primeira compra, todos os detalhes e o status em tempo real aparecerão aqui.</p>
+<button type="button" class="btn btn-primary btn-sm" data-action="go-catalog">Explorar Catálogo</button>
+</div>
+` : myOrders.map((ord) => {
+const meta = getOrderStatusMeta(ord);
+const isAwaitingPix = ord.paymentMethod === 'pix' && (ord.status === 'awaiting_payment' || ord.status === 'awaiting_confirmation');
+return `
+<div class="admin-card" data-order-card-id="${escapeHtml(ord.id)}">
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding-bottom:12px;border-bottom:1px solid var(--border-subtle);margin-bottom:12px;">
+<div>
+<strong style="font-size:1.08rem;">Pedido ${escapeHtml(ord.orderNumber)}</strong>
+<span style="font-size:0.8rem;color:var(--text-secondary);margin-left:10px;">Realizado em ${formatDateBR(ord.createdAt)}</span>
+</div>
+<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+<span class="status-pill ${meta.badgeClass}">
+${escapeHtml(meta.label)}
+</span>
+<strong style="font-size:1.08rem;color:var(--accent-brown);">${formatBRL(ord.total)}</strong>
+</div>
+</div>
+${meta.customerMessage ? `
+<div style="padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:0.85rem;background:${meta.badgeClass === 'confirmed' ? '#EDF7F1' : meta.badgeClass === 'danger' ? '#FDF2F2' : '#FFF8EB'};color:${meta.badgeClass === 'confirmed' ? '#1E4D38' : meta.badgeClass === 'danger' ? '#8E2626' : '#7A5211'};border:1px solid ${meta.badgeClass === 'confirmed' ? '#B8E0C8' : meta.badgeClass === 'danger' ? '#F2B8B5' : '#E2B96B'};">
+<strong>Status atual:</strong> ${escapeHtml(meta.customerMessage)}
+</div>
+` : ''}
+<div style="display:grid;grid-template-columns:1.35fr 1fr;gap:16px;font-size:0.85rem;">
+<div>
+<strong style="display:block;margin-bottom:8px;">Produtos Comprados:</strong>
+<div style="display:flex;flex-direction:column;gap:8px;">
+${(ord.items || []).map((it) => `
+<div style="display:flex;align-items:center;gap:10px;padding:6px 8px;background:var(--bg-primary);border-radius:6px;">
+<img src="${escapeHtml(it.imageUrl || CATEGORY_COVER_FALLBACKS.vestidos)}" alt="${escapeHtml(it.name)}" style="width:38px;height:48px;object-fit:cover;border-radius:4px;flex-shrink:0;" />
+<div style="flex:1;">
+<strong>${escapeHtml(it.name)}</strong>
+<div style="font-size:0.76rem;color:var(--text-secondary);">
+Tam: ${escapeHtml(it.size)} • Cor: ${escapeHtml(it.color)} • Qtd: ${it.quantity}x (${formatBRL(it.unitPrice)})
+</div>
+</div>
+<strong>${formatBRL(it.unitPrice * it.quantity)}</strong>
+</div>
+`).join('')}
+</div>
+</div>
+<div style="background:var(--bg-primary);padding:12px;border-radius:8px;">
+<div style="margin-bottom:4px;"><strong>Forma de Pagamento:</strong> ${escapeHtml(ord.paymentMethodLabel)}</div>
+<div style="margin-bottom:4px;"><strong>Status do Pagamento:</strong> ${escapeHtml(meta.paymentLabel)}</div>
+<div style="margin-bottom:4px;"><strong>Status da Entrega:</strong> ${escapeHtml(meta.label)}</div>
+<div style="margin-bottom:4px;"><strong>Modalidade:</strong> ${escapeHtml(ord.shipping ? ord.shipping.methodName : '')} (${ord.shipping && ord.shipping.cost > 0 ? formatBRL(ord.shipping.cost) : 'Grátis / A confirmar'})</div>
+<div><strong>Código de Rastreio:</strong> ${ord.shipping && ord.shipping.trackingCode ? `<span style="background:var(--status-info-bg);color:var(--status-info-text);padding:2px 8px;border-radius:4px;font-family:monospace;font-weight:700;">${escapeHtml(ord.shipping.trackingCode)}</span>` : '<span style="color:var(--text-muted);">Aguardando envio / não aplicável</span>'}</div>
+</div>
+</div>
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--border-subtle);">
+<button type="button" class="btn btn-primary btn-sm" data-action="open-order-detail-modal" data-order-id="${escapeHtml(ord.id)}">
+Ver Detalhes do Pedido
+</button>
+${isAwaitingPix ? `
+<button type="button" class="btn btn-gold btn-sm" data-action="reopen-order-payment" data-order-id="${escapeHtml(ord.id)}">
+Pagar com QR Code Pix Agora
+</button>
+` : ''}
+<button type="button" class="btn btn-outline btn-sm" data-action="open-return-request" data-order-number="${escapeHtml(ord.orderNumber)}">
+Solicitar Troca ou Devolução
+</button>
+</div>
+</div>
+`;
+}).join('')}
+</div>
+` : ''}
+${AppState.activeAccountTab === 'profile' ? `
+<div class="admin-card">
+<h2 style="font-family:var(--font-serif);font-size:1.55rem;margin-bottom:6px;">Meus Dados e Endereços Salvos</h2>
+<p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:16px;">Mantenha seus dados e endereço atualizados para preenchimento automático em todas as suas compras.</p>
+<form id="customer-profile-form">
+<div class="sac-form-grid">
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Nome Completo *</label>
+<input type="text" name="name" class="form-control" required value="${escapeHtml(cust.name || '')}" />
+</div>
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Telefone / WhatsApp *</label>
+<input type="text" name="phone" class="form-control" required value="${escapeHtml(cust.phone || '')}" />
+</div>
+</div>
+<div class="sac-form-grid">
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">E-mail Cadastrado</label>
+<input type="email" class="form-control" readonly value="${escapeHtml(cust.email || '')}" style="background:var(--bg-primary);" />
+</div>
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">CPF (Opcional)</label>
+<input type="text" name="cpf" class="form-control" value="${escapeHtml(cust.cpf && cust.cpf !== 'Não informado' ? cust.cpf : '')}" placeholder="000.000.000-00" />
+</div>
+</div>
+<div style="padding-top:14px;border-top:1px solid var(--border-subtle);margin-top:10px;margin-bottom:14px;">
+<strong style="display:block;font-size:0.86rem;color:var(--accent-brown);text-transform:uppercase;margin-bottom:10px;">Endereço Principal de Entrega</strong>
+<div class="sac-form-grid">
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">CEP *</label>
+<input type="text" name="zipCode" class="form-control" required value="${escapeHtml(primaryAddr.zipCode || '28300-000')}" />
+</div>
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Endereço (Rua / Av.) *</label>
+<input type="text" name="street" class="form-control" required value="${escapeHtml(primaryAddr.street || '')}" />
+</div>
+</div>
+<div class="sac-form-grid">
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Número *</label>
+<input type="text" name="number" class="form-control" required value="${escapeHtml(primaryAddr.number || '')}" />
+</div>
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Complemento</label>
+<input type="text" name="complement" class="form-control" value="${escapeHtml(primaryAddr.complement || '')}" />
+</div>
+</div>
+<div class="sac-form-grid">
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Bairro *</label>
+<input type="text" name="neighborhood" class="form-control" required value="${escapeHtml(primaryAddr.neighborhood || '')}" />
+</div>
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;">
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Cidade *</label>
+<input type="text" name="city" class="form-control" required value="${escapeHtml(primaryAddr.city || splitCS[0] || 'Itaperuna')}" />
+</div>
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Estado (UF) *</label>
+<input type="text" name="state" class="form-control" required maxlength="2" value="${escapeHtml(primaryAddr.state || splitCS[1] || 'RJ')}" />
+</div>
+</div>
+</div>
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Referência para entrega (Opcional)</label>
+<input type="text" name="reference" class="form-control" value="${escapeHtml(primaryAddr.reference || '')}" />
+</div>
+</div>
+<div style="padding:12px;background:var(--bg-primary);border:1px solid var(--border-subtle);border-radius:6px;margin-bottom:14px;">
+<label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;">
+<input type="checkbox" name="marketingOptIn" ${cust.marketingOptIn ? 'checked' : ''} />
+<span>Autorizo o recebimento de comunicações promocionais da BY ANGÉLY (LGPD).</span>
+</label>
+</div>
+<button type="submit" class="btn btn-primary btn-sm">Salvar Dados e Endereço</button>
+</form>
+</div>
+` : ''}
+${AppState.activeAccountTab === 'returns' ? `
+<div class="admin-card">
+<h2 style="font-family:var(--font-serif);font-size:1.5rem;margin-bottom:10px;">Solicitar Troca ou Devolução (Art. 49 CDC)</h2>
+<form id="customer-return-form" style="margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid var(--border-subtle);">
+<div class="sac-form-grid">
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Número do Pedido *</label>
+<input type="text" name="orderNumber" id="return-order-number" class="form-control" required placeholder="Ex.: ANG-1001" value="${myOrders[0] ? escapeHtml(myOrders[0].orderNumber) : ''}" />
+</div>
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Tipo de Solicitação *</label>
+<select name="type" class="form-control" required>
+<option value="Arrependimento de Compra (Até 7 dias - Art. 49 CDC)">Arrependimento de Compra (Até 7 dias - Art. 49 CDC)</option>
+<option value="Troca de Tamanho ou Cor">Troca de Tamanho ou Cor</option>
+<option value="Peça com Defeito de Fabricação (Art. 26 CDC)">Peça com Defeito de Fabricação (Art. 26 CDC)</option>
+</select>
+</div>
+</div>
+<div style="margin-bottom:12px;">
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Detalhes da Solicitação *</label>
+<textarea name="reason" rows="2" class="form-control" required placeholder="Informe qual peça deseja trocar ou devolver..."></textarea>
+
+
+
+</div>
+<button type="submit" class="btn btn-primary btn-sm">Registrar Solicitação</button>
+</form>
+<h3 style="font-size:1rem;margin-bottom:12px;">Histórico de Solicitações (${myReturns.length})</h3>
+${myReturns.length === 0 ? `<p style="font-size:0.86rem;color:var(--text-muted);">Nenhuma solicitação registrada.</p>` : myReturns.map((r) => `
+<div style="padding:12px;border:1px solid var(--border-subtle);border-radius:6px;margin-bottom:10px;font-size:0.86rem;">
+<div style="display:flex;justify-content:space-between;">
+<strong>Pedido ${escapeHtml(r.orderNumber)} — ${escapeHtml(r.type)}</strong>
+<span class="status-pill pending">${escapeHtml(r.status)}</span>
+</div>
+<p style="margin-top:4px;color:var(--text-secondary);">${escapeHtml(r.reason)}</p>
+${r.ownerResponse ? `<p style="margin-top:6px;color:var(--status-info-text);"><strong>Resposta da Loja:</strong> ${escapeHtml(r.ownerResponse)}</p>` : ''}
+</div>
+`).join('')}
+</div>
+` : ''}
+</div>
+</section>
+`;
+}
+function bindAccountEvents() {
+const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+const loginForm = document.getElementById('customer-login-form');
+if (loginForm) {
+loginForm.addEventListener('submit', async (e) => {
+e.preventDefault();
+const fd = new FormData(loginForm);
+const email = String(fd.get('email') || '').trim().toLowerCase();
+const password = String(fd.get('password') || '');
+try {
+const res = await fetch(apiBase + '/api/auth/login', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({ email, password })
+});
+const data = await res.json();
+if (res.ok && data && data.ok && data.customer) {
+AppState.currentCustomer = { ...data.customer, token: data.token };
+localStorage.setItem(STORAGE_KEY_CUSTOMER_SESSION, JSON.stringify(AppState.currentCustomer));
+if (Array.isArray(data.customer.savedCart) && data.customer.savedCart.length > 0 && AppState.cart.length === 0) {
+AppState.cart = data.customer.savedCart;
+saveCart();
+}
+await loadDatabase();
+updateHeaderCounters();
+showToast(`Bem-vinda de volta, ${AppState.currentCustomer.name}!`, 'success');
+if (!resumePendingPurchaseIntent()) {
+renderMainView();
+}
+return;
+}
+showToast((data && data.error) || 'E-mail ou senha incorretos.', 'danger');
+} catch (err) {
+showToast('Erro ao autenticar. Verifique sua conexão.', 'danger');
+}
+});
+}
+const regForm = document.getElementById('customer-register-form');
+if (regForm) {
+const cepInput = document.getElementById('reg-cep-input');
+if (cepInput) {
+cepInput.addEventListener('blur', async () => {
+const cleanCep = String(cepInput.value || '').replace(/\D/g, '');
+if (cleanCep.length === 8) {
+try {
+const r = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+const d = await r.json();
+if (d && !d.erro) {
+const stEl = document.getElementById('reg-street-input');
+const nbEl = document.getElementById('reg-neighborhood-input');
+const ctEl = document.getElementById('reg-city-input');
+const ufEl = document.getElementById('reg-state-input');
+if (stEl && d.logradouro && !stEl.value) stEl.value = d.logradouro;
+if (nbEl && d.bairro && !nbEl.value) nbEl.value = d.bairro;
+if (ctEl && d.localidade) ctEl.value = d.localidade;
+if (ufEl && d.uf) ufEl.value = d.uf;
+}
+} catch (e) {}
+}
+});
+}
+regForm.addEventListener('submit', async (e) => {
+e.preventDefault();
+const fd = new FormData(regForm);
+const city = String(fd.get('city') || 'Itaperuna').trim();
+const state = String(fd.get('state') || 'RJ').trim().toUpperCase();
+const address = {
+label: 'Principal',
+zipCode: String(fd.get('zipCode') || '').trim(),
+street: String(fd.get('street') || '').trim(),
+number: String(fd.get('number') || '').trim(),
+complement: String(fd.get('complement') || '').trim(),
+neighborhood: String(fd.get('neighborhood') || '').trim(),
+city,
+state,
+cityState: `${city} - ${state}`,
+reference: String(fd.get('reference') || '').trim()
+};
+try {
+const res = await fetch(apiBase + '/api/auth/register', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({
+name: fd.get('name'),
+email: fd.get('email'),
+phone: fd.get('phone'),
+cpf: fd.get('cpf') || '',
+password: fd.get('password'),
+marketingOptIn: fd.get('marketingOptIn') === 'on',
+address
+})
+});
+const data = await res.json();
+if (!res.ok || !data || !data.ok) {
+showToast((data && data.error) || 'Não foi possível concluir o cadastro.', 'danger');
+return;
+}
+AppState.currentCustomer = { ...data.customer, token: data.token };
+localStorage.setItem(STORAGE_KEY_CUSTOMER_SESSION, JSON.stringify(AppState.currentCustomer));
+await loadDatabase();
+updateHeaderCounters();
+showToast('Cadastro criado com sucesso! Seus dados e endereço foram salvos.', 'success');
+if (!resumePendingPurchaseIntent()) {
+renderMainView();
+}
+} catch (err) {
+showToast('Erro de conexão ao criar conta.', 'danger');
+}
+});
+}
+const recForm = document.getElementById('customer-recover-form');
+if (recForm) {
+recForm.addEventListener('submit', async (e) => {
+e.preventDefault();
+const fd = new FormData(recForm);
+try {
+const res = await fetch(apiBase + '/api/auth/recover', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({
+email: fd.get('email'),
+newPassword: fd.get('newPassword')
+})
+});
+const data = await res.json();
+if (!res.ok || !data.ok) {
+showToast((data && data.error) || 'E-mail não localizado.', 'danger');
+return;
+}
+showToast('Senha redefinida com sucesso! Você já pode entrar.', 'success');
+recForm.reset();
+} catch (err) {
+showToast('Erro ao redefinir senha.', 'danger');
+}
+});
+}
+const profForm = document.getElementById('customer-profile-form');
+if (profForm) {
+profForm.addEventListener('submit', async (e) => {
+e.preventDefault();
+const fd = new FormData(profForm);
+const city = String(fd.get('city') || 'Itaperuna').trim();
+const state = String(fd.get('state') || 'RJ').trim().toUpperCase();
+const updatedAddr = {
+label: 'Principal',
+zipCode: String(fd.get('zipCode') || '').trim(),
+street: String(fd.get('street') || '').trim(),
+number: String(fd.get('number') || '').trim(),
+complement: String(fd.get('complement') || '').trim(),
+neighborhood: String(fd.get('neighborhood') || '').trim(),
+city,
+state,
+cityState: `${city} - ${state}`,
+reference: String(fd.get('reference') || '').trim()
+};
+const existingAddrs = Array.isArray(AppState.currentCustomer.addresses) ? [...AppState.currentCustomer.addresses] : [];
+existingAddrs[0] = updatedAddr;
+const headers = { 'Content-Type': 'application/json' };
+if (AppState.currentCustomer.token) {
+headers['Authorization'] = 'Bearer ' + AppState.currentCustomer.token;
+}
+try {
+const res = await fetch(apiBase + '/api/customer/profile', {
+method: 'PUT',
+headers,
+body: JSON.stringify({
+customerId: AppState.currentCustomer.id,
+name: fd.get('name'),
+phone: fd.get('phone'),
+cpf: fd.get('cpf') || '',
+marketingOptIn: fd.get('marketingOptIn') === 'on',
+addresses: existingAddrs
+})
+});
+const data = await res.json();
+if (res.ok && data && data.ok && data.customer) {
+AppState.currentCustomer = { ...AppState.currentCustomer, ...data.customer };
+} else {
+AppState.currentCustomer.name = String(fd.get('name') || '').trim();
+AppState.currentCustomer.phone = String(fd.get('phone') || '').trim();
+AppState.currentCustomer.cpf = String(fd.get('cpf') || '').trim();
+AppState.currentCustomer.marketingOptIn = fd.get('marketingOptIn') === 'on';
+AppState.currentCustomer.addresses = existingAddrs;
+}
+localStorage.setItem(STORAGE_KEY_CUSTOMER_SESSION, JSON.stringify(AppState.currentCustomer));
+await loadDatabase();
+updateHeaderCounters();
+renderMainView();
+showToast('Seus dados e endereço foram salvos com sucesso!', 'success');
+} catch (err) {
+showToast('Erro ao salvar perfil.', 'danger');
+}
+});
+}
+const returnForm = document.getElementById('customer-return-form');
+if (returnForm) {
+returnForm.addEventListener('submit', (e) => {
+e.preventDefault();
+const fd = new FormData(returnForm);
+const reqObj = {
+id: 'ret-' + Date.now(),
+orderNumber: fd.get('orderNumber'),
+customerName: AppState.currentCustomer.name,
+customerEmail: AppState.currentCustomer.email,
+type: fd.get('type'),
+reason: fd.get('reason'),
+status: 'Em análise pela loja',
+ownerResponse: '',
+createdAt: new Date().toISOString()
+};
+AppState.db.returnRequests.unshift(reqObj);
+saveDatabase(`Solicitação de troca/devolução aberta para ${reqObj.orderNumber}`);
+renderMainView();
+showToast('Solicitação de troca/devolução registrada com sucesso!', 'success');
+});
+}
+}
+function openOrderDetailModal(orderId) {
+const cust = AppState.currentCustomer;
+const ord = (AppState.db.orders || []).find((o) => o && o.id === orderId);
+if (!ord) return;
+if (!AppState.currentAdmin && cust) {
+const belongs =
+(ord.customerId && ord.customerId === cust.id) ||
+(ord.customer && ord.customer.email && ord.customer.email.toLowerCase() === cust.email.toLowerCase());
+if (!belongs) {
+showToast('Acesso negado a este pedido.', 'danger');
+return;
+}
+}
+const modal = document.getElementById('order-detail-modal');
+const body = document.getElementById('order-detail-modal-body');
+if (!modal || !body) return;
+const meta = getOrderStatusMeta(ord);
+const addr = (ord.shipping && ord.shipping.address) || {};
+const timelineSteps = [
+{ step: 1, label: 'Aguardando pagamento' },
+{ step: 2, label: 'Pagamento aprovado' },
+{ step: 4, label: 'Em separação' },
+{ step: 5, label: 'Pronto p/ envio ou retirada' },
+{ step: 6, label: 'Enviado / Saiu p/ entrega' },
+{ step: 8, label: 'Entregue' }
+];
+body.innerHTML = `
+<div>
+<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;padding-bottom:14px;border-bottom:1px solid var(--border-subtle);margin-bottom:16px;">
+<div>
+<span class="section-eyebrow">Detalhes Completos</span>
+<h2 style="font-family:var(--font-serif);font-size:1.75rem;margin-bottom:4px;">Pedido ${escapeHtml(ord.orderNumber)}</h2>
+<p style="font-size:0.82rem;color:var(--text-secondary);">Realizado em ${formatDateBR(ord.createdAt)}</p>
+</div>
+<span class="status-pill ${meta.badgeClass}" style="font-size:0.84rem;padding:6px 12px;">
+${escapeHtml(meta.label)}
+</span>
+</div>
+${meta.customerMessage ? `
+<div style="padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:0.88rem;background:${meta.badgeClass === 'confirmed' ? '#EDF7F1' : meta.badgeClass === 'danger' ? '#FDF2F2' : '#FFF8EB'};color:${meta.badgeClass === 'confirmed' ? '#1E4D38' : meta.badgeClass === 'danger' ? '#8E2626' : '#7A5211'};border:1px solid ${meta.badgeClass === 'confirmed' ? '#B8E0C8' : meta.badgeClass === 'danger' ? '#F2B8B5' : '#E2B96B'};">
+<strong>${escapeHtml(meta.customerMessage)}</strong>
+</div>
+` : ''}
+${meta.step < 9 ? `
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:18px;">
+${timelineSteps.map((st) => {
+const done = meta.step >= st.step;
+return `
+<div style="padding:8px 10px;border-radius:8px;border:1px solid ${done ? '#2E6F52' : 'var(--border-subtle)'};background:${done ? '#EDF7F1' : 'var(--bg-primary)'};font-size:0.75rem;text-align:center;">
+<div style="font-weight:700;color:${done ? '#1E4D38' : 'var(--text-muted)'};margin-bottom:2px;">${done ? '✓' : '○'}</div>
+<div style="color:${done ? '#1E4D38' : 'var(--text-secondary)'};font-weight:${done ? '600' : '400'};">${escapeHtml(st.label)}</div>
+</div>
+`;
+}).join('')}
+</div>
+` : ''}
+<h3 style="font-family:var(--font-serif);font-size:1.25rem;margin-bottom:10px;">Produtos do Pedido</h3>
+<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+${(ord.items || []).map((it) => `
+<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg-primary);border-radius:8px;font-size:0.85rem;">
+<div style="display:flex;align-items:center;gap:10px;">
+<img src="${escapeHtml(it.imageUrl || CATEGORY_COVER_FALLBACKS.vestidos)}" alt="${escapeHtml(it.name)}" style="width:44px;height:54px;object-fit:cover;border-radius:6px;" />
+<div>
+<strong>${escapeHtml(it.name)}</strong>
+<div style="font-size:0.76rem;color:var(--text-secondary);">Tam: ${escapeHtml(it.size)} • Cor: ${escapeHtml(it.color)} • Qtd: ${it.quantity}x • Unitário: ${formatBRL(it.unitPrice)}</div>
+</div>
+</div>
+<strong>${formatBRL(it.unitPrice * it.quantity)}</strong>
+</div>
+`).join('')}
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;font-size:0.84rem;">
+<div style="background:var(--bg-primary);padding:12px;border-radius:8px;">
+<strong style="display:block;margin-bottom:6px;color:var(--accent-brown);">Endereço e Entrega</strong>
+<div><strong>Modalidade:</strong> ${escapeHtml(ord.shipping ? ord.shipping.methodName : '')}</div>
+<div><strong>Endereço:</strong> ${escapeHtml(addr.street || '')}, ${escapeHtml(addr.number || '')} ${addr.complement ? ' - ' + escapeHtml(addr.complement) : ''}</div>
+<div><strong>Bairro / Cidade:</strong> ${escapeHtml(addr.neighborhood || '')} — ${escapeHtml(addr.cityState || ((addr.city || '') + ' - ' + (addr.state || '')))}</div>
+<div><strong>CEP:</strong> ${escapeHtml(addr.zipCode || '')}</div>
+${addr.reference ? `<div><strong>Referência:</strong> ${escapeHtml(addr.reference)}</div>` : ''}
+<div style="margin-top:6px;"><strong>Rastreio:</strong> ${ord.shipping && ord.shipping.trackingCode ? `<code>${escapeHtml(ord.shipping.trackingCode)}</code>` : 'Não informado'}</div>
+</div>
+<div style="background:var(--bg-primary);padding:12px;border-radius:8px;">
+<strong style="display:block;margin-bottom:6px;color:var(--accent-brown);">Resumo Financeiro</strong>
+<div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>Subtotal:</span><span>${formatBRL(ord.subtotal || ord.total)}</span></div>
+${ord.discount > 0 ? `<div style="display:flex;justify-content:space-between;margin-bottom:4px;color:var(--status-success-text);"><span>Desconto:</span><span>-${formatBRL(ord.discount)}</span></div>` : ''}
+<div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>Frete:</span><span>${ord.shipping && ord.shipping.cost > 0 ? formatBRL(ord.shipping.cost) : 'Grátis / A confirmar'}</span></div>
+<div style="display:flex;justify-content:space-between;font-weight:700;font-size:1rem;padding-top:6px;border-top:1px solid var(--border-subtle);margin-top:6px;"><span>Total:</span><span>${formatBRL(ord.total)}</span></div>
+<div style="margin-top:6px;font-size:0.78rem;color:var(--text-secondary);"><strong>Forma:</strong> ${escapeHtml(ord.paymentMethodLabel)}</div>
+</div>
+</div>
+${Array.isArray(ord.notificationsLog) && ord.notificationsLog.length > 0 ? `
+<div style="background:var(--bg-primary);padding:12px;border-radius:8px;font-size:0.8rem;margin-bottom:14px;">
+<strong style="display:block;margin-bottom:6px;">Histórico de Atualizações do Pedido:</strong>
+${ord.notificationsLog.map((n) => `
+<div style="margin-bottom:4px;color:var(--text-secondary);">• <strong>${formatDateBR(n.date)}:</strong> ${escapeHtml(n.message)}</div>
+`).join('')}
+</div>
+` : ''}
+<div style="display:flex;justify-content:flex-end;gap:10px;">
+${ord.paymentMethod === 'pix' && (ord.status === 'awaiting_payment' || ord.status === 'awaiting_confirmation') ? `
+<button type="button" class="btn btn-gold btn-sm" data-action="reopen-order-payment" data-order-id="${escapeHtml(ord.id)}">Abrir QR Code Pix</button>
+` : ''}
+<button type="button" class="btn btn-outline btn-sm" data-action="close-order-detail-modal">Fechar</button>
+</div>
+</div>
+`;
+modal.classList.add('open');
+modal.setAttribute('aria-hidden', 'false');
+}
+function closeOrderDetailModal() {
+const modal = document.getElementById('order-detail-modal');
+if (modal) {
+modal.classList.remove('open');
+modal.setAttribute('aria-hidden', 'true');
+}
+}
+function openHeaderSearchBar() {
+const bar = document.getElementById('header-search-bar');
+const inp = document.getElementById('header-search-input');
+if (!bar) return;
+bar.style.display = 'block';
+bar.setAttribute('aria-hidden', 'false');
+if (inp) {
+inp.value = AppState.filters.search || '';
+setTimeout(() => inp.focus(), 30);
+renderHeaderSearchResults(inp.value);
+}
+}
+function closeHeaderSearchBar() {
+const bar = document.getElementById('header-search-bar');
+const resBox = document.getElementById('header-search-results');
+if (bar) {
+bar.style.display = 'none';
+bar.setAttribute('aria-hidden', 'true');
+}
+if (resBox) {
+resBox.style.display = 'none';
+}
+}
+function renderHeaderSearchResults(rawVal) {
+const resBox = document.getElementById('header-search-results');
+const clearBtn = document.getElementById('header-search-clear');
+const q = normalizeSearchText(rawVal);
+if (clearBtn) {
+clearBtn.style.display = rawVal && rawVal.length > 0 ? 'block' : 'none';
+}
+if (!resBox) return;
+if (!q) {
+resBox.style.display = 'none';
+resBox.innerHTML = '';
+return;
+}
+const words = q.split(/\s+/).filter(Boolean);
+const matches = (AppState.db.products || [])
+.filter((p) => p.status === 'published')
+.filter((p) => {
+const blob = normalizeSearchText([
+p.name,
+p.shortDescription,
+p.categoryName,
+p.category,
+p.sku,
+p.style,
+p.fabricInfo
+].join(' '));
+return words.every((w) => blob.includes(w));
+})
+.slice(0, 6);
+resBox.style.display = 'block';
+if (matches.length === 0) {
+resBox.innerHTML = `
+<div style="padding:14px;text-align:center;color:var(--text-secondary);font-size:0.86rem;">
+Nenhuma peça encontrada para "<strong>${escapeHtml(rawVal)}</strong>". Tente buscar por vestido, conjunto, blusa, calça ou saia.
+</div>
+`;
+return;
+}
+resBox.innerHTML = `
+<div style="display:flex;flex-direction:column;gap:6px;">
+${matches.map((p) => {
+const normCat = normalizeCategorySlug(p.category || p.categoryName || 'vestidos');
+const fb = CATEGORY_COVER_FALLBACKS[normCat] || CATEGORY_COVER_FALLBACKS.vestidos;
+const img = (p.media && p.media[0] && p.media[0].url) || fb;
+return `
+<button type="button" data-action="search-result-open-product" data-product-id="${escapeHtml(p.id)}" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid var(--border-subtle);border-radius:8px;background:#FFFFFF;cursor:pointer;text-align:left;width:100%;">
+<div style="display:flex;align-items:center;gap:10px;">
+<img src="${escapeHtml(img)}" alt="${escapeHtml(p.name)}" style="width:38px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0;" />
+<div>
+<strong style="font-size:0.88rem;color:var(--text-primary);display:block;">${escapeHtml(p.name)}</strong>
+<span style="font-size:0.75rem;color:var(--text-secondary);">${escapeHtml(p.categoryName || p.category)} • Tam: ${(p.sizes || []).join(', ')}</span>
+</div>
+</div>
+<strong style="font-size:0.9rem;color:var(--accent-brown);white-space:nowrap;">${formatBRL(getEffectivePrice(p))}</strong>
+</button>
+`;
+}).join('')}
+</div>
+`;
+}
+window.addEventListener('DOMContentLoaded', () => {
+const searchInput = document.getElementById('header-search-input');
+const searchForm = document.getElementById('header-search-form');
+if (searchInput) {
+searchInput.addEventListener('input', (e) => {
+const val = e.target.value;
+AppState.filters.search = val;
+renderHeaderSearchResults(val);
+if (AppState.currentView === 'catalog') {
+renderMainView();
+}
+});
+}
+if (searchForm) {
+searchForm.addEventListener('submit', (e) => {
+e.preventDefault();
+const val = searchInput ? searchInput.value.trim() : '';
+resetFilters();
+AppState.filters.search = val;
+closeHeaderSearchBar();
+navigateTo('catalog');
+});
+}
+document.addEventListener('click', (e) => {
+if (e.target && e.target.id === 'order-detail-modal') {
+closeOrderDetailModal();
+return;
+}
+const target = e.target.closest('[data-action], [data-nav-view]');
+if (!target) return;
+const action = target.getAttribute('data-action');
+const navView = target.getAttribute('data-nav-view');
+if (navView === 'account') {
+AppState.showPurchaseAuthBanner = false;
+}
+if (!action) return;
+switch (action) {
+case 'open-search-filter': {
+e.preventDefault();
+e.stopPropagation();
+const bar = document.getElementById('header-search-bar');
+if (bar && bar.style.display === 'block') {
+closeHeaderSearchBar();
+} else {
+openHeaderSearchBar();
+}
+break;
+}
+case 'close-search-bar': {
+e.preventDefault();
+e.stopPropagation();
+closeHeaderSearchBar();
+break;
+}
+case 'clear-header-search': {
+e.preventDefault();
+e.stopPropagation();
+const inp = document.getElementById('header-search-input');
+if (inp) {
+inp.value = '';
+inp.focus();
+}
+AppState.filters.search = '';
+renderHeaderSearchResults('');
+if (AppState.currentView === 'catalog') {
+renderMainView();
+}
+break;
+}
+case 'search-result-open-product': {
+e.preventDefault();
+e.stopPropagation();
+const pid = target.getAttribute('data-product-id');
+closeHeaderSearchBar();
+openProductModal(pid);
+break;
+}
+case 'go-account-orders': {
+e.preventDefault();
+e.stopPropagation();
+AppState.lastCreatedOrder = null;
+AppState.showPurchaseAuthBanner = false;
+closeMobileMenu();
+navigateTo('account', { accountTab: 'orders' });
+break;
+}
+case 'open-order-detail-modal': {
+e.preventDefault();
+e.stopPropagation();
+const oid = target.getAttribute('data-order-id');
+openOrderDetailModal(oid);
+break;
+}
+case 'close-order-detail-modal': {
+e.preventDefault();
+e.stopPropagation();
+closeOrderDetailModal();
+break;
+}
+case 'reopen-order-payment': {
+e.preventDefault();
+e.stopPropagation();
+const oid = target.getAttribute('data-order-id');
+const ord = (AppState.db.orders || []).find((o) => o.id === oid);
+if (ord) {
+closeOrderDetailModal();
+AppState.lastCreatedOrder = ord;
+navigateTo('checkout');
+}
+break;
+}
+case 'close-pdp-go-login': {
+e.preventDefault();
+e.stopPropagation();
+const modal = document.getElementById('product-detail-modal');
+if (modal) modal.classList.remove('open');
+AppState.showPurchaseAuthBanner = false;
+navigateTo('account');
+break;
+}
+case 'proceed-to-checkout': {
+if (!AppState.currentCustomer || !AppState.currentCustomer.email) {
+e.preventDefault();
+e.stopPropagation();
+requireCustomerAuthForPurchase({ type: 'checkout' });
+}
+break;
+}
+case 'buy-now-modal': {
+if (!AppState.currentCustomer || !AppState.currentCustomer.email) {
+e.preventDefault();
+e.stopPropagation();
+const st = AppState.activeProductModal;
+requireCustomerAuthForPurchase({
+type: 'add_to_cart',
+productId: st.productId,
+size: st.selectedSize,
+color: st.selectedColor,
+qty: Number(st.quantity) || 1,
+options: { skipOpenDrawer: true, goToCheckout: true }
+});
+}
+break;
+}
+case 'customer-logout': {
+e.preventDefault();
+e.stopPropagation();
+stopPixPaymentPolling();
+syncCustomerCartToServer();
+AppState.currentCustomer = null;
+AppState.cart = [];
+AppState.lastCreatedOrder = null;
+AppState.showPurchaseAuthBanner = false;
+localStorage.removeItem(STORAGE_KEY_CUSTOMER_SESSION);
+saveCart();
+updateHeaderCounters();
+renderMainView();
+showToast('Você saiu da sua conta com segurança.');
+break;
+}
+}
+}, true);
+});
+window.ByAngelyApp.addToCart = addToCart;
+window.ByAngelyApp.openCartDrawer = openCartDrawer;
+window.ByAngelyApp.renderCartDrawer = renderCartDrawer;
 })();
