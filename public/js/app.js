@@ -9329,10 +9329,573 @@ window.addEventListener('DOMContentLoaded', () => {
   setTimeout(syncViewFromLocationHash, 20);
 });
 window.addEventListener('hashchange', syncViewFromLocationHash);
+})
+
+
+// ============================================================================
+// BY ANGELY — V5: CORRECAO DEFINITIVA DE LOGIN E CADASTRO EXCLUDENTES EM 3 ETAPAS
+// ============================================================================
+AppState.authMode = AppState.authMode || 'login';
+AppState.registerStep = AppState.registerStep || 1;
+AppState.showRecoverPasswordBox = false;
+AppState.loginDraft = AppState.loginDraft || { email: '', password: '' };
+AppState.registerDraft = AppState.registerDraft || {
+  name: '', phone: '', email: '', password: '', confirmPassword: '',
+  zipCode: '', street: '', number: '', complement: '', neighborhood: '',
+  city: '', state: '', reference: '', marketingOptIn: false
+};
+
+function isCustomerAuthenticatedV5() {
+  return Boolean(AppState.currentCustomer && AppState.currentCustomer.email);
+}
+
+function isAuthScreenActiveV5() {
+  const v = AppState.currentView;
+  return !isCustomerAuthenticatedV5() && (v === 'account' || v === 'orders' || v === 'returns');
+}
+
+function injectV5AuthStylesAndCompactFooter() {
+  if (!document.getElementById('by-angely-v5-auth-styles')) {
+    const style = document.createElement('style');
+    style.id = 'by-angely-v5-auth-styles';
+    style.textContent = [
+      'body.auth-page-active #category-strip-nav, body.auth-page-active .category-strip { display: none !important; }',
+      'body.auth-page-active .floating-whatsapp-concierge { display: none !important; }',
+      'body.auth-page-active .site-header .header-inner { min-height: 48px !important; padding-top: 6px !important; padding-bottom: 6px !important; }',
+      '@media (max-width: 768px) { body.auth-page-active .top-announcement-bar { display: none !important; } body.auth-page-active .site-header .brand-title { font-size: 1.18rem !important; } }',
+      '#auth-compact-footer { display: none; }',
+      'body.auth-page-active .site-footer { padding: 18px 0 22px !important; margin-top: 12px !important; }',
+      'body.auth-page-active .site-footer .footer-grid, body.auth-page-active .site-footer .footer-bottom { display: none !important; }',
+      'body.auth-page-active #auth-compact-footer { display: block !important; }',
+      '.auth-compact-footer-inner { max-width: 520px; margin: 0 auto; padding: 0 16px; text-align: center; }',
+      '.auth-compact-footer-brand { font-family: var(--font-serif); font-size: 1.15rem; color: #F8F5F0; letter-spacing: 0.08em; margin-bottom: 10px; }',
+      '.auth-compact-footer-links { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 12px; margin-bottom: 10px; }',
+      '.auth-compact-footer-link { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 999px; background: rgba(248,245,240,0.08); border: 1px solid rgba(233,223,212,0.22); color: #F8F5F0 !important; font-size: 0.75rem; font-weight: 500; text-decoration: none; cursor: pointer; }',
+      '.auth-compact-footer-copy { font-size: 0.72rem; color: rgba(233,223,212,0.7); margin: 0; }',
+      '.customer-area-shell.is-auth-screen { padding: 12px 0 26px !important; }',
+      '.auth-single-wrapper { max-width: 470px; width: 100%; margin: 0 auto; box-sizing: border-box; }',
+      '.auth-top-back-bar { display: flex; align-items: center; justify-content: flex-start; margin-bottom: 10px; }',
+      '.auth-back-catalog-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: #FFFFFF; border: 1px solid #D5C7B8; color: #292522; font-size: 0.76rem; font-weight: 600; cursor: pointer; }',
+      '.auth-mode-switcher-v5 { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 6px !important; background: #E9DFD4 !important; padding: 5px !important; border-radius: 12px !important; margin-bottom: 14px !important; width: 100% !important; box-sizing: border-box !important; }',
+      '.auth-mode-tab-v5 { min-height: 44px !important; padding: 8px 10px !important; border-radius: 9px !important; border: none !important; background: transparent !important; color: #5C5346 !important; font-size: 0.75rem !important; font-weight: 700 !important; letter-spacing: 0.03em !important; text-transform: uppercase !important; cursor: pointer !important; text-align: center !important; }',
+      '.auth-mode-tab-v5.active { background: #806044 !important; color: #FFFFFF !important; box-shadow: 0 2px 8px rgba(41,37,34,0.15) !important; }',
+      '.auth-card-v5 { background: #FFFFFF !important; border: 1px solid #E9DFD4 !important; border-radius: 14px !important; padding: 20px 18px !important; box-shadow: 0 6px 22px rgba(41,37,34,0.05) !important; width: 100% !important; box-sizing: border-box !important; }',
+      '@media (max-width: 480px) { .auth-card-v5 { padding: 16px 14px !important; } .auth-mode-tab-v5 { font-size: 0.71rem !important; padding: 8px 6px !important; } }',
+      '.field-error-v5 { display: none; font-size: 0.75rem; color: #B83A3A; font-weight: 500; margin-top: 4px; line-height: 1.35; }',
+      '.field-error-v5.visible { display: block !important; }'
+    ].join(' ');
+    document.head.appendChild(style);
+  }
+  const footerEl = document.querySelector('.site-footer');
+  if (footerEl && !document.getElementById('auth-compact-footer')) {
+    const compactDiv = document.createElement('div');
+    compactDiv.id = 'auth-compact-footer';
+    compactDiv.innerHTML = [
+      '<div class="auth-compact-footer-inner">',
+      '  <div class="auth-compact-footer-brand">BY ANGÉLY</div>',
+      '  <div class="auth-compact-footer-links">',
+      '    <a href="https://wa.me/5528999871458?text=Ol%C3%A1!%20Vim%20pelo%20site%20da%20BY%20ANG%C3%89LY%20e%20preciso%20de%20ajuda%20com%20meu%20acesso." target="_blank" rel="noopener noreferrer" class="auth-compact-footer-link">WhatsApp</a>',
+      '    <a href="https://www.instagram.com/_by.angely?dlrf=OXJrN2EwdHNka21x" target="_blank" rel="noopener noreferrer" class="auth-compact-footer-link">Instagram</a>',
+      '    <a href="mailto:byangely1@gmail.com" class="auth-compact-footer-link">E-mail</a>',
+      '    <button type="button" class="auth-compact-footer-link" data-nav-view="policies">Políticas e Privacidade</button>',
+      '  </div>',
+      '  <p class="auth-compact-footer-copy">© 2026 BY ANGÉLY — Itaperuna, RJ • Compra Segura & LGPD</p>',
+      '</div>'
+    ].join('');
+    footerEl.appendChild(compactDiv);
+  }
+}
+
+function syncAuthPageBodyState() {
+  injectV5AuthStylesAndCompactFooter();
+  const isAuth = isAuthScreenActiveV5();
+  document.body.classList.toggle('auth-page-active', isAuth);
+  const catNav = document.getElementById('category-strip-nav');
+  if (catNav) catNav.style.display = isAuth ? 'none' : '';
+}
+
+renderCustomerAreaNav = function (activeSection) {
+  if (!isCustomerAuthenticatedV5()) {
+    return '<div class="auth-top-back-bar"><button type="button" class="auth-back-catalog-btn" data-action="go-catalog">← Voltar ao Catálogo</button></div>';
+  }
+  const favCount = (AppState.wishlist || []).length;
+  const ordCount = getAuthenticatedCustomerOrders().length;
+  return [
+    '<nav class="customer-area-nav" id="customer-area-subnav" aria-label="Navegação da Área da Cliente">',
+    '  <div class="customer-area-nav-links">',
+    '    <button type="button" class="customer-nav-pill ' + (activeSection === 'account' ? 'active' : '') + '" data-nav-view="account"><span>Minha Conta</span></button>',
+    '    <button type="button" class="customer-nav-pill ' + (activeSection === 'orders' ? 'active' : '') + '" data-action="go-account-orders"><span>Meus Pedidos (' + ordCount + ')</span></button>',
+    '    <button type="button" class="customer-nav-pill ' + (activeSection === 'favorites' ? 'active' : '') + '" data-nav-view="favorites"><span>Meus Favoritos (' + favCount + ')</span></button>',
+    '    <button type="button" class="customer-nav-pill ' + (activeSection === 'returns' ? 'active' : '') + '" data-action="go-returns"><span>Trocas e Devoluções</span></button>',
+    '  </div>',
+    '  <button type="button" class="btn btn-outline btn-sm" data-action="go-catalog">← Voltar ao Catálogo</button>',
+    '</nav>'
+  ].join('');
+};
+
+function syncAllAuthDraftsFromDom() {
+  const loginEmail = document.getElementById('login-email-input');
+  const loginPass = document.getElementById('login-password-input');
+  if (loginEmail) AppState.loginDraft.email = loginEmail.value;
+  if (loginPass) AppState.loginDraft.password = loginPass.value;
+  const regForm = document.getElementById('customer-register-form');
+  if (regForm) {
+    const fields = ['name', 'phone', 'email', 'password', 'confirmPassword', 'zipCode', 'street', 'number', 'complement', 'neighborhood', 'city', 'state', 'reference'];
+    fields.forEach((f) => {
+      const el = regForm.querySelector('[name="' + f + '"]');
+      if (el) AppState.registerDraft[f] = el.value;
+    });
+  }
+}
+
+function setV5FieldError(inputId, errorId, message) {
+  const inp = document.getElementById(inputId);
+  const err = document.getElementById(errorId);
+  const hasErr = Boolean(message);
+  if (inp) inp.classList.toggle('has-error', hasErr);
+  if (err) {
+    err.textContent = message || '';
+    err.style.display = hasErr ? 'block' : 'none';
+    err.classList.toggle('visible', hasErr);
+  }
+}
+
+function validateV5RegisterStep(stepNum) {
+  syncAllAuthDraftsFromDom();
+  const d = AppState.registerDraft;
+  let valid = true;
+  if (stepNum === 1) {
+    const nameClean = String(d.name || '').trim();
+    const phoneDigits = String(d.phone || '').replace(/[^0-9]/g, '');
+    const emailClean = String(d.email || '').trim();
+    if (nameClean.length < 3) {
+      setV5FieldError('reg-name-input', 'reg-error-name', 'Informe seu nome completo.');
+      valid = false;
+    } else {
+      setV5FieldError('reg-name-input', 'reg-error-name', '');
+    }
+    if (phoneDigits.length < 10) {
+      setV5FieldError('reg-phone-input', 'reg-error-phone', 'Informe um telefone ou WhatsApp válido com DDD.');
+      valid = false;
+    } else {
+      setV5FieldError('reg-phone-input', 'reg-error-phone', '');
+    }
+    if (!isValidEmailFormat(emailClean)) {
+      setV5FieldError('reg-email-input', 'reg-error-email', 'Informe um e-mail válido (ex.: voce@email.com).');
+      valid = false;
+    } else {
+      setV5FieldError('reg-email-input', 'reg-error-email', '');
+    }
+  } else if (stepNum === 2) {
+    const pass = String(d.password || '');
+    const conf = String(d.confirmPassword || '');
+    if (pass.length < 6) {
+      setV5FieldError('reg-password-input', 'reg-error-password', 'A senha deve ter pelo menos 6 caracteres.');
+      valid = false;
+    } else {
+      setV5FieldError('reg-password-input', 'reg-error-password', '');
+    }
+    if (!conf) {
+      setV5FieldError('reg-confirm-password-input', 'reg-error-confirmPassword', 'Confirme sua senha.');
+      valid = false;
+    } else if (conf !== pass) {
+      setV5FieldError('reg-confirm-password-input', 'reg-error-confirmPassword', 'As senhas informadas não coincidem.');
+      valid = false;
+    } else {
+      setV5FieldError('reg-confirm-password-input', 'reg-error-confirmPassword', '');
+    }
+  } else if (stepNum === 3) {
+    const cepDigits = String(d.zipCode || '').replace(/[^0-9]/g, '');
+    const street = String(d.street || '').trim();
+    const number = String(d.number || '').trim();
+    const neighborhood = String(d.neighborhood || '').trim();
+    const city = String(d.city || '').trim();
+    const state = String(d.state || '').trim();
+    if (cepDigits.length !== 8) {
+      setV5FieldError('reg-cep-input', 'reg-error-zipCode', 'Informe um CEP válido com 8 dígitos.');
+      valid = false;
+    } else {
+      setV5FieldError('reg-cep-input', 'reg-error-zipCode', '');
+    }
+    if (!street) {
+      setV5FieldError('reg-street-input', 'reg-error-street', 'Informe a rua ou avenida.');
+      valid = false;
+    } else {
+      setV5FieldError('reg-street-input', 'reg-error-street', '');
+    }
+    if (!number) {
+      setV5FieldError('reg-number-input', 'reg-error-number', 'Informe o número.');
+      valid = false;
+    } else {
+      setV5FieldError('reg-number-input', 'reg-error-number', '');
+    }
+    if (!neighborhood) {
+      setV5FieldError('reg-neighborhood-input', 'reg-error-neighborhood', 'Informe o bairro.');
+      valid = false;
+    } else {
+      setV5FieldError('reg-neighborhood-input', 'reg-error-neighborhood', '');
+    }
+    if (!city) {
+      setV5FieldError('reg-city-input', 'reg-error-city', 'Informe a cidade.');
+      valid = false;
+    } else {
+      setV5FieldError('reg-city-input', 'reg-error-city', '');
+    }
+    if (state.length < 2) {
+      setV5FieldError('reg-state-input', 'reg-error-state', 'Informe a UF.');
+      valid = false;
+    } else {
+      setV5FieldError('reg-state-input', 'reg-error-state', '');
+    }
+  }
+  return valid;
+}
+
+validateRegisterStep = validateV5RegisterStep;
+setFieldErrorState = function (inputId, errorId, hasError, customMsg) {
+  setV5FieldError(inputId, errorId, hasError ? (customMsg || 'Preencha este campo corretamente.') : '');
+};
+showRegisterStepInDom = function (targetStep) {
+  syncAllAuthDraftsFromDom();
+  AppState.registerStep = Math.max(1, Math.min(3, Number(targetStep) || 1));
+  renderMainView();
+};
+
+renderCustomerAuthScreen = function () {
+  const showBanner = Boolean(AppState.showPurchaseAuthBanner);
+  const mode = AppState.authMode === 'register' ? 'register' : 'login';
+  const step = Math.max(1, Math.min(3, Number(AppState.registerStep) || 1));
+  const d = AppState.registerDraft || {};
+  const l = AppState.loginDraft || {};
+  const progressPct = step === 1 ? 33 : step === 2 ? 66 : 100;
+
+  let activeStepHtml = '';
+  if (step === 1) {
+    activeStepHtml = [
+      '<div id="reg-step-panel-1" data-reg-step-panel="1">',
+      '  <div class="form-field-group">',
+      '    <label class="form-field-label" for="reg-name-input">Nome completo <span class="req-star">*</span></label>',
+      '    <input type="text" autocomplete="name" name="name" id="reg-name-input" class="form-input-v4" required placeholder="Digite seu nome e sobrenome" value="' + escapeHtml(d.name || '') + '" />',
+      '    <span class="field-error-v5" id="reg-error-name" style="display:none;"></span>',
+      '  </div>',
+      '  <div class="form-field-group">',
+      '    <label class="form-field-label" for="reg-phone-input">Telefone / WhatsApp <span class="req-star">*</span></label>',
+      '    <input type="tel" inputmode="tel" autocomplete="tel" name="phone" id="reg-phone-input" class="form-input-v4" required placeholder="(28) 99999-9999" value="' + escapeHtml(d.phone || '') + '" />',
+      '    <span class="field-error-v5" id="reg-error-phone" style="display:none;"></span>',
+      '  </div>',
+      '  <div class="form-field-group">',
+      '    <label class="form-field-label" for="reg-email-input">E-mail <span class="req-star">*</span></label>',
+      '    <input type="email" inputmode="email" autocomplete="email" name="email" id="reg-email-input" class="form-input-v4" required placeholder="seu@email.com" value="' + escapeHtml(d.email || '') + '" />',
+      '    <span class="field-error-v5" id="reg-error-email" style="display:none;"></span>',
+      '  </div>',
+      '  <button type="button" id="btn-reg-step-1-next" class="btn btn-primary btn-block" data-action="reg-next-step" data-from-step="1" style="height:48px;margin-top:8px;">Continuar para senha</button>',
+      '</div>'
+    ].join('');
+  } else if (step === 2) {
+    activeStepHtml = [
+      '<div id="reg-step-panel-2" data-reg-step-panel="2">',
+      '  <div class="form-field-group">',
+      '    <label class="form-field-label" for="reg-password-input">Senha <span class="req-star">*</span></label>',
+      '    <div class="password-input-wrapper">',
+      '      <input type="password" autocomplete="new-password" name="password" id="reg-password-input" class="form-input-v4" required minlength="6" placeholder="Crie uma senha (mín. 6 caracteres)" value="' + escapeHtml(d.password || '') + '" />',
+      '      <button type="button" class="password-toggle-btn" data-action="toggle-password-visibility" data-target="reg-password-input">Mostrar</button>',
+      '    </div>',
+      '    <span style="display:block;font-size:0.73rem;color:#6E655C;margin-top:4px;">Requisito mínimo: pelo menos 6 caracteres.</span>',
+      '    <span class="field-error-v5" id="reg-error-password" style="display:none;"></span>',
+      '  </div>',
+      '  <div class="form-field-group">',
+      '    <label class="form-field-label" for="reg-confirm-password-input">Confirmar senha <span class="req-star">*</span></label>',
+      '    <div class="password-input-wrapper">',
+      '      <input type="password" autocomplete="new-password" name="confirmPassword" id="reg-confirm-password-input" class="form-input-v4" required minlength="6" placeholder="Repita a senha criada" value="' + escapeHtml(d.confirmPassword || '') + '" />',
+      '      <button type="button" class="password-toggle-btn" data-action="toggle-password-visibility" data-target="reg-confirm-password-input">Mostrar</button>',
+      '    </div>',
+      '    <span class="field-error-v5" id="reg-error-confirmPassword" style="display:none;"></span>',
+      '  </div>',
+      '  <div style="display:grid;grid-template-columns:1fr 1.45fr;gap:10px;margin-top:14px;">',
+      '    <button type="button" id="btn-reg-step-2-prev" class="btn btn-outline" data-action="reg-prev-step" data-to-step="1" style="height:46px;">← Voltar</button>',
+      '    <button type="button" id="btn-reg-step-2-next" class="btn btn-primary" data-action="reg-next-step" data-from-step="2" style="height:46px;">Continuar para endereço</button>',
+      '  </div>',
+      '</div>'
+    ].join('');
+  }
+  else {
+    activeStepHtml = [
+      '<div id="reg-step-panel-3" data-reg-step-panel="3">',
+      '  <div class="form-field-group">',
+      '    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">',
+      '      <label class="form-field-label" for="reg-cep-input" style="margin-bottom:0;">CEP <span class="req-star">*</span></label>',
+      '      <span id="reg-cep-lookup-status" style="font-size:0.73rem;color:#806044;font-weight:500;">Digite o CEP para preencher</span>',
+      '    </div>',
+      '    <input type="text" inputmode="numeric" autocomplete="postal-code" name="zipCode" id="reg-cep-input" class="form-input-v4" required placeholder="00000-000" value="' + escapeHtml(d.zipCode || '') + '" />',
+      '    <span class="field-error-v5" id="reg-error-zipCode" style="display:none;"></span>',
+      '  </div>',
+      '  <div class="form-field-group">',
+      '    <label class="form-field-label" for="reg-street-input">Rua / Avenida <span class="req-star">*</span></label>',
+      '    <input type="text" autocomplete="street-address" name="street" id="reg-street-input" class="form-input-v4" required placeholder="Nome da rua ou avenida" value="' + escapeHtml(d.street || '') + '" />',
+      '    <span class="field-error-v5" id="reg-error-street" style="display:none;"></span>',
+      '  </div>',
+      '  <div style="display:grid;grid-template-columns:1fr 1.25fr;gap:10px;margin-bottom:14px;">',
+      '    <div class="form-field-group" style="margin-bottom:0;">',
+      '      <label class="form-field-label" for="reg-number-input">Número <span class="req-star">*</span></label>',
+      '      <input type="text" name="number" id="reg-number-input" class="form-input-v4" required placeholder="Nº" value="' + escapeHtml(d.number || '') + '" />',
+      '      <span class="field-error-v5" id="reg-error-number" style="display:none;"></span>',
+      '    </div>',
+      '    <div class="form-field-group" style="margin-bottom:0;">',
+      '      <label class="form-field-label" for="reg-complement-input">Complemento</label>',
+      '      <input type="text" name="complement" id="reg-complement-input" class="form-input-v4" placeholder="Apto, bloco (opcional)" value="' + escapeHtml(d.complement || '') + '" />',
+      '    </div>',
+      '  </div>',
+      '  <div class="form-field-group">',
+      '    <label class="form-field-label" for="reg-neighborhood-input">Bairro <span class="req-star">*</span></label>',
+      '    <input type="text" name="neighborhood" id="reg-neighborhood-input" class="form-input-v4" required placeholder="Bairro" value="' + escapeHtml(d.neighborhood || '') + '" />',
+      '    <span class="field-error-v5" id="reg-error-neighborhood" style="display:none;"></span>',
+      '  </div>',
+      '  <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:14px;">',
+      '    <div class="form-field-group" style="margin-bottom:0;">',
+      '      <label class="form-field-label" for="reg-city-input">Cidade <span class="req-star">*</span></label>',
+      '      <input type="text" name="city" id="reg-city-input" class="form-input-v4" required placeholder="Cidade" value="' + escapeHtml(d.city || '') + '" />',
+      '      <span class="field-error-v5" id="reg-error-city" style="display:none;"></span>',
+      '    </div>',
+      '    <div class="form-field-group" style="margin-bottom:0;">',
+      '      <label class="form-field-label" for="reg-state-input">Estado <span class="req-star">*</span></label>',
+      '      <input type="text" name="state" id="reg-state-input" class="form-input-v4" required maxlength="2" placeholder="UF" value="' + escapeHtml(d.state || '') + '" style="text-transform:uppercase;" />',
+      '      <span class="field-error-v5" id="reg-error-state" style="display:none;"></span>',
+      '    </div>',
+      '  </div>',
+      '  <div class="form-field-group">',
+      '    <label class="form-field-label" for="reg-reference-input">Referência <span style="font-weight:400;color:var(--text-muted);">(Opcional)</span></label>',
+      '    <input type="text" name="reference" id="reg-reference-input" class="form-input-v4" placeholder="Ponto de referência para entrega" value="' + escapeHtml(d.reference || '') + '" />',
+      '  </div>',
+      '  <div style="display:grid;grid-template-columns:1fr 1.55fr;gap:10px;margin-top:14px;">',
+      '    <button type="button" id="btn-reg-step-3-prev" class="btn btn-outline" data-action="reg-prev-step" data-to-step="2" style="height:48px;">← Voltar</button>',
+      '    <button type="submit" id="btn-submit-register" class="btn btn-gold" style="height:48px;font-weight:700;">Criar conta e continuar</button>',
+      '  </div>',
+      '</div>'
+    ].join('');
+  }
+
+  const activeFormHtml = mode === 'login' ? [
+    '<div class="auth-card-v5" id="auth-login-panel">',
+    '  <span class="section-eyebrow">Acesso da Cliente</span>',
+    '  <h1 style="font-family:var(--font-serif);font-size:1.65rem;margin-bottom:4px;">Entrar na Minha Conta</h1>',
+    '  <p style="font-size:0.83rem;color:var(--text-secondary);margin-bottom:16px;">Entre com seu e-mail e senha para acessar sua conta e seus pedidos.</p>',
+    '  <div id="login-form-error-box" style="display:none;padding:10px 13px;border-radius:8px;background:#FDF2F2;border:1px solid #F2B8B5;color:#8E2626;font-size:0.81rem;margin-bottom:14px;"></div>',
+    '  <form id="customer-login-form" novalidate>',
+    '    <div class="form-field-group">',
+    '      <label class="form-field-label" for="login-email-input">E-mail <span class="req-star">*</span></label>',
+    '      <input type="email" inputmode="email" autocomplete="email" name="email" id="login-email-input" class="form-input-v4" required placeholder="seu@email.com" value="' + escapeHtml(l.email || '') + '" />',
+    '      <span class="field-error-v5" id="login-email-error" style="display:none;"></span>',
+    '    </div>',
+    '    <div class="form-field-group">',
+    '      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">',
+    '        <label class="form-field-label" for="login-password-input" style="margin-bottom:0;">Senha <span class="req-star">*</span></label>',
+    '        <button type="button" data-action="toggle-recover-password" style="background:none;border:none;color:#806044;font-size:0.75rem;font-weight:600;text-decoration:underline;cursor:pointer;padding:0;">Recuperar senha</button>',
+    '      </div>',
+    '      <div class="password-input-wrapper">',
+    '        <input type="password" autocomplete="current-password" name="password" id="login-password-input" class="form-input-v4" required placeholder="Digite sua senha" value="' + escapeHtml(l.password || '') + '" />',
+    '        <button type="button" class="password-toggle-btn" data-action="toggle-password-visibility" data-target="login-password-input">Mostrar</button>',
+    '      </div>',
+    '      <span class="field-error-v5" id="login-password-error" style="display:none;"></span>',
+    '    </div>',
+    '    <button type="submit" id="btn-login-submit" class="btn btn-primary btn-block" style="height:48px;font-size:0.86rem;margin-top:6px;">Entrar na Minha Conta</button>',
+    '  </form>',
+    '  <div id="customer-recover-container" style="display:' + (AppState.showRecoverPasswordBox ? 'block' : 'none') + ';margin-top:14px;padding:14px;background:#F8F5F0;border:1px solid #E9DFD4;border-radius:10px;">',
+    '    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong style="font-size:0.83rem;color:#292522;">Recuperar Senha</strong><button type="button" data-action="toggle-recover-password" style="background:none;border:none;color:#6E655C;font-size:0.78rem;cursor:pointer;">Fechar ✕</button></div>',
+    '    <form id="customer-recover-form" novalidate>',
+    '      <p style="font-size:0.77rem;color:var(--text-secondary);margin-bottom:10px;">Informe seu e-mail cadastrado e defina uma nova senha (mínimo 6 caracteres):</p>',
+    '      <div class="form-field-group" style="margin-bottom:10px;"><input type="email" inputmode="email" name="email" id="recover-email-input" class="form-input-v4" required placeholder="E-mail cadastrado" /></div>',
+    '      <div class="form-field-group" style="margin-bottom:10px;"><div class="password-input-wrapper"><input type="password" name="newPassword" id="recover-new-password-input" class="form-input-v4" required minlength="6" placeholder="Nova senha (mín. 6 caracteres)" /><button type="button" class="password-toggle-btn" data-action="toggle-password-visibility" data-target="recover-new-password-input">Mostrar</button></div></div>',
+    '      <button type="submit" class="btn btn-outline btn-sm" style="width:100%;height:42px;">Redefinir Senha</button>',
+    '    </form>',
+    '  </div>',
+    '  <div style="margin-top:16px;padding-top:14px;border-top:1px solid #E9DFD4;text-align:center;font-size:0.83rem;color:var(--text-secondary);">Primeira vez na BY ANGÉLY? <button type="button" data-action="switch-auth-mode" data-mode="register" style="background:none;border:none;color:#806044;font-weight:700;text-decoration:underline;cursor:pointer;margin-left:4px;">Criar Minha Conta →</button></div>',
+    '</div>'
+  ].join('') : [
+    '<div class="auth-card-v5" id="auth-register-panel">',
+    '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;"><span class="section-eyebrow">Novo Cadastro</span><span style="font-size:0.75rem;color:#806044;font-weight:700;">Etapa ' + step + ' de 3</span></div>',
+    '  <h1 style="font-family:var(--font-serif);font-size:1.65rem;margin-bottom:12px;">Criar Minha Conta</h1>',
+    '  <div class="reg-stepper-header">',
+    '    <div class="reg-stepper-steps">',
+    '      <button type="button" class="reg-step-pill ' + (step === 1 ? 'active' : 'completed') + '" data-action="reg-jump-step" data-step="1"><span>' + (step > 1 ? '✓ Etapa 1' : 'Etapa 1') + '</span><strong>Dados Pessoais</strong></button>',
+    '      <button type="button" class="reg-step-pill ' + (step === 2 ? 'active' : (step > 2 ? 'completed' : '')) + '" data-action="reg-jump-step" data-step="2"><span>' + (step > 2 ? '✓ Etapa 2' : 'Etapa 2') + '</span><strong>Senha</strong></button>',
+    '      <button type="button" class="reg-step-pill ' + (step === 3 ? 'active' : '') + '" data-action="reg-jump-step" data-step="3"><span>Etapa 3</span><strong>Endereço</strong></button>',
+    '    </div>',
+    '    <div class="reg-progress-track" aria-hidden="true"><div class="reg-progress-bar" id="reg-progress-bar-fill" style="width:' + progressPct + '%;"></div></div>',
+    '  </div>',
+    '  <div id="register-form-error-box" style="display:none;padding:10px 13px;border-radius:8px;background:#FDF2F2;border:1px solid #F2B8B5;color:#8E2626;font-size:0.81rem;margin-bottom:14px;"></div>',
+    '  <form id="customer-register-form" novalidate>' + activeStepHtml + '</form>',
+    '  <div style="margin-top:16px;padding-top:14px;border-top:1px solid #E9DFD4;text-align:center;font-size:0.83rem;color:var(--text-secondary);">Já possui cadastro? <button type="button" data-action="switch-auth-mode" data-mode="login" style="background:none;border:none;color:#806044;font-weight:700;text-decoration:underline;cursor:pointer;margin-left:4px;">Entrar na Minha Conta →</button></div>',
+    '</div>'
+  ].join('');
+
+  return [
+    '<section class="section-block customer-area-shell is-auth-screen" id="view-customer-auth">',
+    '  <div class="container">',
+    '    <div class="auth-single-wrapper">',
+          renderCustomerAreaNav("account"),
+          (showBanner ? '<div id="mandatory-auth-purchase-banner" style="background:#FFF8F3;border:1.5px solid #C99D91;border-radius:12px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;"><div style="width:32px;height:32px;border-radius:50%;background:#806044;color:#FFF;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:0.9rem;">🔒</div><p style="font-size:0.81rem;color:#5C5346;margin:0;line-height:1.4;">' + escapeHtml(MANDATORY_LOGIN_MESSAGE) + '</p></div>' : ''),
+    '      <div class="auth-mode-switcher-v5" id="auth-mode-switcher" role="tablist" aria-label="Autenticação da Cliente">',
+    '        <button type="button" id="auth-tab-btn-login" role="tab" aria-selected="' + (mode === 'login') + '" class="auth-mode-tab-v5 ' + (mode === 'login' ? 'active' : '') + '" data-action="switch-auth-mode" data-mode="login">Entrar na Minha Conta</button>',
+    '        <button type="button" id="auth-tab-btn-register" role="tab" aria-selected="' + (mode === 'register') + '" class="auth-mode-tab-v5 ' + (mode === 'register' ? 'active' : '') + '" data-action="switch-auth-mode" data-mode="register">Criar Minha Conta</button>',
+    '      </div>',
+          activeFormHtml,
+    '    </div>',
+    '  </div>',
+    '</section>'
+  ].join('');
+};
+
+const _origRenderMainViewV4 = renderMainView;
+renderMainView = function () {
+  syncAuthPageBodyState();
+  _origRenderMainViewV4();
+  syncAuthPageBodyState();
+};
+
+const _origBindAccountEventsV4 = bindAccountEvents;
+bindAccountEvents = function () {
+  _origBindAccountEventsV4();
+  const loginEmail = document.getElementById('login-email-input');
+  const loginPass = document.getElementById('login-password-input');
+  if (loginEmail) {
+    loginEmail.addEventListener('input', () => {
+      AppState.loginDraft.email = loginEmail.value;
+      if (isValidEmailFormat(loginEmail.value)) setV5FieldError('login-email-input', 'login-email-error', '');
+    });
+  }
+  if (loginPass) {
+    loginPass.addEventListener('input', () => {
+      AppState.loginDraft.password = loginPass.value;
+      if (loginPass.value.length > 0) setV5FieldError('login-password-input', 'login-password-error', '');
+    });
+  }
+  const regName = document.getElementById('reg-name-input');
+  const regPhone = document.getElementById('reg-phone-input');
+  const regEmail = document.getElementById('reg-email-input');
+  if (regName) {
+    regName.addEventListener('input', () => {
+      AppState.registerDraft.name = regName.value;
+      if (regName.value.trim().length >= 3) setV5FieldError('reg-name-input', 'reg-error-name', '');
+    });
+  }
+  if (regPhone) {
+    regPhone.addEventListener('input', () => {
+      regPhone.value = formatPhoneMask(regPhone.value);
+      AppState.registerDraft.phone = regPhone.value;
+      if (regPhone.value.replace(/[^0-9]/g, '').length >= 10) setV5FieldError('reg-phone-input', 'reg-error-phone', '');
+    });
+  }
+  if (regEmail) {
+    regEmail.addEventListener('input', () => {
+      AppState.registerDraft.email = regEmail.value;
+      if (isValidEmailFormat(regEmail.value)) setV5FieldError('reg-email-input', 'reg-error-email', '');
+    });
+  }
+  const regPass = document.getElementById('reg-password-input');
+  const regConf = document.getElementById('reg-confirm-password-input');
+  if (regPass) {
+    regPass.addEventListener('input', () => {
+      AppState.registerDraft.password = regPass.value;
+      if (regPass.value.length > 0 && regPass.value.length < 6) {
+        setV5FieldError('reg-password-input', 'reg-error-password', 'A senha deve ter pelo menos 6 caracteres.');
+      } else {
+        setV5FieldError('reg-password-input', 'reg-error-password', '');
+      }
+      if (regConf && regConf.value.length > 0) {
+        if (regConf.value !== regPass.value) {
+          setV5FieldError('reg-confirm-password-input', 'reg-error-confirmPassword', 'As senhas informadas não coincidem.');
+        } else {
+          setV5FieldError('reg-confirm-password-input', 'reg-error-confirmPassword', '');
+        }
+      }
+    });
+  }
+  if (regConf) {
+    regConf.addEventListener('input', () => {
+      AppState.registerDraft.confirmPassword = regConf.value;
+      const pVal = regPass ? regPass.value : AppState.registerDraft.password;
+      if (regConf.value.length > 0 && regConf.value !== pVal) {
+        setV5FieldError('reg-confirm-password-input', 'reg-error-confirmPassword', 'As senhas informadas não coincidem.');
+      } else {
+        setV5FieldError('reg-confirm-password-input', 'reg-error-confirmPassword', '');
+      }
+    });
+  }
+  const regCep = document.getElementById('reg-cep-input');
+  if (regCep) {
+    regCep.addEventListener('input', () => {
+      regCep.value = formatCepMask(regCep.value);
+      AppState.registerDraft.zipCode = regCep.value;
+      const digits = regCep.value.replace(/[^0-9]/g, '');
+      if (digits.length === 8) {
+        setV5FieldError('reg-cep-input', 'reg-error-zipCode', '');
+        lookupViaCepAddress(digits, {
+          street: 'reg-street-input', neighborhood: 'reg-neighborhood-input',
+          city: 'reg-city-input', state: 'reg-state-input', statusEl: 'reg-cep-lookup-status'
+        });
+      }
+    });
+  }
+  ['street', 'number', 'complement', 'neighborhood', 'city', 'state', 'reference'].forEach((field) => {
+    const inp = document.getElementById('reg-' + field + '-input');
+    if (inp) {
+      inp.addEventListener('input', () => {
+        AppState.registerDraft[field] = inp.value;
+        if (inp.value.trim()) setV5FieldError('reg-' + field + '-input', 'reg-error-' + field, '');
+      });
+    }
+  });
+};
+
+document.addEventListener('click', (e) => {
+  const target = e.target.closest('[data-action]');
+  if (!target) return;
+  const action = target.getAttribute('data-action');
+  if (action === 'switch-auth-mode') {
+    e.preventDefault(); e.stopPropagation();
+    syncAllAuthDraftsFromDom();
+    AppState.authMode = target.getAttribute('data-mode') === 'register' ? 'register' : 'login';
+    renderMainView();
+    return;
+  }
+  if (action === 'reg-next-step') {
+    e.preventDefault(); e.stopPropagation();
+    const fromStep = Number(target.getAttribute('data-from-step')) || AppState.registerStep || 1;
+    if (!validateV5RegisterStep(fromStep)) return;
+    AppState.registerStep = Math.min(3, fromStep + 1);
+    renderMainView();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
+  if (action === 'reg-prev-step') {
+    e.preventDefault(); e.stopPropagation();
+    syncAllAuthDraftsFromDom();
+    const toStep = Number(target.getAttribute('data-to-step')) || Math.max(1, (AppState.registerStep || 2) - 1);
+    AppState.registerStep = Math.max(1, toStep);
+    renderMainView();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
+  if (action === 'reg-jump-step') {
+    e.preventDefault(); e.stopPropagation();
+    syncAllAuthDraftsFromDom();
+    const targetStep = Number(target.getAttribute('data-step')) || 1;
+    const currentStep = AppState.registerStep || 1;
+    if (targetStep < currentStep) {
+      AppState.registerStep = targetStep;
+      renderMainView();
+    } else if (targetStep > currentStep) {
+      if (validateV5RegisterStep(currentStep)) {
+        AppState.registerStep = currentStep + 1;
+        renderMainView();
+      }
+    }
+    return;
+  }
+}, true);
+
+setTimeout(syncAuthPageBodyState, 10);
 })();
 
 
-
-
-
-
+})();
