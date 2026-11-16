@@ -131,6 +131,7 @@
 
     var basePayload =
       formatEmvField('00', '01') + // Payload Format Indicator
+      formatEmvField('01', '11') + // Point of Initiation Method (11 = QR Estático com valor definido)
       merchantAccountInfo +        // Merchant Account Info (Pix)
       formatEmvField('52', '0000') + // Merchant Category Code
       formatEmvField('53', '986') +  // Moeda BRL (986)
@@ -464,9 +465,8 @@
       [8, size - 4], [8, size - 3], [8, size - 2], [8, size - 1]
     ];
     for (var fi = 0; fi < 15; fi++) {
-      var fBit = (formatBits >> fi) & 1;
-      matrix[formatCoords1[fi][0]][formatCoords1[fi][1]] = fBit;
-      matrix[formatCoords2[fi][0]][formatCoords2[fi][1]] = fBit;
+      matrix[formatCoords1[fi][0]][formatCoords1[fi][1]] = (formatBits >> (14 - fi)) & 1;
+      matrix[formatCoords2[fi][0]][formatCoords2[fi][1]] = (formatBits >> fi) & 1;
     }
 
     return matrix;

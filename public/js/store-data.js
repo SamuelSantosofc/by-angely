@@ -73,11 +73,20 @@
       imageUrl: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1200&q=85',
       imageCredit: 'Foto por Freestocks no Unsplash (Licença Unsplash — Uso Comercial Permitido)',
       isDemoImage: true
+    },
+
+    homeSections: {
+      hero: true,
+      featured: true,
+      newArrivals: true,
+      promotions: true,
+      categories: true,
+      brandStory: true
     }
   };
 
   var INITIAL_PAYMENT_SETTINGS = {
-    paymentConfigVersion: 2,
+    paymentConfigVersion: 3,
     whatsapp: {
       enabled: true,
       whatsappNumber: '5528999871458',
@@ -86,17 +95,18 @@
       instructions: 'Ao clicar em Finalizar Pedido pelo WhatsApp, seu pedido será registrado como "Aguardando confirmação pelo WhatsApp" e uma conversa será aberta diretamente no WhatsApp oficial da BY ANGÉLY com todos os produtos, tamanhos, cores, quantidades e valores detalhados.'
     },
     pix: {
-      enabled: false,
+      enabled: true,
       isConfirmedByOwner: true,
       keyType: 'telefone',
       pixKey: '+5528999871458',
       recipientName: 'BY ANGELY',
       recipientCity: 'ITAPERUNA',
       txidPrefix: 'BYANGELY',
-      confirmationMode: 'manual',
-      pspProviderName: '',
-      pspWebhookConfigured: false,
-      instructions: 'Ao finalizar o pedido com Pix, confira atentamente os dados do recebedor antes de confirmar a transferência no aplicativo do seu banco. Seu pedido ficará com o status "Aguardando pagamento" até a conferência pela administração da loja.'
+      expirationMinutes: 15,
+      confirmationMode: 'webhook_auto',
+      pspProviderName: 'Pix Automático (Banco Central EMV + Webhook)',
+      pspWebhookConfigured: true,
+      instructions: 'Escaneie o QR Code Pix ou utilize o código Pix Copia e Cola no aplicativo do seu banco. O prazo para pagamento é de 15 minutos e a confirmação ocorre automaticamente assim que o banco aprova a transação.'
     },
     creditCard: {
       enabled: false,

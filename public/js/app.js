@@ -62,6 +62,33 @@
     acessorios: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=900&q=85'
   };
 
+  window.ByAngelyHandleMediaError = function (imgEl, fallbackLabel) {
+    if (!imgEl || !imgEl.parentElement) return;
+    const fb = imgEl.getAttribute('data-fallback-src');
+    if (fb && !imgEl.dataset.fallbackTried && fb !== imgEl.src) {
+      imgEl.dataset.fallbackTried = '1';
+      imgEl.src = fb;
+      return;
+    }
+    const label = fallbackLabel || 'BY ANGÉLY • Foto em atualização';
+    const box = document.createElement('div');
+    box.className = 'media-placeholder-box';
+    box.setAttribute('role', 'img');
+    box.setAttribute('aria-label', label);
+    box.innerHTML =
+      '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>' +
+      '<circle cx="8.5" cy="8.5" r="1.5"></circle>' +
+      '<polyline points="21 15 16 10 5 21"></polyline>' +
+      '</svg>' +
+      '<span>' + escapeHtml(label) + '</span>';
+    if (imgEl.className) {
+      box.style.width = imgEl.classList.contains('cart-item-thumb') ? '76px' : '100%';
+      box.style.height = imgEl.classList.contains('cart-item-thumb') ? '96px' : '100%';
+    }
+    imgEl.replaceWith(box);
+  };
+
   function normalizeCategorySlug(val) {
     if (!val) return '';
     const raw = String(val)
@@ -126,11 +153,28 @@
     }
   }
 
-  // Ícones SVG Oficiais (Instagram, WhatsApp, E-mail)
+  // Validação de tamanho e cor reais (impede exibição de "0" ou valores inválidos)
+  function isValidClothingSize(sz) {
+    if (sz === null || sz === undefined) return false;
+    const s = String(sz).trim();
+    if (!s) return false;
+    const lower = s.toLowerCase();
+    return !['0', '00', 'null', 'undefined', 'nan', '-', 'nenhum', 'n/a'].includes(lower);
+  }
+
+  function isValidColorName(clr) {
+    if (clr === null || clr === undefined) return false;
+    const s = String(clr).trim();
+    if (!s) return false;
+    const lower = s.toLowerCase();
+    return !['0', '00', 'null', 'undefined', 'nan', '-'].includes(lower);
+  }
+
+  // Ícones SVG Oficiais Proporcionais (Instagram, WhatsApp, E-mail — 18x18px)
   const OFFICIAL_ICONS = {
-    instagram: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>',
-    whatsapp: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.031 0C5.385 0 0 5.385 0 12.031c0 2.124.553 4.195 1.604 6.018L.099 23.541l5.631-1.477a11.986 11.986 0 006.301 1.787h.005c6.645 0 12.03-5.385 12.03-12.031 0-3.214-1.252-6.236-3.524-8.508C18.268 1.039 15.245 0 12.031 0zm6.564 17.243c-.277.781-1.613 1.491-2.238 1.588-.578.088-1.309.125-2.115-.131-.491-.156-1.119-.366-1.922-.712-3.379-1.459-5.586-4.863-5.755-5.088-.168-.225-1.375-1.829-1.375-3.489 0-1.66 0.869-2.476 1.178-2.813.309-.338.675-.422.9-.422.225 0 .45.003.647.012.208.01.486-.079.76.579.281.675.956 2.334 1.041 2.503.084.169.141.366.028.591-.113.225-.169.366-.338.563-.169.197-.355.441-.506.591-.169.169-.345.352-.148.69.197.338.874 1.442 1.877 2.337 1.29 1.15 2.378 1.506 2.716 1.675.338.169.534.141.731-.084.197-.225.844-.984 1.069-1.322.225-.338.45-.281.759-.169.309.113 1.969.928 2.306 1.097.338.169.563.253.647.394.084.141.084.816-.193 1.597z"/></svg>',
-    email: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>'
+    instagram: '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="width:18px;height:18px;flex-shrink:0;" aria-hidden="true"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>',
+    whatsapp: '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="width:18px;height:18px;flex-shrink:0;" aria-hidden="true"><path d="M12.031 0C5.385 0 0 5.385 0 12.031c0 2.124.553 4.195 1.604 6.018L.099 23.541l5.631-1.477a11.986 11.986 0 006.301 1.787h.005c6.645 0 12.03-5.385 12.03-12.031 0-3.214-1.252-6.236-3.524-8.508C18.268 1.039 15.245 0 12.031 0zm6.564 17.243c-.277.781-1.613 1.491-2.238 1.588-.578.088-1.309.125-2.115-.131-.491-.156-1.119-.366-1.922-.712-3.379-1.459-5.586-4.863-5.755-5.088-.168-.225-1.375-1.829-1.375-3.489 0-1.66 0.869-2.476 1.178-2.813.309-.338.675-.422.9-.422.225 0 .45.003.647.012.208.01.486-.079.76.579.281.675.956 2.334 1.041 2.503.084.169.141.366.028.591-.113.225-.169.366-.338.563-.169.197-.355.441-.506.591-.169.169-.345.352-.148.69.197.338.874 1.442 1.877 2.337 1.29 1.15 2.378 1.506 2.716 1.675.338.169.534.141.731-.084.197-.225.844-.984 1.069-1.322.225-.338.45-.281.759-.169.309.113 1.969.928 2.306 1.097.338.169.563.253.647.394.084.141.084.816-.193 1.597z"/></svg>',
+    email: '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="width:18px;height:18px;flex-shrink:0;" aria-hidden="true"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>'
   };
 
   function getOfficialContacts() {
@@ -287,16 +331,10 @@
     if (methodId === 'pix') {
       if (!pay.pix) return false;
       const key = String(pay.pix.pixKey || '').trim();
-      const rec = String(pay.pix.recipientName || '').trim();
-      if (key.length < 3 || key.toLowerCase().includes('a confirmar') || rec.length < 2 || rec.toLowerCase().includes('a confirmar')) {
+      const rec = String(pay.pix.recipientName || 'BY ANGELY').trim();
+      if (key.length < 1 || key.toLowerCase().includes('a confirmar') || rec.length < 1 || rec.toLowerCase().includes('a confirmar')) {
         return false;
       }
-      const kType = String(pay.pix.keyType || 'telefone').toLowerCase();
-      const digits = key.replace(/\D/g, '');
-      if (kType === 'cnpj' && digits.length !== 14) return false;
-      if (kType === 'cpf' && digits.length !== 11) return false;
-      if (kType === 'email' && !key.includes('@')) return false;
-      if (kType === 'telefone' && (digits.length < 10 || digits.length > 14)) return false;
       return true;
     }
     if (methodId === 'creditCard' || methodId === 'credit_card') {
@@ -344,33 +382,24 @@
         return { stateCode: 'pending', badgeClass: 'pending', label: 'Aguardando configuração', detail: 'Informe a chave Pix da loja.' };
       }
       const key = String(pay.pix.pixKey || '').trim();
-      const rec = String(pay.pix.recipientName || '').trim();
+      const rec = String(pay.pix.recipientName || 'BY ANGELY').trim();
       const kType = String(pay.pix.keyType || 'telefone').toLowerCase();
-      const digits = key.replace(/\D/g, '');
       if (!key || key.toLowerCase().includes('a confirmar') || !rec || rec.toLowerCase().includes('a confirmar')) {
-        return { stateCode: 'pending', badgeClass: 'pending', label: 'Aguardando configuração', detail: 'Preencha a chave Pix e o nome do recebedor.' };
-      }
-      if (
-        (kType === 'cnpj' && digits.length !== 14) ||
-        (kType === 'cpf' && digits.length !== 11) ||
-        (kType === 'email' && !key.includes('@')) ||
-        (kType === 'telefone' && (digits.length < 10 || digits.length > 14))
-      ) {
-        return {
-          stateCode: 'error',
-          badgeClass: 'danger',
-          label: 'Erro na integração (Tipo de chave incompatível)',
-          detail: `O tipo selecionado é "${kType.toUpperCase()}", mas o valor informado ("${key}") não corresponde a esse formato.`
-        };
+        return { stateCode: 'pending', badgeClass: 'pending', label: 'Aguardando configuração', detail: 'Preencha a chave Pix ou número e o nome do recebedor.' };
       }
       if (pay.pix.pspWebhookConfigured) {
-        return { stateCode: 'validated', badgeClass: 'confirmed', label: 'Integração validada', detail: 'QR Code EMV + Webhook automático ativo.' };
+        return {
+          stateCode: 'validated',
+          badgeClass: 'confirmed',
+          label: 'Integração validada',
+          detail: 'Chave Pix (' + key + ') • QR Code EMV + Webhook automático ativo.'
+        };
       }
       return {
         stateCode: 'configured',
         badgeClass: 'info',
-        label: 'Configurado (Conferência manual)',
-        detail: `Chave ${kType.toUpperCase()} válida no padrão EMV Banco Central.`
+        label: 'Configurado (' + kType.toUpperCase() + ')',
+        detail: 'Chave Pix (' + key + ') pronta para recebimento.'
       };
     }
 
@@ -487,9 +516,9 @@
     if (!container) return;
     const item = document.createElement('div');
     item.className = 'toast-item';
-    if (type === 'success') item.style.borderLeftColor = '#2E6F52';
-    if (type === 'warning') item.style.borderLeftColor = '#C47A2C';
-    if (type === 'danger') item.style.borderLeftColor = '#B83A3A';
+    if (type === 'success') item.style.borderLeftColor = '#111111';
+    if (type === 'warning') item.style.borderLeftColor = '#52525B';
+    if (type === 'danger') item.style.borderLeftColor = '#18181B';
     item.setAttribute('role', 'status');
     item.setAttribute('aria-live', 'polite');
     item.textContent = message;
@@ -566,15 +595,25 @@
       const validStatus = (needsCatalogV3Repair && p.isDemo && hadZeroPrice)
         ? 'published'
         : (p.status || 'published');
-      const validVariations = Array.isArray(p.variations) && p.variations.length > 0 && getTotalProductStock(p) > 0
-        ? p.variations
-        : (seedMatch && seedMatch.variations ? JSON.parse(JSON.stringify(seedMatch.variations)) : [{ size: 'M', color: 'Padrão', stock: 4 }]);
-      const validSizes = Array.isArray(p.sizes) && p.sizes.length > 0
-        ? p.sizes
+      const cleanedSizes = Array.isArray(p.sizes) ? p.sizes.filter(isValidClothingSize) : [];
+      const validSizes = cleanedSizes.length > 0
+        ? cleanedSizes
         : (seedMatch && seedMatch.sizes ? [...seedMatch.sizes] : ['P', 'M', 'G']);
       const validColors = Array.isArray(p.colors) && p.colors.length > 0
         ? p.colors
         : (seedMatch && seedMatch.colors ? JSON.parse(JSON.stringify(seedMatch.colors)) : [{ name: 'Padrão', hex: '#806044' }]);
+      const hasInvalidVariationSize = Array.isArray(p.variations) && p.variations.some((v) => !isValidClothingSize(v && v.size));
+      const validVariations = Array.isArray(p.variations) && p.variations.length > 0 && getTotalProductStock(p) > 0 && !hasInvalidVariationSize
+        ? p.variations
+        : (seedMatch && seedMatch.variations
+            ? JSON.parse(JSON.stringify(seedMatch.variations))
+            : p.variations && p.variations.length > 0
+              ? p.variations.map((v) => ({
+                  ...v,
+                  size: isValidClothingSize(v.size) ? v.size : (validSizes[0] || 'M'),
+                  color: isValidColorName(v.color) ? v.color : (validColors[0] ? validColors[0].name : 'Padrão')
+                }))
+              : [{ size: validSizes[0] || 'M', color: validColors[0] ? validColors[0].name : 'Padrão', stock: 4 }]);
 
       const rawMedia = Array.isArray(p.media) && p.media.length > 0
         ? p.media
@@ -713,28 +752,26 @@
       });
     }
 
-    // Normaliza configurações de venda e pagamento preservando escolhas salvas pela proprietária (paymentConfigVersion === 2)
+    // Normaliza configurações de venda e pagamento preservando 100% as escolhas salvas pela proprietária
     const seedPay = seed.paymentSettings || {};
     const rawPay = db.paymentSettings || {};
-    const isMigratedV2 = rawPay.paymentConfigVersion === 2;
 
     const rawPixKey = (rawPay.pix && rawPay.pix.pixKey && !String(rawPay.pix.pixKey).toLowerCase().includes('a confirmar'))
-      ? rawPay.pix.pixKey
+      ? String(rawPay.pix.pixKey).trim()
       : '+5528999871458';
-    let normalizedPixKeyType = (rawPay.pix && rawPay.pix.keyType) || 'telefone';
-    if (String(rawPixKey).includes('5528999871458') && normalizedPixKeyType === 'cnpj') {
-      normalizedPixKeyType = 'telefone';
-    }
+    const normalizedPixKeyType = (rawPay.pix && rawPay.pix.keyType && String(rawPay.pix.keyType).trim())
+      ? String(rawPay.pix.keyType).trim().toLowerCase()
+      : 'telefone';
 
     const rawCreditLink = (rawPay.creditCard && rawPay.creditCard.externalPaymentLink) || '';
     const rawDebitLink = (rawPay.debitCard && rawPay.debitCard.externalPaymentLink) || '';
 
     db.paymentSettings = {
-      paymentConfigVersion: 2,
+      paymentConfigVersion: 4,
       whatsapp: {
         ...(seedPay.whatsapp || {}),
         ...(rawPay.whatsapp || {}),
-        enabled: isMigratedV2 && rawPay.whatsapp && typeof rawPay.whatsapp.enabled === 'boolean'
+        enabled: rawPay.whatsapp && typeof rawPay.whatsapp.enabled === 'boolean'
           ? rawPay.whatsapp.enabled
           : true
       },
@@ -744,11 +781,13 @@
         keyType: normalizedPixKeyType,
         pixKey: rawPixKey,
         recipientName: (rawPay.pix && rawPay.pix.recipientName && !String(rawPay.pix.recipientName).toLowerCase().includes('a confirmar'))
-          ? rawPay.pix.recipientName
+          ? String(rawPay.pix.recipientName).trim()
           : 'BY ANGELY',
-        enabled: isMigratedV2 && rawPay.pix && typeof rawPay.pix.enabled === 'boolean'
+        recipientCity: (rawPay.pix && rawPay.pix.recipientCity) ? String(rawPay.pix.recipientCity).trim() : 'ITAPERUNA',
+        txidPrefix: (rawPay.pix && rawPay.pix.txidPrefix) ? String(rawPay.pix.txidPrefix).trim() : 'BYANGELY',
+        enabled: rawPay.pix && typeof rawPay.pix.enabled === 'boolean'
           ? rawPay.pix.enabled
-          : false
+          : true
       },
       creditCard: {
         ...(seedPay.creditCard || {}),
@@ -757,7 +796,7 @@
           ? rawPay.creditCard.providerName
           : '',
         externalPaymentLink: rawCreditLink === 'https://wa.me/5528999871458' ? '' : rawCreditLink,
-        enabled: isMigratedV2 && rawPay.creditCard && typeof rawPay.creditCard.enabled === 'boolean'
+        enabled: rawPay.creditCard && typeof rawPay.creditCard.enabled === 'boolean'
           ? rawPay.creditCard.enabled
           : false
       },
@@ -768,14 +807,14 @@
           ? rawPay.debitCard.providerName
           : '',
         externalPaymentLink: rawDebitLink === 'https://wa.me/5528999871458' ? '' : rawDebitLink,
-        enabled: isMigratedV2 && rawPay.debitCard && typeof rawPay.debitCard.enabled === 'boolean'
+        enabled: rawPay.debitCard && typeof rawPay.debitCard.enabled === 'boolean'
           ? rawPay.debitCard.enabled
           : false
       },
       payOnPickup: {
         ...(seedPay.payOnPickup || {}),
         ...(rawPay.payOnPickup || {}),
-        enabled: isMigratedV2 && rawPay.payOnPickup && typeof rawPay.payOnPickup.enabled === 'boolean'
+        enabled: rawPay.payOnPickup && typeof rawPay.payOnPickup.enabled === 'boolean'
           ? rawPay.payOnPickup.enabled
           : false
       }
@@ -787,6 +826,19 @@
   // =========================================================================
   // PERSISTÊNCIA E SINCRONIZAÇÃO (SUPABASE + RENDER BACKEND + LOCALSTORAGE)
   // =========================================================================
+  function getAdminRequestHeaders() {
+    const headers = {};
+    if (AppState.currentAdmin) {
+      headers['X-Admin-Role'] = AppState.currentAdmin.role || 'Proprietária';
+      headers['X-Admin-Email'] = AppState.currentAdmin.email || '';
+      if (AppState.currentAdmin.token) {
+        headers['X-Admin-Token'] = AppState.currentAdmin.token;
+        headers['Authorization'] = 'Bearer ' + AppState.currentAdmin.token;
+      }
+    }
+    return headers;
+  }
+
   async function loadDatabase() {
     const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
     let supaState = null;
@@ -808,7 +860,10 @@
       );
     }
     tasks.push(
-      fetch(apiBase + '/api/state', { cache: 'no-store' })
+      fetch(apiBase + '/api/state', {
+        cache: 'no-store',
+        headers: getAdminRequestHeaders()
+      })
         .then((res) => (res.ok ? res.json() : null))
         .then((st) => { serverState = st; })
         .catch(() => {})
@@ -822,6 +877,25 @@
     if (candidates.length > 0) {
       candidates.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
       chosen = candidates[0];
+
+      // Se o servidor possui paymentSettings versão >= 4 mais recente ou atualizada, preserva-o contra cache antigo
+      if (serverState && serverState.paymentSettings && Number(serverState.paymentSettings.paymentConfigVersion) >= 4) {
+        const chosenPayVer = chosen.paymentSettings ? Number(chosen.paymentSettings.paymentConfigVersion || 0) : 0;
+        const serverTs = new Date(serverState.updatedAt || 0).getTime();
+        const chosenTs = new Date(chosen.updatedAt || 0).getTime();
+        if (chosenPayVer < 4 || serverTs >= chosenTs - 5000) {
+          chosen.paymentSettings = serverState.paymentSettings;
+        }
+      }
+      if (serverState && Array.isArray(serverState.orders)) {
+        chosen.orders = serverState.orders;
+      }
+      if (serverState && Array.isArray(serverState.customers)) {
+        chosen.customers = serverState.customers;
+      }
+      if (serverState && Array.isArray(serverState.auditLog) && serverState.auditLog.length > 0) {
+        chosen.auditLog = serverState.auditLog;
+      }
 
       // Preserva produtos reais (isDemo === false) que estejam em qualquer uma das fontes
       const allRealProductsMap = new Map();
@@ -852,7 +926,6 @@
       supaState &&
       Array.isArray(supaState.orders) &&
       supaState.orders.some((o) => o.id === 'ord-demo-1001' || o.orderNumber === 'BYA-2026-1042');
-    const neededV3Repair = Boolean(supaState && !supaState.catalogDataRepairV3);
 
     AppState.db = normalizeAndRepairDatabase(chosen);
 
@@ -860,8 +933,7 @@
       localStorage.setItem(STORAGE_KEY_DB, JSON.stringify(AppState.db));
     } catch (e) {}
 
-    // Se o estado na nuvem estava com categorias sem imagem, dados fake ou produtos sem reparo V3, sincroniza imediatamente
-    if (hadMissingCatImages || hadFakeOrders || neededV3Repair || !supaState) {
+    if (hadMissingCatImages || hadFakeOrders || !supaState) {
       saveDatabase();
     }
   }
@@ -876,10 +948,11 @@
         id: 'log-' + Date.now(),
         timestamp: new Date().toISOString(),
         actor: AppState.currentAdmin ? AppState.currentAdmin.name : 'Sistema/Cliente',
+        actorRole: AppState.currentAdmin ? (AppState.currentAdmin.role || 'Administrador') : 'Cliente',
         action: auditAction
       });
-      if (AppState.db.auditLog.length > 150) {
-        AppState.db.auditLog = AppState.db.auditLog.slice(0, 150);
+      if (AppState.db.auditLog.length > 250) {
+        AppState.db.auditLog = AppState.db.auditLog.slice(0, 250);
       }
     }
     AppState.db.updatedAt = new Date().toISOString();
@@ -897,7 +970,10 @@
     syncPromises.push(
       fetch(apiBase + '/api/state', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAdminRequestHeaders()
+        },
         body: JSON.stringify(AppState.db)
       }).catch(() => {})
     );
@@ -1001,7 +1077,7 @@
             ${escapeHtml(c.name)}
           </button>
         `).join('')}
-        <button type="button" class="category-pill-link ${AppState.currentView === 'catalog' && AppState.filters.availability === 'promo' ? 'active' : ''}" data-action="filter-promo" style="color: var(--accent-gold);">
+        <button type="button" class="category-pill-link ${AppState.currentView === 'catalog' && AppState.filters.availability === 'promo' ? 'active' : ''}" data-action="filter-promo" style="font-weight:700;">
           Promoções
         </button>
       `;
@@ -1013,9 +1089,9 @@
       const contacts = getOfficialContacts();
       footerStoreInfoEl.innerHTML = `
         <p style="margin-bottom:6px;"><strong>${escapeHtml(contacts.storeName)} — ${escapeHtml(settings.brandSubtitle)}</strong></p>
-        <p style="font-size:0.83rem;color:#C4BCB0;margin-bottom:10px;">${escapeHtml(settings.city)} - ${escapeHtml(settings.state)}, Brasil</p>
+        <p style="font-size:0.83rem;color:#A1A1AA;margin-bottom:10px;">${escapeHtml(settings.city)} - ${escapeHtml(settings.state)}, Brasil</p>
         ${isAdminLogged ? `
-          <div style="padding:8px 10px;background:rgba(255,255,255,0.06);border-radius:6px;margin-bottom:10px;font-size:0.76rem;color:#D6CFC5;">
+          <div style="padding:8px 10px;background:rgba(255,255,255,0.08);border-radius:6px;margin-bottom:10px;font-size:0.76rem;color:#D4D4D8;">
             <div><strong>[Visão Admin]</strong> WhatsApp: ${escapeHtml(contacts.whatsappDisplay)}</div>
             <div>Instagram: ${escapeHtml(contacts.instagramHandle)} | E-mail: ${escapeHtml(contacts.email)}</div>
           </div>
@@ -1071,10 +1147,8 @@
     const isFav = AppState.wishlist.includes(product.id);
     const normCat = normalizeCategorySlug(product.category || product.categoryName || 'vestidos');
     const fallbackUrl = CATEGORY_COVER_FALLBACKS[normCat] || CATEGORY_COVER_FALLBACKS.vestidos;
-    const firstImage = (product.media && product.media.find((m) => m.type === 'image' && m.url)) || (product.media && product.media[0]) || {
-      url: fallbackUrl,
-      alt: product.name
-    };
+    const firstImage = (product.media && product.media.find((m) => m.type === 'image' && m.url && String(m.url).trim())) || (product.media && product.media.find((m) => m.url && String(m.url).trim())) || null;
+    const hasRealImg = Boolean(firstImage && firstImage.url);
     const hasVideo = product.media && product.media.some((m) => m.type === 'video');
     const isAdminLogged = Boolean(AppState.currentAdmin);
 
@@ -1097,7 +1171,9 @@
           <button type="button" class="wishlist-btn-card ${isFav ? 'active' : ''}" data-action="toggle-wishlist" data-product-id="${escapeHtml(product.id)}" aria-label="${isFav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}" title="Favoritar peça">
             ${isFav ? '♥' : '♡'}
           </button>
-          <img src="${escapeHtml(firstImage.url)}" alt="${escapeHtml(firstImage.alt || product.name)}" loading="lazy" onerror="this.onerror=null;this.src='${escapeHtml(fallbackUrl)}';" />
+          ${hasRealImg
+            ? `<img src="${escapeHtml(firstImage.url)}" alt="${escapeHtml(firstImage.alt || product.name)}" data-fallback-src="${escapeHtml(fallbackUrl)}" onerror="window.ByAngelyHandleMediaError && window.ByAngelyHandleMediaError(this)" />`
+            : `<div class="media-placeholder-box" role="img" aria-label="${escapeHtml(product.name)}"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg><span>Foto indisponível</span></div>`}
         </div>
         <div class="product-card-body">
           <div class="product-card-meta">
@@ -1255,7 +1331,7 @@
             ${Boolean(AppState.currentAdmin) && hero.isDemoImage ? `
               <div class="media-credit-badge">
                 <span>VISÃO ADMIN • IMAGEM DEMONSTRATIVA</span>
-                <button type="button" data-action="go-policies" data-tab="references" style="color:#E5DACB;text-decoration:underline;font-size:0.7rem;">Ver Licença</button>
+                <button type="button" data-action="go-policies" data-tab="references" style="color:#D4D4D8;text-decoration:underline;font-size:0.7rem;">Ver Licença</button>
               </div>
             ` : ''}
           </div>
@@ -2001,7 +2077,7 @@
             ${mediaList.map((m, idx) => `
               <button type="button" class="pdp-thumb-btn ${idx === state.mediaIndex ? 'active' : ''}" data-action="select-pdp-media" data-index="${idx}" aria-label="${m.type === 'video' ? 'Reproduzir vídeo' : 'Ver foto ' + (idx + 1)}">
                 ${m.type === 'video' ? `
-                  <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#292522;color:#FFF;font-size:0.72rem;font-weight:700;">▶ VÍDEO</div>
+                  <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#111111;color:#FFF;font-size:0.72rem;font-weight:700;">▶ VÍDEO</div>
                 ` : `
                   <img src="${escapeHtml(m.url)}" alt="Miniatura ${idx + 1}" onerror="this.onerror=null;this.src='${escapeHtml(fallbackUrl)}';" />
                 `}
@@ -2218,18 +2294,25 @@
     const product = AppState.db.products.find((p) => p.id === productId);
     if (!product) return false;
 
-    const available = getVariationStock(product, size, color);
+    const cleanSize = isValidClothingSize(size)
+      ? String(size).trim()
+      : (Array.isArray(product.sizes) ? (product.sizes.find(isValidClothingSize) || '') : '');
+    const cleanColor = isValidColorName(color)
+      ? String(color).trim()
+      : (Array.isArray(product.colors) && product.colors[0] ? (product.colors[0].name || '') : '');
+
+    const available = getVariationStock(product, cleanSize, cleanColor);
     if (available <= 0) {
       showToast('Esta variação de tamanho e cor está sem estoque.', 'danger');
       return false;
     }
 
-    const key = `${productId}__${size}__${color}`;
+    const key = `${productId}__${cleanSize}__${cleanColor}`;
     const existing = AppState.cart.find((item) => item.key === key);
 
     if (existing) {
       if (existing.quantity + qty > available) {
-        showToast(`Estoque máximo atingido (${available} un. disponíveis para ${size} / ${color}).`, 'warning');
+        showToast(`Estoque máximo atingido (${available} un. disponíveis para ${cleanSize} / ${cleanColor}).`, 'warning');
         return false;
       }
       existing.quantity += qty;
@@ -2242,8 +2325,8 @@
         productId: product.id,
         sku: product.sku,
         name: product.name,
-        size,
-        color,
+        size: cleanSize,
+        color: cleanColor,
         unitPrice: getEffectivePrice(product),
         imageUrl: firstImg.url,
         isDemo: !!product.isDemo,
@@ -2309,16 +2392,52 @@
     }
   }
 
+  function sanitizeCartItems() {
+    if (!Array.isArray(AppState.cart) || AppState.cart.length === 0) return;
+    let changed = false;
+    AppState.cart = AppState.cart.map((item) => {
+      if (!item) return item;
+      const prod = AppState.db && Array.isArray(AppState.db.products)
+        ? AppState.db.products.find((p) => p.id === item.productId || p.sku === item.sku || p.name === item.name)
+        : null;
+      let cleanSize = isValidClothingSize(item.size) ? String(item.size).trim() : '';
+      if (!cleanSize && prod && Array.isArray(prod.sizes)) {
+        const firstValid = prod.sizes.find(isValidClothingSize);
+        if (firstValid) cleanSize = firstValid;
+      }
+      let cleanColor = isValidColorName(item.color) ? String(item.color).trim() : '';
+      if (!cleanColor && prod && Array.isArray(prod.colors) && prod.colors[0]) {
+        cleanColor = prod.colors[0].name || '';
+      }
+      const newKey = `${item.productId}__${cleanSize}__${cleanColor}`;
+      if (cleanSize !== item.size || cleanColor !== item.color || newKey !== item.key) {
+        changed = true;
+        return {
+          ...item,
+          size: cleanSize,
+          color: cleanColor,
+          key: newKey
+        };
+      }
+      return item;
+    });
+    if (changed) {
+      saveCart();
+    }
+  }
+
   function renderCartDrawer() {
     const bodyEl = document.getElementById('cart-drawer-body');
     const footerEl = document.getElementById('cart-drawer-footer');
     if (!bodyEl || !footerEl) return;
 
+    sanitizeCartItems();
+
     if (AppState.cart.length === 0) {
       bodyEl.innerHTML = `
-        <div style="text-align:center;padding:48px 16px;">
-          <p style="font-family:var(--font-serif);font-size:1.5rem;margin-bottom:8px;">Sua sacola está vazia</p>
-          <p style="color:var(--text-secondary);font-size:0.88rem;margin-bottom:20px;">Adicione peças da coleção By Angély para iniciar seu pedido.</p>
+        <div class="cart-empty-state">
+          <p class="cart-empty-title">Sua sacola está vazia</p>
+          <p class="cart-empty-sub">Adicione peças da coleção BY ANGÉLY para iniciar seu pedido.</p>
           <button type="button" class="btn btn-primary btn-sm" data-action="close-cart-go-catalog">Explorar Peças</button>
         </div>
       `;
@@ -2330,60 +2449,87 @@
     const shippingMethods = (AppState.db.shippingSettings.methods || []).filter((m) => m.enabled);
 
     bodyEl.innerHTML = `
-      <div>
+      <div class="cart-items-list">
         ${AppState.cart.map((item) => {
           const itemSubtotal = (Number(item.unitPrice) || 0) * (Number(item.quantity) || 1);
+          const hasValidSize = isValidClothingSize(item.size);
+          const hasValidColor = isValidColorName(item.color);
+          const metaParts = [];
+          if (hasValidSize) metaParts.push(`Tamanho: <strong>${escapeHtml(item.size)}</strong>`);
+          if (hasValidColor) metaParts.push(`Cor: <strong>${escapeHtml(item.color)}</strong>`);
+          const metaHtml = metaParts.length > 0
+            ? `<div class="cart-item-meta">${metaParts.join(' <span aria-hidden="true">•</span> ')}</div>`
+            : '';
+
           return `
-            <div class="cart-item-card">
-              <img src="${escapeHtml(item.imageUrl || CATEGORY_COVER_FALLBACKS.vestidos)}" alt="${escapeHtml(item.name)}" class="cart-item-thumb" onerror="this.onerror=null;this.src='${escapeHtml(CATEGORY_COVER_FALLBACKS.vestidos)}';" />
-              <div style="min-width:0;">
-                <strong style="font-size:0.88rem;display:block;line-height:1.28;color:var(--text-primary);">${escapeHtml(item.name)}</strong>
-                <span style="font-size:0.76rem;color:var(--text-secondary);display:block;margin:3px 0;">
-                  Tam: <strong>${escapeHtml(item.size)}</strong> • Cor: <strong>${escapeHtml(item.color)}</strong>
-                </span>
-                <div style="font-size:0.76rem;color:var(--text-muted);margin-bottom:6px;">
-                  Unitário: ${formatBRL(item.unitPrice)} • <strong style="color:var(--accent-brown);">Subtotal: ${formatBRL(itemSubtotal)}</strong>
+            <article class="cart-item-card">
+              <img
+                src="${escapeHtml(item.imageUrl || CATEGORY_COVER_FALLBACKS.vestidos)}"
+                alt="${escapeHtml(item.name)}"
+                class="cart-item-thumb"
+                data-fallback-src="${escapeHtml(CATEGORY_COVER_FALLBACKS.vestidos)}"
+                onerror="window.ByAngelyHandleMediaError && window.ByAngelyHandleMediaError(this, 'Peça')"
+              />
+              <div class="cart-item-info">
+                <strong class="cart-item-title">${escapeHtml(item.name)}</strong>
+                ${metaHtml}
+                <div class="cart-item-prices">
+                  <span>Unitário: ${formatBRL(item.unitPrice)}</span>
+                  <span aria-hidden="true">•</span>
+                  <strong class="cart-item-subtotal">Subtotal: ${formatBRL(itemSubtotal)}</strong>
                 </div>
-                <div class="qty-stepper" style="height:32px;">
-                  <button type="button" style="width:30px;height:30px;font-size:0.9rem;" data-action="cart-qty-dec" data-key="${escapeHtml(item.key)}" aria-label="Diminuir quantidade">−</button>
-                  <span style="min-width:26px;font-size:0.82rem;">${item.quantity}</span>
-                  <button type="button" style="width:30px;height:30px;font-size:0.9rem;" data-action="cart-qty-inc" data-key="${escapeHtml(item.key)}" aria-label="Aumentar quantidade">+</button>
+                <div class="cart-item-actions-row">
+                  <div class="qty-stepper cart-qty-stepper" role="group" aria-label="Quantidade de ${escapeHtml(item.name)}">
+                    <button type="button" class="qty-stepper-btn" data-action="cart-qty-dec" data-key="${escapeHtml(item.key)}" aria-label="Diminuir quantidade">−</button>
+                    <span class="qty-stepper-val">${item.quantity}</span>
+                    <button type="button" class="qty-stepper-btn" data-action="cart-qty-inc" data-key="${escapeHtml(item.key)}" aria-label="Aumentar quantidade">+</button>
+                  </div>
+                  <button type="button" class="cart-item-remove-btn" data-action="cart-remove" data-key="${escapeHtml(item.key)}" aria-label="Remover ${escapeHtml(item.name)} da sacola" title="Remover produto">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    <span>Remover</span>
+                  </button>
                 </div>
               </div>
-              <button type="button" class="btn btn-subtle btn-sm" style="min-height:32px;padding:4px 8px;" data-action="cart-remove" data-key="${escapeHtml(item.key)}" aria-label="Remover item" title="Remover item">✕</button>
-            </div>
+            </article>
           `;
         }).join('')}
       </div>
 
       <!-- Cupom de Desconto -->
-      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border-subtle);">
-        <label for="cart-coupon-input" style="display:block;font-size:0.74rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Cupom de Desconto</label>
-        <div style="display:flex;gap:8px;">
-          <input type="text" id="cart-coupon-input" class="form-control" placeholder="Ex.: BEMVINDA10" value="${AppState.appliedCoupon ? escapeHtml(AppState.appliedCoupon.code) : ''}" style="min-height:40px;" />
-          <button type="button" class="btn btn-outline btn-sm" data-action="apply-coupon">Aplicar</button>
+      <div class="cart-section-box">
+        <label for="cart-coupon-input" class="cart-section-label">Cupom de Desconto</label>
+        <div class="cart-coupon-row">
+          <input
+            type="text"
+            id="cart-coupon-input"
+            class="form-control cart-coupon-input"
+            placeholder="Ex.: BEMVINDO10"
+            value="${AppState.appliedCoupon ? escapeHtml(AppState.appliedCoupon.code) : ''}"
+          />
+          <button type="button" class="btn btn-outline btn-sm cart-coupon-btn" data-action="apply-coupon">Aplicar</button>
         </div>
         ${AppState.appliedCoupon ? `
-          <p style="font-size:0.76rem;color:var(--status-success-text);margin-top:5px;">
+          <p class="cart-coupon-feedback">
             ✓ Cupom <strong>${escapeHtml(AppState.appliedCoupon.code)}</strong> aplicado (-${formatBRL(totals.discount)})
           </p>
         ` : ''}
       </div>
 
-      <!-- Opção de Entrega / Retirada -->
-      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border-subtle);">
-        <label for="cart-shipping-select" style="display:block;font-size:0.74rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Modalidade de Entrega / Retirada</label>
-        <select id="cart-shipping-select" class="form-control" style="min-height:40px;">
+      <!-- Modalidade de Entrega / Retirada -->
+      <div class="cart-section-box">
+        <label for="cart-shipping-select" class="cart-section-label">Modalidade de Entrega / Retirada</label>
+        <select id="cart-shipping-select" class="form-control cart-shipping-select">
           ${shippingMethods.map((m) => `
             <option value="${escapeHtml(m.id)}" ${totals.shippingMethod && totals.shippingMethod.id === m.id ? 'selected' : ''}>
-              ${escapeHtml(m.name)} — ${m.priceStatus === 'confirmed' ? (m.price === 0 ? 'Grátis' : formatBRL(m.price)) : 'Valor a confirmar'}
+              ${escapeHtml(m.name)} (${m.priceStatus === 'confirmed' ? (m.price === 0 ? 'Grátis' : formatBRL(m.price)) : 'A confirmar'})
             </option>
           `).join('')}
         </select>
         ${totals.shippingMethod ? `
-          <p style="font-size:0.75rem;color:var(--text-secondary);margin-top:5px;">
-            ${escapeHtml(totals.shippingMethod.estimatedDays)}
-          </p>
+          <div class="cart-shipping-note">
+            <span><strong>Status do frete:</strong> ${totals.shippingMethod.priceStatus === 'confirmed' ? (totals.shippingMethod.price === 0 ? 'Grátis' : formatBRL(totals.shippingMethod.price)) : 'Valor a confirmar'}</span>
+            <span>${escapeHtml(totals.shippingMethod.estimatedDays)}</span>
+          </div>
         ` : ''}
       </div>
     `;
@@ -2392,28 +2538,33 @@
     const isOnlyWhatsapp = activePayOpts.length === 1 && activePayOpts[0].id === 'whatsapp';
 
     footerEl.innerHTML = `
-      <div style="font-size:0.86rem;margin-bottom:12px;">
-        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-          <span>Subtotal dos itens:</span>
-          <span>${formatBRL(totals.subtotal)}</span>
+      <div class="cart-summary-list">
+        <div class="cart-summary-row">
+          <span>Subtotal dos itens</span>
+          <strong>${formatBRL(totals.subtotal)}</strong>
         </div>
-        ${totals.discount > 0 ? `
-          <div style="display:flex;justify-content:space-between;margin-bottom:4px;color:var(--status-success-text);">
-            <span>Desconto (${escapeHtml(AppState.appliedCoupon.code)}):</span>
-            <span>-${formatBRL(totals.discount)}</span>
+        ${totals.discount > 0 && AppState.appliedCoupon ? `
+          <div class="cart-summary-row discount">
+            <span>Desconto (${escapeHtml(AppState.appliedCoupon.code)})</span>
+            <strong>-${formatBRL(totals.discount)}</strong>
           </div>
         ` : ''}
-        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-          <span>Entrega:</span>
+        <div class="cart-summary-row">
+          <span>Entrega</span>
           <span>${totals.shippingMethod ? (totals.shippingMethod.priceStatus === 'confirmed' ? formatBRL(totals.shippingCost) : 'A confirmar pela proprietária') : 'A confirmar'}</span>
         </div>
-        <div style="display:flex;justify-content:space-between;font-size:1.1rem;font-weight:700;padding-top:8px;border-top:1px solid var(--border-subtle);color:var(--text-primary);">
-          <span>Total do Pedido:</span>
-          <span>${formatBRL(totals.total)}</span>
+        <div class="cart-summary-total">
+          <span>Total do Pedido</span>
+          <strong>${formatBRL(totals.total)}</strong>
         </div>
       </div>
-      <button type="button" class="btn btn-primary btn-block" data-action="proceed-to-checkout" id="btn-cart-proceed-checkout">
-        ${isOnlyWhatsapp ? `${OFFICIAL_ICONS.whatsapp} <span>Finalizar Pedido pelo WhatsApp</span>` : 'Finalizar Compra com Segurança'}
+      <button type="button" class="btn btn-primary btn-block ${isOnlyWhatsapp ? 'btn-cart-whatsapp' : ''}" data-action="proceed-to-checkout" id="btn-cart-proceed-checkout">
+        ${isOnlyWhatsapp
+          ? `${OFFICIAL_ICONS.whatsapp}<span>FINALIZAR PEDIDO PELO WHATSAPP</span>`
+          : '<span>FINALIZAR COMPRA COM SEGURANÇA</span>'}
+      </button>
+      <button type="button" class="btn btn-outline btn-block btn-sm" data-action="open-cart-page" id="btn-cart-open-page" style="margin-top:8px;">
+        Abrir página da sacola →
       </button>
     `;
 
@@ -2422,6 +2573,7 @@
       shipSelect.addEventListener('change', (e) => {
         AppState.selectedShippingMethodId = e.target.value;
         renderCartDrawer();
+        if (AppState.currentView === 'cart') renderMainView();
       });
     }
   }
@@ -2626,15 +2778,19 @@
               <div class="admin-card" style="position:sticky;top:98px;">
                 <h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:14px;">Resumo do Pedido</h2>
                 <div style="display:flex;flex-direction:column;gap:10px;max-height:280px;overflow-y:auto;margin-bottom:14px;padding-right:4px;">
-                  ${AppState.cart.map((item) => `
-                    <div style="display:flex;justify-content:space-between;font-size:0.84rem;padding-bottom:8px;border-bottom:1px solid var(--border-subtle);">
-                      <div>
-                        <strong>${escapeHtml(item.name)}</strong>
-                        <div style="font-size:0.75rem;color:var(--text-secondary);">Tam: ${escapeHtml(item.size)} | Cor: ${escapeHtml(item.color)} | Qtd: ${item.quantity}x (${formatBRL(item.unitPrice)})</div>
+                  ${AppState.cart.map((item) => {
+                    const sizePart = isValidClothingSize(item.size) ? `Tam: ${escapeHtml(item.size)} | ` : '';
+                    const colorPart = isValidColorName(item.color) ? `Cor: ${escapeHtml(item.color)} | ` : '';
+                    return `
+                      <div style="display:flex;justify-content:space-between;font-size:0.84rem;padding-bottom:8px;border-bottom:1px solid var(--border-subtle);">
+                        <div>
+                          <strong>${escapeHtml(item.name)}</strong>
+                          <div style="font-size:0.75rem;color:var(--text-secondary);">${sizePart}${colorPart}Qtd: ${item.quantity}x (${formatBRL(item.unitPrice)})</div>
+                        </div>
+                        <span style="font-weight:600;white-space:nowrap;">${formatBRL(item.unitPrice * item.quantity)}</span>
                       </div>
-                      <span style="font-weight:600;white-space:nowrap;">${formatBRL(item.unitPrice * item.quantity)}</span>
-                    </div>
-                  `).join('')}
+                    `;
+                  }).join('')}
                 </div>
 
                 <div style="font-size:0.88rem;border-top:1px solid var(--border-subtle);padding-top:12px;margin-bottom:16px;">
@@ -2658,9 +2814,9 @@
                   </div>
                 </div>
 
-                <button type="submit" id="btn-submit-checkout" class="btn btn-primary btn-block" ${activePaymentOptions.length === 0 ? 'disabled' : ''}>
+                <button type="submit" id="btn-submit-checkout" class="btn btn-primary btn-block ${isWhatsappSelected ? 'btn-cart-whatsapp' : ''}" ${activePaymentOptions.length === 0 ? 'disabled' : ''}>
                   ${isWhatsappSelected
-                    ? `${OFFICIAL_ICONS.whatsapp} <span>FINALIZAR PEDIDO PELO WHATSAPP</span>`
+                    ? `${OFFICIAL_ICONS.whatsapp}<span>FINALIZAR PEDIDO PELO WHATSAPP</span>`
                     : `Confirmar Pedido (${formatBRL(totals.total)})`}
                 </button>
                 <p style="font-size:0.74rem;color:var(--text-muted);text-align:center;margin-top:10px;">
@@ -3705,6 +3861,11 @@
           openCartDrawer();
           break;
         }
+        case 'open-cart-page': {
+          closeCartDrawer();
+          navigateTo('cart');
+          break;
+        }
         case 'close-cart': {
           closeCartDrawer();
           break;
@@ -3724,6 +3885,7 @@
               item.quantity += 1;
               saveCart();
               renderCartDrawer();
+              if (AppState.currentView === 'cart') renderMainView();
             } else {
               showToast(`Limite de estoque disponível atingido (${avail} un.).`, 'warning');
             }
@@ -3741,6 +3903,7 @@
             }
             saveCart();
             renderCartDrawer();
+            if (AppState.currentView === 'cart') renderMainView();
           }
           break;
         }
@@ -3749,11 +3912,13 @@
           AppState.cart = AppState.cart.filter((i) => i.key !== key);
           saveCart();
           renderCartDrawer();
+          if (AppState.currentView === 'cart') renderMainView();
           showToast('Item removido da sacola.');
           break;
         }
-        case 'apply-coupon': {
-          const input = document.getElementById('cart-coupon-input');
+        case 'apply-coupon':
+        case 'apply-page-coupon': {
+          const input = document.getElementById(action === 'apply-page-coupon' ? 'cart-page-coupon-input' : 'cart-coupon-input');
           const code = input ? input.value.trim().toUpperCase() : '';
           if (!code) return;
           const found = (AppState.db.coupons || []).find((c) => c.code.toUpperCase() === code && c.active);
@@ -3768,6 +3933,7 @@
           }
           AppState.appliedCoupon = found;
           renderCartDrawer();
+          if (AppState.currentView === 'cart') renderMainView();
           showToast(`Cupom ${found.code} aplicado com sucesso!`, 'success');
           break;
         }
@@ -3984,6 +4150,7 @@
   // Exporta interface pública para o módulo Admin (`admin.js`) e testes
   window.ByAngelyApp = {
     getState: () => AppState,
+    loadDatabase,
     saveDatabase,
     renderMainView,
     updateGlobalChrome,
@@ -4004,6 +4171,7 @@
     addToCart,
     calculateCartTotals,
     openProductModal,
+    openCartDrawer,
     renderCartDrawer
   };
 
@@ -4018,6 +4186,7 @@
       if (saved) initialDb = JSON.parse(saved);
     } catch (e) {}
     AppState.db = normalizeAndRepairDatabase(initialDb || window.ByAngelySeed.createInitialDatabase());
+    sanitizeCartItems();
 
     setupGlobalEvents();
     initAccessibilityControls();
@@ -4057,206 +4226,11 @@
       renderMainView();
     }
   });
-
-  
-// =========================================================================
-  // PATCH DE REESTRUTURAÇÃO DA SACOLA MOBILE E SANITIZAÇÃO DE TAMANHOS (V3.1)
-  // =========================================================================
-  Object.assign(OFFICIAL_ICONS, {
-    instagram: '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="width:18px;height:18px;flex-shrink:0;" aria-hidden="true"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>',
-    whatsapp: '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="width:18px;height:18px;flex-shrink:0;" aria-hidden="true"><path d="M12.031 0C5.385 0 0 5.385 0 12.031c0 2.124.553 4.195 1.604 6.018L.099 23.541l5.631-1.477a11.986 11.986 0 006.301 1.787h.005c6.645 0 12.03-5.385 12.03-12.031 0-3.214-1.252-6.236-3.524-8.508C18.268 1.039 15.245 0 12.031 0zm6.564 17.243c-.277.781-1.613 1.491-2.238 1.588-.578.088-1.309.125-2.115-.131-.491-.156-1.119-.366-1.922-.712-3.379-1.459-5.586-4.863-5.755-5.088-.168-.225-1.375-1.829-1.375-3.489 0-1.66 0.869-2.476 1.178-2.813.309-.338.675-.422.9-.422.225 0 .45.003.647.012.208.01.486-.079.76.579.281.675.956 2.334 1.041 2.503.084.169.141.366.028.591-.113.225-.169.366-.338.563-.169.197-.355.441-.506.591-.169.169-.345.352-.148.69.197.338.874 1.442 1.877 2.337 1.29 1.15 2.378 1.506 2.716 1.675.338.169.534.141.731-.084.197-.225.844-.984 1.069-1.322.225-.338.45-.281.759-.169.309.113 1.969.928 2.306 1.097.338.169.563.253.647.394.084.141.084.816-.193 1.597z"/></svg>',
-    email: '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="width:18px;height:18px;flex-shrink:0;" aria-hidden="true"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>'
-  });
-
-  function isValidClothingSize(sz) {
-    if (sz === null || sz === undefined) return false;
-    const s = String(sz).trim();
-    if (!s) return false;
-    return !['0', '00', 'null', 'undefined', 'nan', '-', 'nenhum', 'n/a'].includes(s.toLowerCase());
-  }
-
-  function isValidColorName(clr) {
-    if (clr === null || clr === undefined) return false;
-    const s = String(clr).trim();
-    if (!s) return false;
-    return !['0', '00', 'null', 'undefined', 'nan', '-'].includes(s.toLowerCase());
-  }
-
-  function sanitizeCartItems() {
-    if (AppState.db && Array.isArray(AppState.db.products)) {
-      AppState.db.products.forEach((p) => {
-        if (!p) return;
-        const cleaned = Array.isArray(p.sizes) ? p.sizes.filter(isValidClothingSize) : [];
-        p.sizes = cleaned.length > 0 ? cleaned : ['P', 'M', 'G'];
-        if (Array.isArray(p.variations)) {
-          p.variations.forEach((v) => {
-            if (v && !isValidClothingSize(v.size)) v.size = p.sizes[0] || 'M';
-            if (v && !isValidColorName(v.color)) v.color = (p.colors && p.colors[0] && p.colors[0].name) || 'Padrão';
-          });
-        }
-      });
-    }
-    if (!Array.isArray(AppState.cart) || AppState.cart.length === 0) return;
-    let changed = false;
-    AppState.cart = AppState.cart.map((item) => {
-      if (!item) return item;
-      const prod = AppState.db && Array.isArray(AppState.db.products)
-        ? AppState.db.products.find((p) => p.id === item.productId || p.sku === item.sku || p.name === item.name)
-        : null;
-      let cleanSize = isValidClothingSize(item.size) ? String(item.size).trim() : '';
-      if (!cleanSize && prod && Array.isArray(prod.sizes)) {
-        const firstValid = prod.sizes.find(isValidClothingSize);
-        if (firstValid) cleanSize = firstValid;
-      }
-      let cleanColor = isValidColorName(item.color) ? String(item.color).trim() : '';
-      if (!cleanColor && prod && Array.isArray(prod.colors) && prod.colors[0]) {
-        cleanColor = prod.colors[0].name || '';
-      }
-      const newKey = item.productId + '__' + cleanSize + '__' + cleanColor;
-      if (cleanSize !== item.size || cleanColor !== item.color || newKey !== item.key) {
-        changed = true;
-        return { ...item, size: cleanSize, color: cleanColor, key: newKey };
-      }
-      return item;
-    });
-    if (changed) saveCart();
-  }
-
-  function addToCart(productId, size, color, quantity = 1) {
-    sanitizeCartItems();
-    const qty = Math.max(1, Number(quantity) || 1);
-    const product = AppState.db.products.find((p) => p.id === productId);
-    if (!product) return false;
-    const cleanSize = isValidClothingSize(size)
-      ? String(size).trim()
-      : (Array.isArray(product.sizes) ? (product.sizes.find(isValidClothingSize) || '') : '');
-    const cleanColor = isValidColorName(color)
-      ? String(color).trim()
-      : (Array.isArray(product.colors) && product.colors[0] ? (product.colors[0].name || '') : '');
-    const available = getVariationStock(product, cleanSize, cleanColor);
-    if (available <= 0) {
-      showToast('Esta variação de tamanho e cor está sem estoque.', 'danger');
-      return false;
-    }
-    const key = productId + '__' + cleanSize + '__' + cleanColor;
-    const existing = AppState.cart.find((item) => item.key === key);
-    if (existing) {
-      if (existing.quantity + qty > available) {
-        showToast('Estoque máximo atingido (' + available + ' un. disponíveis).', 'warning');
-        return false;
-      }
-      existing.quantity += qty;
-    } else {
-      const firstImg = (product.media || []).find((m) => m.type === 'image') || { url: '' };
-      AppState.cart.push({
-        key,
-        productId: product.id,
-        sku: product.sku,
-        name: product.name,
-        size: cleanSize,
-        color: cleanColor,
-        unitPrice: getEffectivePrice(product),
-        imageUrl: firstImg.url,
-        isDemo: !!product.isDemo,
-        quantity: Math.min(qty, available)
-      });
-    }
-    saveCart();
-    updateGlobalChrome();
-    renderCartDrawer();
-    showToast('"' + product.name + '" adicionado à sacola!', 'success');
-    return true;
-  }
-
-  function renderCartDrawer() {
-    const bodyEl = document.getElementById('cart-drawer-body');
-    const footerEl = document.getElementById('cart-drawer-footer');
-    if (!bodyEl || !footerEl) return;
-    sanitizeCartItems();
-    if (AppState.cart.length === 0) {
-      bodyEl.innerHTML = '<div class="cart-empty-state"><p class="cart-empty-title">Sua sacola está vazia</p><p class="cart-empty-sub">Adicione peças da coleção BY ANGÉLY para iniciar seu pedido.</p><button type="button" class="btn btn-primary btn-sm" data-action="close-cart-go-catalog">Explorar Peças</button></div>';
-      footerEl.innerHTML = '';
-      return;
-    }
-    const totals = calculateCartTotals();
-    const shippingMethods = (AppState.db.shippingSettings.methods || []).filter((m) => m.enabled);
-    bodyEl.innerHTML = '<div class="cart-items-list">' + AppState.cart.map((item) => {
-      const itemSubtotal = (Number(item.unitPrice) || 0) * (Number(item.quantity) || 1);
-      const metaParts = [];
-      if (isValidClothingSize(item.size)) metaParts.push('Tamanho: <strong>' + escapeHtml(item.size) + '</strong>');
-      if (isValidColorName(item.color)) metaParts.push('Cor: <strong>' + escapeHtml(item.color) + '</strong>');
-      const metaHtml = metaParts.length > 0 ? '<div class="cart-item-meta">' + metaParts.join(' <span aria-hidden="true">•</span> ') + '</div>' : '';
-      const imgUrl = escapeHtml(item.imageUrl || CATEGORY_COVER_FALLBACKS.vestidos);
-      const fallbackUrl = escapeHtml(CATEGORY_COVER_FALLBACKS.vestidos);
-      return '<article class="cart-item-card">' +
-        '<img src="' + imgUrl + '" alt="' + escapeHtml(item.name) + '" class="cart-item-thumb" onerror="this.onerror=null;this.src=\'' + fallbackUrl + '\';" />' +
-        '<div class="cart-item-info">' +
-          '<strong class="cart-item-title">' + escapeHtml(item.name) + '</strong>' +
-          metaHtml +
-          '<div class="cart-item-prices"><span>Unitário: ' + formatBRL(item.unitPrice) + '</span><span aria-hidden="true">•</span><strong class="cart-item-subtotal">Subtotal: ' + formatBRL(itemSubtotal) + '</strong></div>' +
-          '<div class="cart-item-actions-row">' +
-            '<div class="qty-stepper cart-qty-stepper" role="group" aria-label="Quantidade de ' + escapeHtml(item.name) + '">' +
-              '<button type="button" class="qty-stepper-btn" data-action="cart-qty-dec" data-key="' + escapeHtml(item.key) + '" aria-label="Diminuir quantidade">−</button>' +
-              '<span class="qty-stepper-val">' + item.quantity + '</span>' +
-              '<button type="button" class="qty-stepper-btn" data-action="cart-qty-inc" data-key="' + escapeHtml(item.key) + '" aria-label="Aumentar quantidade">+</button>' +
-            '</div>' +
-            '<button type="button" class="cart-item-remove-btn" data-action="cart-remove" data-key="' + escapeHtml(item.key) + '" aria-label="Remover ' + escapeHtml(item.name) + ' da sacola" title="Remover produto">' +
-              '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>' +
-              '<span>Remover</span>' +
-            '</button>' +
-          '</div>' +
-        '</div>' +
-      '</article>';
-    }).join('') + '</div>' +
-    '<div class="cart-section-box">' +
-      '<label for="cart-coupon-input" class="cart-section-label">Cupom de Desconto</label>' +
-      '<div class="cart-coupon-row">' +
-        '<input type="text" id="cart-coupon-input" class="form-control cart-coupon-input" placeholder="Ex.: BEMVINDO10" value="' + (AppState.appliedCoupon ? escapeHtml(AppState.appliedCoupon.code) : '') + '" />' +
-        '<button type="button" class="btn btn-outline btn-sm cart-coupon-btn" data-action="apply-coupon">Aplicar</button>' +
-      '</div>' +
-      (AppState.appliedCoupon ? '<p class="cart-coupon-feedback">✓ Cupom <strong>' + escapeHtml(AppState.appliedCoupon.code) + '</strong> aplicado (-' + formatBRL(totals.discount) + ')</p>' : '') +
-    '</div>' +
-    '<div class="cart-section-box">' +
-      '<label for="cart-shipping-select" class="cart-section-label">Modalidade de Entrega / Retirada</label>' +
-      '<select id="cart-shipping-select" class="form-control cart-shipping-select">' +
-        shippingMethods.map((m) => '<option value="' + escapeHtml(m.id) + '" ' + (totals.shippingMethod && totals.shippingMethod.id === m.id ? 'selected' : '') + '>' + escapeHtml(m.name) + ' (' + (m.priceStatus === 'confirmed' ? (m.price === 0 ? 'Grátis' : formatBRL(m.price)) : 'A confirmar') + ')</option>').join('') +
-      '</select>' +
-      (totals.shippingMethod ? '<div class="cart-shipping-note"><span><strong>Status do frete:</strong> ' + (totals.shippingMethod.priceStatus === 'confirmed' ? (totals.shippingMethod.price === 0 ? 'Grátis' : formatBRL(totals.shippingMethod.price)) : 'Valor a confirmar') + '</span><span>' + escapeHtml(totals.shippingMethod.estimatedDays) + '</span></div>' : '') +
-    '</div>';
-
-    const activePayOpts = getAvailableCheckoutPaymentOptions();
-    const isOnlyWhatsapp = activePayOpts.length === 1 && activePayOpts[0].id === 'whatsapp';
-    footerEl.innerHTML =
-      '<div class="cart-summary-list">' +
-        '<div class="cart-summary-row"><span>Subtotal dos itens</span><strong>' + formatBRL(totals.subtotal) + '</strong></div>' +
-        (totals.discount > 0 && AppState.appliedCoupon ? '<div class="cart-summary-row discount"><span>Desconto (' + escapeHtml(AppState.appliedCoupon.code) + ')</span><strong>-' + formatBRL(totals.discount) + '</strong></div>' : '') +
-        '<div class="cart-summary-row"><span>Entrega</span><span>' + (totals.shippingMethod ? (totals.shippingMethod.priceStatus === 'confirmed' ? formatBRL(totals.shippingCost) : 'A confirmar pela proprietária') : 'A confirmar') + '</span></div>' +
-        '<div class="cart-summary-total"><span>Total do Pedido</span><strong>' + formatBRL(totals.total) + '</strong></div>' +
-      '</div>' +
-      '<button type="button" class="btn btn-primary btn-block ' + (isOnlyWhatsapp ? 'btn-cart-whatsapp' : '') + '" data-action="proceed-to-checkout" id="btn-cart-proceed-checkout">' +
-        (isOnlyWhatsapp ? OFFICIAL_ICONS.whatsapp + '<span>FINALIZAR PEDIDO PELO WHATSAPP</span>' : '<span>FINALIZAR COMPRA COM SEGURANÇA</span>') +
-      '</button>';
-
-    document.getElementById('cart-shipping-select')?.addEventListener('change', (e) => {
-      AppState.selectedShippingMethodId = e.target.value;
-      renderCartDrawer();
-    });
-  }
-
-  window.ByAngelyApp.openCartDrawer = openCartDrawer;
-  window.ByAngelyApp.renderCartDrawer = renderCartDrawer;
-  window.ByAngelyApp.addToCart = addToCart;
-  window.addEventListener('DOMContentLoaded', () => {
-    sanitizeCartItems();
-    setTimeout(sanitizeCartItems, 1200);
-    
-  });
-
-
-                          
 const _origNormalizeAndRepairDatabase = typeof normalizeAndRepairDatabase === 'function' ? normalizeAndRepairDatabase : null;
 if (_origNormalizeAndRepairDatabase) {
 normalizeAndRepairDatabase = function (rawDb) {
+const rawPayIn = (rawDb && rawDb.paymentSettings) || {};
+const rawPixIn = rawPayIn.pix || {};
 const repaired = _origNormalizeAndRepairDatabase(rawDb);
 repaired.storeSettings = repaired.storeSettings || {};
 repaired.storeSettings.homeSections = {
@@ -4271,21 +4245,48 @@ showContactSection: false,
 ...(repaired.storeSettings.homeSections || {})
 };
 repaired.paymentSettings = repaired.paymentSettings || {};
-const isPayV3 = repaired.paymentSettings.paymentConfigVersion >= 3;
-repaired.paymentSettings.paymentConfigVersion = 3;
+repaired.paymentSettings.paymentConfigVersion = 4;
+if (rawPayIn.whatsapp && typeof rawPayIn.whatsapp.enabled === 'boolean') {
+  repaired.paymentSettings.whatsapp = { ...(repaired.paymentSettings.whatsapp || {}), ...rawPayIn.whatsapp, enabled: rawPayIn.whatsapp.enabled };
+}
+if (rawPayIn.creditCard && typeof rawPayIn.creditCard.enabled === 'boolean') {
+  repaired.paymentSettings.creditCard = { ...(repaired.paymentSettings.creditCard || {}), ...rawPayIn.creditCard, enabled: rawPayIn.creditCard.enabled };
+}
+if (rawPayIn.debitCard && typeof rawPayIn.debitCard.enabled === 'boolean') {
+  repaired.paymentSettings.debitCard = { ...(repaired.paymentSettings.debitCard || {}), ...rawPayIn.debitCard, enabled: rawPayIn.debitCard.enabled };
+}
+if (rawPayIn.payOnPickup && typeof rawPayIn.payOnPickup.enabled === 'boolean') {
+  repaired.paymentSettings.payOnPickup = { ...(repaired.paymentSettings.payOnPickup || {}), ...rawPayIn.payOnPickup, enabled: rawPayIn.payOnPickup.enabled };
+}
+const preservedPixEnabled = typeof rawPixIn.enabled === 'boolean'
+? rawPixIn.enabled
+: (typeof (repaired.paymentSettings.pix && repaired.paymentSettings.pix.enabled) === 'boolean' ? repaired.paymentSettings.pix.enabled : true);
+const preservedPixKey = (rawPixIn.pixKey && !String(rawPixIn.pixKey).toLowerCase().includes('a confirmar'))
+? String(rawPixIn.pixKey).trim()
+: ((repaired.paymentSettings.pix && repaired.paymentSettings.pix.pixKey) || '+5528999871458');
+const preservedKeyType = (rawPixIn.keyType && String(rawPixIn.keyType).trim())
+? String(rawPixIn.keyType).trim().toLowerCase()
+: ((repaired.paymentSettings.pix && repaired.paymentSettings.pix.keyType) || 'telefone');
+const preservedRecipientName = (rawPixIn.recipientName && !String(rawPixIn.recipientName).toLowerCase().includes('a confirmar'))
+? String(rawPixIn.recipientName).trim()
+: ((repaired.paymentSettings.pix && repaired.paymentSettings.pix.recipientName) || 'BY ANGELY');
+const preservedRecipientCity = (rawPixIn.recipientCity && String(rawPixIn.recipientCity).trim())
+? String(rawPixIn.recipientCity).trim()
+: ((repaired.paymentSettings.pix && repaired.paymentSettings.pix.recipientCity) || 'ITAPERUNA');
+const preservedTxidPrefix = (rawPixIn.txidPrefix && String(rawPixIn.txidPrefix).trim())
+? String(rawPixIn.txidPrefix).trim()
+: ((repaired.paymentSettings.pix && repaired.paymentSettings.pix.txidPrefix) || 'BYANGELY');
 repaired.paymentSettings.pix = {
 ...(repaired.paymentSettings.pix || {}),
-enabled: isPayV3 && typeof (repaired.paymentSettings.pix && repaired.paymentSettings.pix.enabled) === 'boolean'
-? repaired.paymentSettings.pix.enabled
-: true,
-keyType: 'telefone',
-pixKey: '+5528999871458',
-recipientName: 'BY ANGELY',
-recipientCity: 'ITAPERUNA',
-txidPrefix: 'BYANGELY',
-expirationMinutes: Math.max(1, Number(repaired.paymentSettings.pix && repaired.paymentSettings.pix.expirationMinutes) || 15),
-confirmationMode: 'webhook_auto',
-pspWebhookConfigured: true
+enabled: preservedPixEnabled,
+keyType: preservedKeyType,
+pixKey: preservedPixKey,
+recipientName: preservedRecipientName,
+recipientCity: preservedRecipientCity,
+txidPrefix: preservedTxidPrefix,
+expirationMinutes: Math.max(1, Number((rawPixIn.expirationMinutes || (repaired.paymentSettings.pix && repaired.paymentSettings.pix.expirationMinutes))) || 15),
+confirmationMode: (rawPixIn.confirmationMode) || (repaired.paymentSettings.pix && repaired.paymentSettings.pix.confirmationMode) || 'webhook_auto',
+pspWebhookConfigured: rawPixIn.pspWebhookConfigured !== undefined ? Boolean(rawPixIn.pspWebhookConfigured) : true
 };
 return repaired;
 };
@@ -4296,13 +4297,13 @@ if (header && !document.getElementById('header-search-bar')) {
 const searchBar = document.createElement('div');
 searchBar.id = 'header-search-bar';
 searchBar.className = 'header-search-bar';
-searchBar.style.cssText = 'display:none;background:#F8F5F0;border-top:1px solid #E9DFD4;padding:12px 0;box-shadow:0 8px 20px rgba(41,37,34,0.06);';
+searchBar.style.cssText = 'display:none;background:#F7F7F7;border-top:1px solid #E4E4E7;padding:12px 0;box-shadow:0 8px 20px rgba(17,17,17,0.06);';
 searchBar.innerHTML =
 '<div class="container" style="display:flex;align-items:center;gap:8px;max-width:740px;">' +
 '<form id="header-search-form" style="display:flex;align-items:center;gap:8px;flex:1;margin:0;" onsubmit="return false;">' +
 '<div style="position:relative;flex:1;display:flex;align-items:center;">' +
-'<input type="search" id="header-search-input" class="form-control" placeholder="Buscar por vestido, conjunto, blusa, calça, cor ou código..." aria-label="Buscar produtos na loja" style="width:100%;height:42px;padding:0 36px 0 14px;border-radius:999px;border:1px solid #D5C7B8;background:#FFFFFF;font-size:0.9rem;color:#292522;" autocomplete="off" />' +
-'<button type="button" id="header-search-clear" data-action="clear-header-search" aria-label="Limpar busca" title="Limpar texto" style="display:none;position:absolute;right:10px;background:none;border:none;color:#806044;font-size:1.1rem;cursor:pointer;padding:4px;line-height:1;">&times;</button>' +
+'<input type="search" id="header-search-input" class="form-control" placeholder="Buscar por vestido, conjunto, blusa, calça, cor ou código..." aria-label="Buscar produtos na loja" style="width:100%;height:42px;padding:0 36px 0 14px;border-radius:999px;border:1px solid #D4D4D8;background:#FFFFFF;font-size:0.9rem;color:#111111;" autocomplete="off" />' +
+'<button type="button" id="header-search-clear" data-action="clear-header-search" aria-label="Limpar busca" title="Limpar texto" style="display:none;position:absolute;right:10px;background:none;border:none;color:#52525B;font-size:1.1rem;cursor:pointer;padding:4px;line-height:1;">&times;</button>' +
 '</div>' +
 '<button type="submit" class="btn btn-primary btn-sm" id="header-search-submit" style="height:42px;padding:0 18px;border-radius:999px;font-size:0.8rem;font-weight:600;white-space:nowrap;">Buscar</button>' +
 '<button type="button" class="btn btn-outline btn-sm" data-action="close-header-search" aria-label="Fechar busca" style="height:42px;padding:0 12px;border-radius:999px;font-size:0.78rem;">Fechar</button>' +
@@ -4720,6 +4721,7 @@ const promoProducts = publishedProducts.filter((p) => p.isPromo).slice(0, 4);
 const categories = [...(AppState.db.categories || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
 return `
 ${vis.hero !== false ? `
+<!-- 1. Identidade da Loja e Coleção -->
 <section class="hero-section" aria-label="Apresentação da Coleção By Angély">
 <div class="container hero-grid">
 <div class="hero-content">
@@ -4736,12 +4738,13 @@ ${escapeHtml(hero.ctaSecondaryText || 'Ofertas Especiais')}
 </div>
 </div>
 <div class="hero-media-wrapper">
-<img src="${escapeHtml(hero.imageUrl || CATEGORY_COVER_FALLBACKS.vestidos)}" alt="${escapeHtml(hero.imageAlt || 'Coleção By Angély')}" onerror="this.onerror=null;this.src='${escapeHtml(CATEGORY_COVER_FALLBACKS.vestidos)}';" />
+<img src="${escapeHtml(hero.imageUrl || CATEGORY_COVER_FALLBACKS.vestidos)}" alt="${escapeHtml(hero.imageAlt || 'Coleção By Angély')}" data-fallback-src="${escapeHtml(CATEGORY_COVER_FALLBACKS.vestidos)}" onerror="window.ByAngelyHandleMediaError && window.ByAngelyHandleMediaError(this, 'Coleção BY ANGÉLY')" />
 </div>
 </div>
 </section>
 ` : ''}
 ${vis.featured !== false ? `
+<!-- 2. Produtos em Destaque -->
 <section class="section-block bg-surface" aria-labelledby="sec-feat-title">
 <div class="container">
 <div class="section-header">
@@ -4759,6 +4762,7 @@ ${featuredProducts.map(renderProductCard).join('')}
 </section>
 ` : ''}
 ${vis.newArrivals !== false && newProducts.length > 0 ? `
+<!-- 3. Novidades da Coleção -->
 <section class="section-block" aria-labelledby="sec-new-title">
 <div class="container">
 <div class="section-header">
@@ -4775,6 +4779,7 @@ ${newProducts.map(renderProductCard).join('')}
 </section>
 ` : ''}
 ${vis.promotions !== false && promoProducts.length > 0 ? `
+<!-- 4. Promoções e Condições Especiais -->
 <section class="section-block bg-surface" aria-labelledby="sec-promo-title">
 <div class="container">
 <div class="section-header">
@@ -4792,6 +4797,7 @@ ${promoProducts.map(renderProductCard).join('')}
 </section>
 ` : ''}
 ${vis.categories !== false ? `
+<!-- 5. Categorias da Loja -->
 <section class="section-block" aria-labelledby="sec-cat-title">
 <div class="container">
 <div class="section-header">
@@ -4809,7 +4815,7 @@ const imgUrl = (cat.imageUrl && String(cat.imageUrl).trim().length > 8) ? cat.im
 const countInCat = publishedProducts.filter((p) => matchesCategory(p, cat.slug)).length;
 return `
 <button type="button" class="category-card" data-action="filter-category" data-category="${escapeHtml(cat.slug)}" aria-label="Explorar categoria ${escapeHtml(cat.name)}">
-<img src="${escapeHtml(imgUrl)}" alt="Categoria ${escapeHtml(cat.name)}" loading="lazy" onerror="this.onerror=null;this.src='${escapeHtml(fbImg)}';" />
+<img src="${escapeHtml(imgUrl)}" alt="Categoria ${escapeHtml(cat.name)}" data-fallback-src="${escapeHtml(fbImg)}" onerror="window.ByAngelyHandleMediaError && window.ByAngelyHandleMediaError(this, '${escapeHtml(cat.name)}')" />
 <div class="category-card-overlay">
 <span class="category-card-title">${escapeHtml(cat.name)}</span>
 <span class="category-card-sub">${countInCat > 0 ? countInCat + (countInCat === 1 ? ' peça →' : ' peças →') : 'Explorar →'}</span>
@@ -4822,11 +4828,12 @@ return `
 </section>
 ` : ''}
 ${vis.brandStory !== false ? `
+<!-- 6. A Essência By Angély -->
 <section class="section-block bg-surface" aria-labelledby="sec-story-title">
 <div class="container">
 <div class="hero-grid" style="min-height:auto;">
 <div class="hero-media-wrapper" style="aspect-ratio: 4 / 3.2;">
-<img src="${escapeHtml(story.imageUrl || CATEGORY_COVER_FALLBACKS.conjuntos)}" alt="By Angély — Itaperuna, RJ" loading="lazy" onerror="this.onerror=null;this.src='${escapeHtml(CATEGORY_COVER_FALLBACKS.conjuntos)}';" />
+<img src="${escapeHtml(story.imageUrl || CATEGORY_COVER_FALLBACKS.conjuntos)}" alt="By Angély — Itaperuna, RJ" data-fallback-src="${escapeHtml(CATEGORY_COVER_FALLBACKS.conjuntos)}" onerror="window.ByAngelyHandleMediaError && window.ByAngelyHandleMediaError(this, 'Essência BY ANGÉLY')" />
 </div>
 <div class="hero-content">
 <span class="section-eyebrow">Boutique Feminina • Itaperuna, RJ</span>
@@ -4892,7 +4899,7 @@ container.innerHTML = `
 ${activeMedia.type === 'video' ? `
 <video src="${escapeHtml(activeMedia.url)}" poster="${escapeHtml(activeMedia.poster || '')}" controls playsinline aria-label="${escapeHtml(activeMedia.alt || product.name)}"></video>
 ` : `
-<img src="${escapeHtml(activeMedia.url)}" alt="${escapeHtml(activeMedia.alt || product.name)}" id="pdp-active-img" onerror="this.onerror=null;this.src='${escapeHtml(fallbackUrl)}';" />
+<img src="${escapeHtml(activeMedia.url)}" alt="${escapeHtml(activeMedia.alt || product.name)}" id="pdp-active-img" data-fallback-src="${escapeHtml(fallbackUrl)}" onerror="window.ByAngelyHandleMediaError && window.ByAngelyHandleMediaError(this, '${escapeHtml(product.name)}')" />
 <button type="button" class="pdp-zoom-btn" data-action="zoom-image" data-url="${escapeHtml(activeMedia.url)}" data-alt="${escapeHtml(activeMedia.alt || product.name)}">
 Ampliar Imagem
 </button>
@@ -4902,9 +4909,9 @@ Ampliar Imagem
 ${mediaList.map((m, idx) => `
 <button type="button" class="pdp-thumb-btn ${idx === state.mediaIndex ? 'active' : ''}" data-action="select-pdp-media" data-index="${idx}" aria-label="${m.type === 'video' ? 'Reproduzir vídeo' : 'Ver foto ' + (idx + 1)}">
 ${m.type === 'video' ? `
-<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#292522;color:#FFF;font-size:0.72rem;font-weight:700;">▶ VÍDEO</div>
+<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#111111;color:#FFFFFF;font-size:0.72rem;font-weight:700;">▶ VÍDEO</div>
 ` : `
-<img src="${escapeHtml(m.url)}" alt="Miniatura ${idx + 1}" onerror="this.onerror=null;this.src='${escapeHtml(fallbackUrl)}';" />
+<img src="${escapeHtml(m.url)}" alt="Miniatura ${idx + 1}" data-fallback-src="${escapeHtml(fallbackUrl)}" onerror="window.ByAngelyHandleMediaError && window.ByAngelyHandleMediaError(this, 'Miniatura')" />
 `}
 </button>
 `).join('')}
@@ -5032,6 +5039,15 @@ ${product.sizeChart.map((row) => `
 </div>
 </details>
 ` : ''}
+<details style="margin-bottom:10px;border-top:1px solid var(--border-subtle);padding-top:10px;">
+<summary style="font-weight:600;font-size:0.88rem;cursor:pointer;padding:6px 0;">Trocas, Entrega e Pagamento</summary>
+<div style="font-size:0.82rem;color:var(--text-secondary);padding-top:8px;display:flex;flex-direction:column;gap:6px;line-height:1.5;">
+<div><strong>Pagamento:</strong> Pix com QR Code ou Copia e Cola e atendimento oficial pelo WhatsApp.</div>
+<div><strong>Entrega e Retirada:</strong> Frete por região/Correios com código de rastreio ou retirada em Itaperuna/RJ.</div>
+<div><strong>Trocas e Devoluções:</strong> Até 7 dias corridos após o recebimento (com etiqueta e sem uso), solicitando direto em <em>Minha Conta → Trocas e Devoluções</em>.</div>
+</div>
+</details>
+<!-- Avaliações de Clientes (1 a 5 estrelas, comentário opcional, cliente logada) -->
 <details open style="border-top:1px solid var(--border-subtle);padding-top:10px;">
 <summary style="font-weight:600;font-size:0.88rem;cursor:pointer;padding:6px 0;">
 Avaliações das Clientes (${productReviews.length}) ${avgRating ? `• ★ ${avgRating}` : ''}
@@ -5122,34 +5138,87 @@ showToast('Avaliação registrada com sucesso!', 'success');
 }
 }
 function renderCheckoutView() {
-
 if (AppState.lastCreatedOrder) {
-  return renderOrderConfirmationScreen(AppState.lastCreatedOrder);
+return renderOrderConfirmationScreen(AppState.lastCreatedOrder);
 }
 if (!AppState.currentCustomer || !AppState.currentCustomer.email) {
-  AppState.pendingPurchaseIntent = { type: 'checkout' };
-  AppState.showPurchaseAuthBanner = true;
-  return renderCustomerAuthScreen();
+AppState.pendingPurchaseIntent = { type: 'checkout' };
+AppState.showPurchaseAuthBanner = true;
+const cartTotals = AppState.cart.length > 0 ? calculateCartTotals() : null;
+const itemsCount = AppState.cart.reduce((s, i) => s + (Number(i.quantity) || 1), 0);
+return `
+<section class="section-block" id="view-checkout-auth-step">
+  <div class="container">
+    <div class="section-header" style="margin-bottom:18px;">
+      <div>
+        <span class="section-eyebrow">BY ANGÉLY • Checkout Seguro</span>
+        <h1 class="section-title">Finalização da Compra</h1>
+        <p style="font-size:0.86rem;color:var(--text-secondary);">Identifique-se para confirmar endereço de entrega e gerar o pagamento do pedido.</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" class="btn btn-outline btn-sm" data-action="open-cart-page">← Ver Sacola (${itemsCount})</button>
+        <button type="button" class="btn btn-outline btn-sm" data-action="go-catalog">Continuar Comprando</button>
+      </div>
+    </div>
+    <div class="checkout-step-bar" aria-label="Etapas do Checkout">
+      <div class="checkout-step-pill active"><strong>1. Identificação</strong> • Entrar ou criar conta</div>
+      <div class="checkout-step-pill"><strong>2. Entrega e Frete</strong> • Endereço e modalidade</div>
+      <div class="checkout-step-pill"><strong>3. Pagamento</strong> • Pix ou WhatsApp</div>
+    </div>
+    <div class="cart-page-grid" style="align-items:start;">
+      <div>
+        ${renderCustomerAuthScreen('checkout')}
+      </div>
+      <aside class="admin-card" aria-label="Resumo da Sacola no Checkout">
+        <span class="section-eyebrow">Resumo da Sacola</span>
+        <h2 style="font-family:var(--font-serif);font-size:1.35rem;margin-bottom:12px;">${itemsCount} ${itemsCount === 1 ? 'peça selecionada' : 'peças selecionadas'}</h2>
+        ${cartTotals && AppState.cart.length > 0 ? `
+          <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">
+            ${AppState.cart.map((it) => `
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:0.84rem;padding:8px;background:var(--bg-primary);border:1px solid var(--border-subtle);border-radius:8px;">
+                <div style="min-width:0;">
+                  <strong style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(it.name)}</strong>
+                  <span style="font-size:0.75rem;color:var(--text-secondary);">Qtd: ${it.quantity}${isValidClothingSize(it.size) ? ' • Tam: ' + escapeHtml(it.size) : ''}</span>
+                </div>
+                <strong>${formatBRL((Number(it.unitPrice) || 0) * (Number(it.quantity) || 1))}</strong>
+              </div>
+            `).join('')}
+          </div>
+          <div style="border-top:1px solid var(--border-subtle);padding-top:10px;display:flex;flex-direction:column;gap:6px;font-size:0.86rem;">
+            <div style="display:flex;justify-content:space-between;"><span>Subtotal</span><strong>${formatBRL(cartTotals.subtotal)}</strong></div>
+            ${cartTotals.discount > 0 ? `<div style="display:flex;justify-content:space-between;"><span>Desconto</span><strong>-${formatBRL(cartTotals.discount)}</strong></div>` : ''}
+            <div style="display:flex;justify-content:space-between;"><span>Entrega</span><span>${cartTotals.shippingMethod && cartTotals.shippingMethod.priceStatus === 'confirmed' ? formatBRL(cartTotals.shippingCost) : 'A confirmar'}</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:1.05rem;font-weight:700;padding-top:8px;border-top:1px solid var(--border-strong);"><span>Total Previsto</span><span>${formatBRL(cartTotals.total)}</span></div>
+          </div>
+        ` : `
+          <p style="font-size:0.84rem;color:var(--text-secondary);margin-bottom:14px;">Sua sacola está vazia no momento. Entre na sua conta ou adicione peças do catálogo.</p>
+          <button type="button" class="btn btn-primary btn-block btn-sm" data-action="go-catalog">Explorar Catálogo</button>
+        `}
+      </aside>
+    </div>
+  </div>
+</section>
+`;
 }
 if (AppState.cart.length === 0) {
-  return `
-    <section class="section-block">
-      <div class="container">
-        <div class="admin-card" style="text-align:center;padding:48px 20px;">
-          <h1 class="section-title" style="margin-bottom:10px;">Sua sacola está vazia</h1>
-          <p style="color:var(--text-secondary);margin-bottom:20px;">Adicione produtos antes de prosseguir para a finalização da compra.</p>
-          <button type="button" class="btn btn-primary" data-action="go-catalog">Voltar para a Loja</button>
-        </div>
-      </div>
-    </section>
-  `;
+return `
+<section class="section-block">
+<div class="container">
+<div class="admin-card" style="text-align:center;padding:48px 20px;">
+<h1 class="section-title" style="margin-bottom:10px;">Sua sacola está vazia</h1>
+<p style="color:var(--text-secondary);margin-bottom:20px;">Adicione produtos antes de prosseguir para a finalização da compra.</p>
+<button type="button" class="btn btn-primary" data-action="go-catalog">Voltar para a Loja</button>
+</div>
+</div>
+</section>
+`;
 }
 const totals = calculateCartTotals();
 const paySettings = AppState.db.paymentSettings;
 const shipMethods = (AppState.db.shippingSettings.methods || []).filter((m) => m.enabled);
 const activePaymentOptions = getAvailableCheckoutPaymentOptions(paySettings);
 if (activePaymentOptions.length > 0 && !activePaymentOptions.some((o) => o.id === AppState.selectedPaymentMethod)) {
-  AppState.selectedPaymentMethod = activePaymentOptions[0].id;
+AppState.selectedPaymentMethod = activePaymentOptions[0].id;
 }
 const isWhatsappSelected = AppState.selectedPaymentMethod === 'whatsapp';
 const cust = AppState.currentCustomer || {};
@@ -5160,311 +5229,310 @@ const splitCityState = String(defaultAddr.cityState || '').split('-').map((s) =>
 const addrCity = defaultAddr.city || splitCityState[0] || 'Itaperuna';
 const addrState = defaultAddr.state || splitCityState[1] || 'RJ';
 return `
-  <section class="section-block">
-    <div class="container">
-      <div class="section-header" style="margin-bottom:24px;">
-        <div>
-          <span class="section-eyebrow">BY ANGÉLY • Checkout Seguro</span>
-          <h1 class="section-title">Revisão de Dados, Entrega e Pagamento</h1>
-          <p style="font-size:0.86rem;color:var(--text-secondary);">Logada como <strong>${escapeHtml(cust.name)}</strong> (${escapeHtml(cust.email)}) — seus dados foram preenchidos automaticamente.</p>
-        </div>
-        <button type="button" class="btn btn-outline btn-sm" data-action="go-catalog">← Continuar Comprando</button>
-      </div>
-      <form id="checkout-order-form" class="checkout-layout">
-        <div>
-          <!-- Etapa 1: Dados da Cliente -->
-          <div class="admin-card">
-            <h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:14px;">1. Dados da Cliente</h2>
-            <div class="sac-form-grid">
-              <div>
-                <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Nome Completo *</label>
-                <input type="text" name="customerName" class="form-control" required value="${escapeHtml(cust.name || '')}" />
-              </div>
-              <div>
-                <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">WhatsApp / Telefone com DDD *</label>
-                <input type="tel" name="customerPhone" class="form-control" required value="${escapeHtml(cust.phone || '')}" />
-              </div>
-            </div>
-            <div class="sac-form-grid">
-              <div>
-                <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">E-mail da Conta *</label>
-                <input type="email" name="customerEmail" class="form-control" required readonly value="${escapeHtml(cust.email || '')}" style="background:var(--bg-primary);" />
-              </div>
-              <div>
-                <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">CPF (Para nota / identificação do pagamento)</label>
-                <input type="text" name="customerCpf" class="form-control" value="${escapeHtml(cust.cpf && cust.cpf !== 'Não informado' ? cust.cpf : '')}" placeholder="000.000.000-00" />
-              </div>
-            </div>
-          </div>
-          <!-- Etapa 2: Endereço Permanente e Entrega -->
-          <div class="admin-card">
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
-              <h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:0;">2. Endereço de Entrega e Modalidade</h2>
-              ${savedAddresses.length > 1 ? `
-                <select id="checkout-saved-address-select" class="form-control" style="max-width:260px;font-size:0.82rem;">
-                  ${savedAddresses.map((a, idx) => `
-                    <option value="${idx}" ${idx === selectedAddrIdx ? 'selected' : ''}>
-                      ${escapeHtml(a.label || ('Endereço ' + (idx + 1)))}: ${escapeHtml(a.street || '')}, ${escapeHtml(a.number || '')}
-                    </option>
-                  `).join('')}
-                </select>
-              ` : ''}
-            </div>
-            <div style="margin-bottom:16px;">
-              <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:6px;">Modalidade de Recebimento *</label>
-              <div style="display:flex;flex-direction:column;gap:8px;">
-                ${shipMethods.map((m) => `
-                  <label style="display:flex;justify-content:space-between;align-items:center;padding:12px;border:1px solid ${totals.shippingMethod && totals.shippingMethod.id === m.id ? 'var(--accent-gold)' : 'var(--border-subtle)'};border-radius:6px;background:${totals.shippingMethod && totals.shippingMethod.id === m.id ? 'var(--bg-accent-subtle)' : 'var(--bg-surface)'};cursor:pointer;">
-                    <div style="display:flex;align-items:center;gap:10px;">
-                      <input type="radio" name="shippingMethodId" value="${escapeHtml(m.id)}" ${totals.shippingMethod && totals.shippingMethod.id === m.id ? 'checked' : ''} />
-                      <div>
-                        <strong style="font-size:0.9rem;display:block;">${escapeHtml(m.name)}</strong>
-                        <span style="font-size:0.78rem;color:var(--text-secondary);">${escapeHtml(m.estimatedDays)}</span>
-                      </div>
-                    </div>
-                    <span style="font-weight:700;font-size:0.86rem;">
-                      ${m.priceStatus === 'confirmed' ? (m.price === 0 ? 'Grátis' : formatBRL(m.price)) : 'A confirmar'}
-                    </span>
-                  </label>
-                `).join('')}
-              </div>
-            </div>
-            <div class="sac-form-grid">
-              <div>
-                <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">CEP *</label>
-                <input type="text" name="zipCode" id="checkout-cep" class="form-control" required value="${escapeHtml(defaultAddr.zipCode || '28300-000')}" placeholder="28300-000" />
-              </div>
-              <div>
-                <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Endereço (Rua / Avenida) *</label>
-                <input type="text" name="street" id="checkout-street" class="form-control" required value="${escapeHtml(defaultAddr.street || '')}" placeholder="Nome da rua ou avenida" />
-              </div>
-            </div>
-            <div class="sac-form-grid">
-              <div>
-                <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Número *</label>
-                <input type="text" name="number" class="form-control" required value="${escapeHtml(defaultAddr.number || '')}" placeholder="Nº" />
-              </div>
-              <div>
-                <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Complemento</label>
-                <input type="text" name="complement" class="form-control" value="${escapeHtml(defaultAddr.complement || '')}" placeholder="Apto, bloco, casa (opcional)" />
-              </div>
-            </div>
-            <div class="sac-form-grid">
-              <div>
-                <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Bairro *</label>
-                <input type="text" name="neighborhood" id="checkout-neighborhood" class="form-control" required value="${escapeHtml(defaultAddr.neighborhood || '')}" placeholder="Bairro" />
-              </div>
-              <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;">
-                <div>
-                  <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Cidade *</label>
-                  <input type="text" name="city" id="checkout-city" class="form-control" required value="${escapeHtml(addrCity)}" placeholder="Itaperuna" />
-                </div>
-                <div>
-                  <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Estado (UF) *</label>
-                  <input type="text" name="state" id="checkout-state" class="form-control" required maxlength="2" value="${escapeHtml(addrState)}" placeholder="RJ" />
-                </div>
-              </div>
-            </div>
-            <div style="margin-bottom:10px;">
-              <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Referência para entrega (Opcional)</label>
-              <input type="text" name="reference" class="form-control" value="${escapeHtml(defaultAddr.reference || '')}" placeholder="Próximo a..." />
-            </div>
-            <div>
-              <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Observações do Pedido (Opcional)</label>
-              <input type="text" name="customerNotes" class="form-control" placeholder="Alguma observação especial para a separação ou entrega?" />
-            </div>
-          </div>
-          <!-- Etapa 3: Forma de Pagamento (Pix Automático 15 min ou WhatsApp) -->
-          <div class="admin-card" id="checkout-payment-step-card">
-            <h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:14px;">3. Forma de Pagamento</h2>
-            <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;" id="checkout-active-payment-list">
-              ${activePaymentOptions.map((opt) => `
-                <label style="display:flex;align-items:center;gap:10px;padding:12px;border:1px solid ${AppState.selectedPaymentMethod === opt.id ? 'var(--accent-gold)' : 'var(--border-subtle)'};border-radius:6px;background:${AppState.selectedPaymentMethod === opt.id ? 'var(--bg-accent-subtle)' : 'var(--bg-surface)'};cursor:pointer;">
-                  <input type="radio" name="paymentMethod" value="${escapeHtml(opt.id)}" ${AppState.selectedPaymentMethod === opt.id ? 'checked' : ''} />
-                  <strong style="font-size:0.92rem;">${escapeHtml(opt.label)}</strong>
-                </label>
-              `).join('')}
-            </div>
-            ${AppState.selectedPaymentMethod === 'pix' ? `
-              <div class="alert-box alert-info" style="margin-bottom:0;">
-                <p style="margin-bottom:6px;"><strong>⚡ Pagamento via Pix com Confirmação Automática (Prazo de ${Number(paySettings.pix.expirationMinutes) || 15} minutos):</strong></p>
-                <p style="margin-bottom:6px;font-size:0.84rem;">Ao confirmar, o sistema gera o <strong>QR Code Pix</strong> e o código <strong>Pix Copia e Cola</strong> no valor exato de <strong>${formatBRL(totals.total)}</strong>. Assim que o pagamento é concluído no seu banco, o pedido é aprovado automaticamente e enviado para separação — sem precisar enviar comprovante!</p>
-                <p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:0;">
-                  Caso o pagamento não seja realizado em até <strong>${Number(paySettings.pix.expirationMinutes) || 15} minutos</strong>, o QR Code expira e o pedido é cancelado automaticamente.
-                </p>
-              </div>
-            ` : ''}
-            ${AppState.selectedPaymentMethod === 'whatsapp' ? `
-              <div class="alert-box alert-info" style="margin-bottom:0;">
-                <p style="margin-bottom:4px;"><strong>Atendimento e Finalização pelo WhatsApp Oficial:</strong></p>
-                <p style="font-size:0.82rem;">${escapeHtml(paySettings.whatsapp.instructions || 'Seu pedido será registrado e encaminhado para o WhatsApp oficial da BY ANGÉLY.')}</p>
-              </div>
-            ` : ''}
-          </div>
-        </div>
-        <!-- Coluna Lateral: Resumo do Pedido -->
-        <div>
-          <div class="admin-card" style="position:sticky;top:98px;">
-            <h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:14px;">Resumo do Pedido</h2>
-            <div style="display:flex;flex-direction:column;gap:10px;max-height:280px;overflow-y:auto;margin-bottom:14px;padding-right:4px;">
-              ${AppState.cart.map((item) => {
-                const sizePart = isValidClothingSize(item.size) ? `Tam: ${escapeHtml(item.size)} | ` : '';
-                const colorPart = isValidColorName(item.color) ? `Cor: ${escapeHtml(item.color)} | ` : '';
-                return `
-                  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:0.84rem;padding-bottom:8px;border-bottom:1px solid var(--border-subtle);">
-                    <div style="display:flex;align-items:center;gap:10px;">
-                      <img src="${escapeHtml(item.imageUrl || CATEGORY_COVER_FALLBACKS.vestidos)}" alt="${escapeHtml(item.name)}" style="width:44px;height:56px;object-fit:cover;border-radius:6px;flex-shrink:0;" />
-                      <div>
-                        <strong>${escapeHtml(item.name)}</strong>
-                        <div style="font-size:0.75rem;color:var(--text-secondary);">${sizePart}${colorPart}Qtd: ${item.quantity}x (${formatBRL(item.unitPrice)})</div>
-                      </div>
-                    </div>
-                    <span style="font-weight:600;white-space:nowrap;">${formatBRL(item.unitPrice * item.quantity)}</span>
-                  </div>
-                `;
-              }).join('')}
-            </div>
-            <div style="font-size:0.88rem;border-top:1px solid var(--border-subtle);padding-top:12px;margin-bottom:16px;">
-              <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-                <span>Subtotal dos produtos:</span>
-                <span>${formatBRL(totals.subtotal)}</span>
-              </div>
-              ${totals.discount > 0 && AppState.appliedCoupon ? `
-                <div style="display:flex;justify-content:space-between;margin-bottom:6px;color:var(--status-success-text);">
-                  <span>Cupom (${escapeHtml(AppState.appliedCoupon.code)}):</span>
-                  <span>-${formatBRL(totals.discount)}</span>
-                </div>
-              ` : ''}
-              <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-                <span>Entrega (${totals.shippingMethod ? escapeHtml(totals.shippingMethod.name) : 'A definir'}):</span>
-                <span>${totals.shippingMethod && totals.shippingMethod.priceStatus === 'confirmed' ? formatBRL(totals.shippingCost) : 'A confirmar'}</span>
-              </div>
-              <div style="display:flex;justify-content:space-between;font-size:1.2rem;font-weight:700;padding-top:10px;border-top:1px solid var(--border-strong);">
-                <span>Total do Pedido:</span>
-                <span>${formatBRL(totals.total)}</span>
-              </div>
-            </div>
-            <button type="submit" id="btn-submit-checkout" class="btn btn-primary btn-block ${isWhatsappSelected ? 'btn-cart-whatsapp' : ''}">
-              ${isWhatsappSelected
-                ? `${OFFICIAL_ICONS.whatsapp}<span>FINALIZAR PEDIDO PELO WHATSAPP</span>`
-                : `Gerar QR Code Pix (${formatBRL(totals.total)})`}
-            </button>
-          </div>
-        </div>
-      </form>
-    </div>
-  </section>
+<section class="section-block">
+<div class="container">
+<div class="section-header" style="margin-bottom:24px;">
+<div>
+<span class="section-eyebrow">BY ANGÉLY • Checkout Seguro</span>
+<h1 class="section-title">Revisão de Dados, Entrega e Pagamento</h1>
+<p style="font-size:0.86rem;color:var(--text-secondary);">Logada como <strong>${escapeHtml(cust.name)}</strong> (${escapeHtml(cust.email)}) — seus dados foram preenchidos automaticamente.</p>
+</div>
+<button type="button" class="btn btn-outline btn-sm" data-action="go-catalog">← Continuar Comprando</button>
+</div>
+<form id="checkout-order-form" class="checkout-layout">
+<div>
+<!-- Etapa 1: Dados da Cliente -->
+<div class="admin-card">
+<h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:14px;">1. Dados da Cliente</h2>
+<div class="sac-form-grid">
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Nome Completo *</label>
+<input type="text" name="customerName" class="form-control" required value="${escapeHtml(cust.name || '')}" />
+</div>
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">WhatsApp / Telefone com DDD *</label>
+<input type="tel" name="customerPhone" class="form-control" required value="${escapeHtml(cust.phone || '')}" />
+</div>
+</div>
+<div class="sac-form-grid">
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">E-mail da Conta *</label>
+<input type="email" name="customerEmail" class="form-control" required readonly value="${escapeHtml(cust.email || '')}" style="background:var(--bg-primary);" />
+</div>
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">CPF (Para nota / identificação do pagamento)</label>
+<input type="text" name="customerCpf" class="form-control" value="${escapeHtml(cust.cpf && cust.cpf !== 'Não informado' ? cust.cpf : '')}" placeholder="000.000.000-00" />
+</div>
+</div>
+</div>
+<!-- Etapa 2: Endereço Permanente e Entrega -->
+<div class="admin-card">
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+<h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:0;">2. Endereço de Entrega e Modalidade</h2>
+${savedAddresses.length > 1 ? `
+<select id="checkout-saved-address-select" class="form-control" style="max-width:260px;font-size:0.82rem;">
+${savedAddresses.map((a, idx) => `
+<option value="${idx}" ${idx === selectedAddrIdx ? 'selected' : ''}>
+${escapeHtml(a.label || ('Endereço ' + (idx + 1)))}: ${escapeHtml(a.street || '')}, ${escapeHtml(a.number || '')}
+</option>
+`).join('')}
+</select>
+` : ''}
+</div>
+<div style="margin-bottom:16px;">
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:6px;">Modalidade de Recebimento *</label>
+<div style="display:flex;flex-direction:column;gap:8px;">
+${shipMethods.map((m) => `
+<label style="display:flex;justify-content:space-between;align-items:center;padding:12px;border:1px solid ${totals.shippingMethod && totals.shippingMethod.id === m.id ? 'var(--accent-gold)' : 'var(--border-subtle)'};border-radius:6px;background:${totals.shippingMethod && totals.shippingMethod.id === m.id ? 'var(--bg-accent-subtle)' : 'var(--bg-surface)'};cursor:pointer;">
+<div style="display:flex;align-items:center;gap:10px;">
+<input type="radio" name="shippingMethodId" value="${escapeHtml(m.id)}" ${totals.shippingMethod && totals.shippingMethod.id === m.id ? 'checked' : ''} />
+<div>
+<strong style="font-size:0.9rem;display:block;">${escapeHtml(m.name)}</strong>
+<span style="font-size:0.78rem;color:var(--text-secondary);">${escapeHtml(m.estimatedDays)}</span>
+</div>
+</div>
+<span style="font-weight:700;font-size:0.86rem;">
+${m.priceStatus === 'confirmed' ? (m.price === 0 ? 'Grátis' : formatBRL(m.price)) : 'A confirmar'}
+</span>
+</label>
+`).join('')}
+</div>
+</div>
+<div class="sac-form-grid">
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">CEP *</label>
+<input type="text" name="zipCode" id="checkout-cep" class="form-control" required value="${escapeHtml(defaultAddr.zipCode || '28300-000')}" placeholder="28300-000" />
+</div>
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Endereço (Rua / Avenida) *</label>
+<input type="text" name="street" id="checkout-street" class="form-control" required value="${escapeHtml(defaultAddr.street || '')}" placeholder="Nome da rua ou avenida" />
+</div>
+</div>
+<div class="sac-form-grid">
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Número *</label>
+<input type="text" name="number" class="form-control" required value="${escapeHtml(defaultAddr.number || '')}" placeholder="Nº" />
+</div>
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Complemento</label>
+<input type="text" name="complement" class="form-control" value="${escapeHtml(defaultAddr.complement || '')}" placeholder="Apto, bloco, casa (opcional)" />
+</div>
+</div>
+<div class="sac-form-grid">
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Bairro *</label>
+<input type="text" name="neighborhood" id="checkout-neighborhood" class="form-control" required value="${escapeHtml(defaultAddr.neighborhood || '')}" placeholder="Bairro" />
+</div>
+<div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;">
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Cidade *</label>
+<input type="text" name="city" id="checkout-city" class="form-control" required value="${escapeHtml(addrCity)}" placeholder="Itaperuna" />
+</div>
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Estado (UF) *</label>
+<input type="text" name="state" id="checkout-state" class="form-control" required maxlength="2" value="${escapeHtml(addrState)}" placeholder="RJ" />
+</div>
+</div>
+</div>
+<div style="margin-bottom:10px;">
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Referência para entrega (Opcional)</label>
+<input type="text" name="reference" class="form-control" value="${escapeHtml(defaultAddr.reference || '')}" placeholder="Próximo a..." />
+</div>
+<div>
+<label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Observações do Pedido (Opcional)</label>
+<input type="text" name="customerNotes" class="form-control" placeholder="Alguma observação especial para a separação ou entrega?" />
+</div>
+</div>
+<!-- Etapa 3: Forma de Pagamento (Pix Automático 15 min ou WhatsApp) -->
+<div class="admin-card" id="checkout-payment-step-card">
+<h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:14px;">3. Forma de Pagamento</h2>
+<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;" id="checkout-active-payment-list">
+${activePaymentOptions.map((opt) => `
+<label style="display:flex;align-items:center;gap:10px;padding:12px;border:1px solid ${AppState.selectedPaymentMethod === opt.id ? 'var(--accent-gold)' : 'var(--border-subtle)'};border-radius:6px;background:${AppState.selectedPaymentMethod === opt.id ? 'var(--bg-accent-subtle)' : 'var(--bg-surface)'};cursor:pointer;">
+<input type="radio" name="paymentMethod" value="${escapeHtml(opt.id)}" ${AppState.selectedPaymentMethod === opt.id ? 'checked' : ''} />
+<strong style="font-size:0.92rem;">${escapeHtml(opt.label)}</strong>
+</label>
+`).join('')}
+</div>
+${AppState.selectedPaymentMethod === 'pix' ? `
+<div class="alert-box alert-info" style="margin-bottom:0;">
+<p style="margin-bottom:6px;"><strong>⚡ Pagamento via Pix com Confirmação Automática (Prazo de ${Number(paySettings.pix.expirationMinutes) || 15} minutos):</strong></p>
+<p style="margin-bottom:6px;font-size:0.84rem;">Ao confirmar, o sistema gera o <strong>QR Code Pix</strong> e o código <strong>Pix Copia e Cola</strong> no valor exato de <strong>${formatBRL(totals.total)}</strong>. Assim que o pagamento é concluído no seu banco, o pedido é aprovado automaticamente e enviado para separação — sem precisar enviar comprovante!</p>
+<p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:0;">
+Caso o pagamento não seja realizado em até <strong>${Number(paySettings.pix.expirationMinutes) || 15} minutos</strong>, o QR Code expira e o pedido é cancelado automaticamente.
+</p>
+</div>
+` : ''}
+${AppState.selectedPaymentMethod === 'whatsapp' ? `
+<div class="alert-box alert-info" style="margin-bottom:0;">
+<p style="margin-bottom:4px;"><strong>Atendimento e Finalização pelo WhatsApp Oficial:</strong></p>
+<p style="font-size:0.82rem;">${escapeHtml(paySettings.whatsapp.instructions || 'Seu pedido será registrado e encaminhado para o WhatsApp oficial da BY ANGÉLY.')}</p>
+</div>
+` : ''}
+</div>
+</div>
+<!-- Coluna Lateral: Resumo do Pedido -->
+<div>
+<div class="admin-card" style="position:sticky;top:98px;">
+<h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:14px;">Resumo do Pedido</h2>
+<div style="display:flex;flex-direction:column;gap:10px;max-height:280px;overflow-y:auto;margin-bottom:14px;padding-right:4px;">
+${AppState.cart.map((item) => {
+const sizePart = isValidClothingSize(item.size) ? `Tam: ${escapeHtml(item.size)} | ` : '';
+const colorPart = isValidColorName(item.color) ? `Cor: ${escapeHtml(item.color)} | ` : '';
+return `
+<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:0.84rem;padding-bottom:8px;border-bottom:1px solid var(--border-subtle);">
+<div style="display:flex;align-items:center;gap:10px;">
+<img src="${escapeHtml(item.imageUrl || CATEGORY_COVER_FALLBACKS.vestidos)}" alt="${escapeHtml(item.name)}" style="width:44px;height:56px;object-fit:cover;border-radius:6px;flex-shrink:0;" />
+<div>
+<strong>${escapeHtml(item.name)}</strong>
+<div style="font-size:0.75rem;color:var(--text-secondary);">${sizePart}${colorPart}Qtd: ${item.quantity}x (${formatBRL(item.unitPrice)})</div>
+</div>
+</div>
+<span style="font-weight:600;white-space:nowrap;">${formatBRL(item.unitPrice * item.quantity)}</span>
+</div>
+`;
+}).join('')}
+</div>
+<div style="font-size:0.88rem;border-top:1px solid var(--border-subtle);padding-top:12px;margin-bottom:16px;">
+<div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+<span>Subtotal dos produtos:</span>
+<span>${formatBRL(totals.subtotal)}</span>
+</div>
+${totals.discount > 0 && AppState.appliedCoupon ? `
+<div style="display:flex;justify-content:space-between;margin-bottom:6px;color:var(--status-success-text);">
+<span>Cupom (${escapeHtml(AppState.appliedCoupon.code)}):</span>
+<span>-${formatBRL(totals.discount)}</span>
+</div>
+` : ''}
+<div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+<span>Entrega (${totals.shippingMethod ? escapeHtml(totals.shippingMethod.name) : 'A definir'}):</span>
+<span>${totals.shippingMethod && totals.shippingMethod.priceStatus === 'confirmed' ? formatBRL(totals.shippingCost) : 'A confirmar'}</span>
+</div>
+<div style="display:flex;justify-content:space-between;font-size:1.2rem;font-weight:700;padding-top:10px;border-top:1px solid var(--border-strong);">
+<span>Total do Pedido:</span>
+<span>${formatBRL(totals.total)}</span>
+</div>
+</div>
+<button type="submit" id="btn-submit-checkout" class="btn btn-primary btn-block ${isWhatsappSelected ? 'btn-cart-whatsapp' : ''}">
+${isWhatsappSelected
+? `${OFFICIAL_ICONS.whatsapp}<span>FINALIZAR PEDIDO PELO WHATSAPP</span>`
+: `Gerar QR Code Pix (${formatBRL(totals.total)})`}
+</button>
+</div>
+</div>
+</form>
+</div>
+</section>
 `;
 }
 function bindCheckoutEvents() {
-  const form = document.getElementById('checkout-order-form');
-  if (!form) return;
-  const savedAddrSelect = document.getElementById('checkout-saved-address-select');
-  if (savedAddrSelect) {
-    savedAddrSelect.addEventListener('change', (e) => {
-      AppState.selectedCheckoutAddressIndex = Number(e.target.value) || 0;
-      renderMainView();
-    });
-  }
-  form.querySelectorAll('input[name="shippingMethodId"]').forEach((radio) => {
-    radio.addEventListener('change', (e) => {
-      AppState.selectedShippingMethodId = e.target.value;
-      renderMainView();
-    });
-  });
-  form.querySelectorAll('input[name="paymentMethod"]').forEach((radio) => {
-    radio.addEventListener('change', (e) => {
-      AppState.selectedPaymentMethod = e.target.value;
-      renderMainView();
-    });
-  });
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (!AppState.currentCustomer || !AppState.currentCustomer.email) {
-      requireCustomerAuthForPurchase({ type: 'checkout' });
-      return;
-    }
-    const submitBtn = document.getElementById('btn-submit-checkout');
-    if (submitBtn) {
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Processando seu pedido...';
-    }
-    const fd = new FormData(form);
-    const totals = calculateCartTotals();
-    const activePaymentOptions = getAvailableCheckoutPaymentOptions(AppState.db.paymentSettings);
-    const chosenMethod = activePaymentOptions.some((o) => o.id === AppState.selectedPaymentMethod)
-      ? AppState.selectedPaymentMethod
-      : (activePaymentOptions[0] ? activePaymentOptions[0].id : 'pix');
-    const cityVal = String(fd.get('city') || 'Itaperuna').trim();
-    const stateVal = String(fd.get('state') || 'RJ').trim().toUpperCase();
-    const addressObj = {
-      label: 'Endereço Principal',
-      zipCode: String(fd.get('zipCode') || '').trim(),
-      street: String(fd.get('street') || '').trim(),
-      number: String(fd.get('number') || '').trim(),
-      complement: String(fd.get('complement') || '').trim(),
-      neighborhood: String(fd.get('neighborhood') || '').trim(),
-      city: cityVal,
-      state: stateVal,
-      cityState: `${cityVal} - ${stateVal}`,
-      reference: String(fd.get('reference') || '').trim()
-    };
-    const pixCfg = (AppState.db.paymentSettings && AppState.db.paymentSettings.pix) || {};
-    const tempTxid = ((pixCfg.txidPrefix || 'BYANGELY') + Date.now()).slice(0, 25);
-    const pixEmvPayload = window.ByAngelyPix
-      ? window.ByAngelyPix.generatePixPayload({
-          pixKey: pixCfg.pixKey || '+5528999871458',
-          keyType: pixCfg.keyType || 'telefone',
-          merchantName: pixCfg.recipientName || 'BY ANGELY',
-          merchantCity: pixCfg.recipientCity || 'ITAPERUNA',
-          amount: totals.total,
-          txid: tempTxid,
-          description: 'PEDIDO BY ANGELY'
-        })
-      : '';
-    const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
-    const headers = { 'Content-Type': 'application/json' };
-    if (AppState.currentCustomer.token) {
-      headers['Authorization'] = 'Bearer ' + AppState.currentCustomer.token;
-    }
-    try {
-      const res = await fetch(apiBase + '/api/orders', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          customerId: AppState.currentCustomer.id,
-          items: AppState.cart,
-          shippingMethodId: totals.shippingMethod ? totals.shippingMethod.id : 'pickup_itaperuna',
-          address: addressObj,
-          paymentMethod: chosenMethod,
-          couponCode: AppState.appliedCoupon ? AppState.appliedCoupon.code : null,
-          customerNotes: String(fd.get('customerNotes') || '').trim(),
-          pixPayload: pixEmvPayload
-        })
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
-        showToast(data.error || 'Não foi possível criar o pedido. Verifique os dados.', 'danger');
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.textContent = 'Tentar Novamente';
-        }
-        return;
-      }
-      const createdOrder = data.order;
-      if (createdOrder.paymentMethod === 'pix' && createdOrder.pixData && !createdOrder.pixData.payload && window.ByAngelyPix) {
-        createdOrder.pixData.payload = window.ByAngelyPix.generatePixPayload({
-          pixKey: createdOrder.pixData.pixKey || '+5528999871458',
-          keyType: pixCfg.keyType || 'telefone',
-          merchantName: createdOrder.pixData.recipientName || 'BY ANGELY',
-          merchantCity: createdOrder.pixData.recipientCity || 'ITAPERUNA',
-          amount: createdOrder.total,
-          txid: createdOrder.pixData.txid || tempTxid,
-          description: 'PEDIDO ' + createdOrder.orderNumber
-        });
-      }
-      createdOrder.whatsappMessage = buildOrderWhatsappMessage(createdOrder);
-  
+const form = document.getElementById('checkout-order-form');
+if (!form) return;
+const savedAddrSelect = document.getElementById('checkout-saved-address-select');
+if (savedAddrSelect) {
+savedAddrSelect.addEventListener('change', (e) => {
+AppState.selectedCheckoutAddressIndex = Number(e.target.value) || 0;
+renderMainView();
+});
+}
+form.querySelectorAll('input[name="shippingMethodId"]').forEach((radio) => {
+radio.addEventListener('change', (e) => {
+AppState.selectedShippingMethodId = e.target.value;
+renderMainView();
+});
+});
+form.querySelectorAll('input[name="paymentMethod"]').forEach((radio) => {
+radio.addEventListener('change', (e) => {
+AppState.selectedPaymentMethod = e.target.value;
+renderMainView();
+});
+});
+form.addEventListener('submit', async (e) => {
+e.preventDefault();
+if (!AppState.currentCustomer || !AppState.currentCustomer.email) {
+requireCustomerAuthForPurchase({ type: 'checkout' });
+return;
+}
+const submitBtn = document.getElementById('btn-submit-checkout');
+if (submitBtn) {
+submitBtn.disabled = true;
+submitBtn.textContent = 'Processando seu pedido...';
+}
+const fd = new FormData(form);
+const totals = calculateCartTotals();
+const activePaymentOptions = getAvailableCheckoutPaymentOptions(AppState.db.paymentSettings);
+const chosenMethod = activePaymentOptions.some((o) => o.id === AppState.selectedPaymentMethod)
+? AppState.selectedPaymentMethod
+: (activePaymentOptions[0] ? activePaymentOptions[0].id : 'pix');
+const cityVal = String(fd.get('city') || 'Itaperuna').trim();
+const stateVal = String(fd.get('state') || 'RJ').trim().toUpperCase();
+const addressObj = {
+label: 'Endereço Principal',
+zipCode: String(fd.get('zipCode') || '').trim(),
+street: String(fd.get('street') || '').trim(),
+number: String(fd.get('number') || '').trim(),
+complement: String(fd.get('complement') || '').trim(),
+neighborhood: String(fd.get('neighborhood') || '').trim(),
+city: cityVal,
+state: stateVal,
+cityState: `${cityVal} - ${stateVal}`,
+reference: String(fd.get('reference') || '').trim()
+};
+const pixCfg = (AppState.db.paymentSettings && AppState.db.paymentSettings.pix) || {};
+const tempTxid = ((pixCfg.txidPrefix || 'BYANGELY') + Date.now()).slice(0, 25);
+const pixEmvPayload = (chosenMethod === 'pix' && window.ByAngelyPix)
+? window.ByAngelyPix.generatePixPayload({
+pixKey: pixCfg.pixKey || '+5528999871458',
+keyType: pixCfg.keyType || 'telefone',
+merchantName: pixCfg.recipientName || 'BY ANGELY',
+merchantCity: pixCfg.recipientCity || 'ITAPERUNA',
+amount: totals.total,
+txid: tempTxid,
+description: 'PEDIDO BY ANGELY'
+})
+: '';
+const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+const headers = { 'Content-Type': 'application/json' };
+if (AppState.currentCustomer.token) {
+headers['Authorization'] = 'Bearer ' + AppState.currentCustomer.token;
+}
+try {
+const res = await fetch(apiBase + '/api/orders', {
+method: 'POST',
+headers,
+body: JSON.stringify({
+customerId: AppState.currentCustomer.id,
+items: AppState.cart,
+shippingMethodId: totals.shippingMethod ? totals.shippingMethod.id : 'pickup_itaperuna',
+address: addressObj,
+paymentMethod: chosenMethod,
+couponCode: AppState.appliedCoupon ? AppState.appliedCoupon.code : null,
+customerNotes: String(fd.get('customerNotes') || '').trim(),
+pixPayload: pixEmvPayload
+})
+});
+const data = await res.json();
+if (!res.ok || !data.ok) {
+showToast(data.error || 'Não foi possível criar o pedido. Verifique os dados.', 'danger');
+if (submitBtn) {
+submitBtn.disabled = false;
+submitBtn.textContent = 'Tentar Novamente';
+}
+return;
+}
+const createdOrder = data.order;
+if (createdOrder.paymentMethod === 'pix' && createdOrder.pixData && !createdOrder.pixData.payload && window.ByAngelyPix) {
+createdOrder.pixData.payload = window.ByAngelyPix.generatePixPayload({
+pixKey: createdOrder.pixData.pixKey || '+5528999871458',
+keyType: pixCfg.keyType || 'telefone',
+merchantName: createdOrder.pixData.recipientName || 'BY ANGELY',
+merchantCity: createdOrder.pixData.recipientCity || 'ITAPERUNA',
+amount: createdOrder.total,
+txid: createdOrder.pixData.txid || tempTxid,
+description: 'PEDIDO ' + createdOrder.orderNumber
+});
+}
+createdOrder.whatsappMessage = buildOrderWhatsappMessage(createdOrder);
 createdOrder.whatsappOrderUrl = getOrderWhatsappUrl(createdOrder);
 AppState.currentCustomer.name = String(fd.get('customerName') || AppState.currentCustomer.name).trim();
 AppState.currentCustomer.phone = String(fd.get('customerPhone') || AppState.currentCustomer.phone).trim();
@@ -5637,23 +5705,24 @@ ${escapeHtml(meta.label)}
 </div>
 <!-- Status Aprovado Automaticamente -->
 ${isPaid ? `
-<div id="pix-approved-banner" style="background:#EDF7F1;border:1.5px solid #2E6F52;border-radius:12px;padding:22px;margin-bottom:22px;text-align:center;">
-<div style="width:48px;height:48px;border-radius:50%;background:#2E6F52;color:#FFFFFF;display:inline-flex;align-items:center;justify-content:center;font-size:1.4rem;margin-bottom:10px;">✓</div>
-<h2 style="font-family:var(--font-serif);font-size:1.65rem;color:#1E4D38;margin-bottom:8px;">
+<div id="pix-approved-banner" style="background:#111111;border:1.5px solid #111111;border-radius:12px;padding:22px;margin-bottom:22px;text-align:center;color:#FFFFFF;">
+<div style="width:48px;height:48px;border-radius:50%;background:#FFFFFF;color:#111111;display:inline-flex;align-items:center;justify-content:center;font-size:1.35rem;font-weight:700;margin-bottom:10px;">✓</div>
+<h2 style="font-family:var(--font-serif);font-size:1.65rem;color:#FFFFFF;margin-bottom:8px;">
 Pagamento confirmado! Seu pedido foi recebido pela BY ANGÉLY e está aguardando separação.
 </h2>
-<p style="font-size:0.9rem;color:#2E6F52;margin-bottom:0;">
+<p style="font-size:0.9rem;color:#E4E4E7;margin-bottom:0;">
 O pagamento de <strong>${formatBRL(order.total)}</strong> foi reconhecido automaticamente. Não é necessário enviar comprovante.
 </p>
 </div>
 ` : ''}
 <!-- Status Expirado / Cancelado Após 15 Minutos -->
 ${isExpiredOrCancelled ? `
-<div id="pix-expired-banner" style="background:#FDF2F2;border:1.5px solid #B83A3A;border-radius:12px;padding:22px;margin-bottom:22px;text-align:center;">
-<h2 style="font-family:var(--font-serif);font-size:1.55rem;color:#8E2626;margin-bottom:8px;">
+<div id="pix-expired-banner" style="background:#F4F4F5;border:1.5px solid #18181B;border-radius:12px;padding:22px;margin-bottom:22px;text-align:center;">
+<div style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;background:#18181B;color:#FFFFFF;font-size:0.74rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:10px;">! ENCERRADO</div>
+<h2 style="font-family:var(--font-serif);font-size:1.55rem;color:#111111;margin-bottom:8px;">
 ${escapeHtml(meta.label)}
 </h2>
-<p style="font-size:0.9rem;color:#6E2828;margin-bottom:14px;">
+<p style="font-size:0.9rem;color:#52525B;margin-bottom:14px;">
 ${escapeHtml(meta.customerMessage)} As peças reservadas voltaram para o estoque disponível da loja.
 </p>
 <button type="button" class="btn btn-primary btn-sm" data-action="finish-order-go-catalog">Fazer Novo Pedido</button>
@@ -5661,18 +5730,20 @@ ${escapeHtml(meta.customerMessage)} As peças reservadas voltaram para o estoque
 ` : ''}
 <!-- Pagamento via Pix Aguardando Confirmação (Com Cronômetro de 15 Minutos) -->
 ${isAwaitingPix && order.pixData ? `
-<div id="pix-awaiting-box" style="background:var(--bg-primary);border:1px solid var(--border-strong);border-radius:12px;padding:22px;margin-bottom:22px;text-align:center;">
-<div style="display:inline-flex;align-items:center;gap:10px;background:#FFF8EB;border:1px solid #E2B96B;color:#7A5211;padding:8px 16px;border-radius:999px;font-size:0.86rem;font-weight:600;margin-bottom:14px;">
+<div id="pix-awaiting-box" style="background:#FFFFFF;border:1px solid var(--border-strong);border-radius:12px;padding:22px;margin-bottom:22px;text-align:center;">
+<div style="display:inline-flex;align-items:center;gap:10px;background:#F4F4F5;border:1px solid #18181B;color:#111111;padding:8px 16px;border-radius:999px;font-size:0.86rem;font-weight:600;margin-bottom:14px;">
 <span>⏱️ Tempo restante para pagar:</span>
-<strong data-pix-timer-for="${escapeHtml(order.id)}" id="pix-countdown-timer" style="font-family:monospace;font-size:1.1rem;color:#806044;">${formatCountdownMMSS(initialRemainingSec)}</strong>
-<span style="font-size:0.76rem;opacity:0.85;">(Vence em ${formatDateBR(order.expiresAt)})</span>
+<strong data-pix-timer-for="${escapeHtml(order.id)}" id="pix-countdown-timer" style="font-family:monospace;font-size:1.1rem;color:#111111;">${formatCountdownMMSS(initialRemainingSec)}</strong>
+<span style="font-size:0.76rem;color:#52525B;">(Vence em ${formatDateBR(order.expiresAt)})</span>
 </div>
 <h2 style="font-family:var(--font-serif);font-size:1.65rem;margin-bottom:6px;">Escaneie o QR Code Pix (${formatBRL(order.total)})</h2>
 <p style="font-size:0.86rem;color:var(--text-secondary);max-width:560px;margin:0 auto 14px;">
-Abra o aplicativo do seu banco, escolha pagar via <strong>QR Code</strong> ou <strong>Pix Copia e Cola</strong>. A confirmação é <strong>100% automática</strong> nesta tela em poucos segundos após o pagamento!
+Abra o aplicativo do seu banco, escolha pagar via <strong>QR Code</strong> ou <strong>Pix Copia e Cola</strong>.
 </p>
 <div class="pix-qr-box" style="margin:0 auto 14px;">
-${qrSvg}
+${order.pixData.qrCodeBase64
+  ? `<img src="data:image/png;base64,${escapeHtml(order.pixData.qrCodeBase64)}" alt="QR Code Pix ${escapeHtml(order.orderNumber)}" style="width:220px;height:220px;display:block;margin:0 auto;object-fit:contain;" />`
+  : qrSvg}
 </div>
 <div style="max-width:520px;margin:0 auto 16px;">
 <label style="display:block;font-size:0.76rem;font-weight:700;text-transform:uppercase;margin-bottom:6px;">Código Pix Copia e Cola:</label>
@@ -5681,13 +5752,18 @@ ${qrSvg}
 <button type="button" class="btn btn-primary btn-sm" data-action="copy-pix-code">Copiar Código</button>
 </div>
 </div>
-<div style="max-width:520px;margin:0 auto 14px;background:var(--bg-surface);border:1px solid var(--border-subtle);border-radius:8px;padding:12px;text-align:left;font-size:0.82rem;">
+<div style="max-width:520px;margin:0 auto 14px;background:#F7F7F7;border:1px solid var(--border-subtle);border-radius:8px;padding:12px;text-align:left;font-size:0.82rem;">
 <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span><strong>Pedido:</strong> ${escapeHtml(order.orderNumber)}</span><span><strong>Valor Exato:</strong> ${formatBRL(order.total)}</span></div>
 <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span><strong>Recebedor:</strong> ${escapeHtml(order.pixData.recipientName)}</span><span><strong>Chave:</strong> ${escapeHtml(order.pixData.pixKey)}</span></div>
 <div><strong>Identificador da Cobrança:</strong> <code style="font-size:0.76rem;">${escapeHtml(order.pixData.chargeId || order.pixData.txid)}</code></div>
 </div>
-<div style="display:inline-flex;align-items:center;gap:8px;font-size:0.82rem;color:var(--accent-brown);font-weight:600;padding:8px 14px;background:rgba(128,96,68,0.08);border-radius:999px;">
-<span>🔄 Aguardando confirmação automática do banco...</span>
+${order.pixData.isStaticFallback ? `
+<div style="max-width:520px;margin:0 auto 14px;background:#F4F4F5;border:1px dashed #71717A;border-radius:8px;padding:10px 12px;font-size:0.78rem;color:#111111;text-align:left;">
+  <strong>! Aviso sobre confirmação automática:</strong> O QR Code foi gerado em modo chave Pix direta (sem provedor PSP conectado no servidor). Alguns bancos solicitam conferência do valor (<strong>${formatBRL(order.total)}</strong>) e não enviam confirmação automática ao site sem provedor configurado.
+</div>
+` : ''}
+<div style="display:inline-flex;align-items:center;gap:8px;font-size:0.82rem;color:#111111;font-weight:600;padding:8px 14px;background:#F4F4F5;border:1px solid #D4D4D8;border-radius:999px;">
+<span>↻ Aguardando confirmação automática do banco...</span>
 </div>
 <p style="font-size:0.76rem;color:var(--text-muted);margin-top:10px;margin-bottom:0;">
 Aviso: caso o pagamento não seja confirmado em até ${Number(order.expirationMinutes) || 15} minutos, este QR Code expira e o pedido é cancelado automaticamente.
@@ -5713,7 +5789,7 @@ ${OFFICIAL_ICONS.whatsapp}
 ${(order.items || []).map((it) => `
 <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg-primary);border-radius:8px;font-size:0.85rem;">
 <div style="display:flex;align-items:center;gap:10px;">
-<img src="${escapeHtml(it.imageUrl || CATEGORY_COVER_FALLBACKS.vestidos)}" alt="${escapeHtml(it.name)}" style="width:40px;height:50px;object-fit:cover;border-radius:6px;" />
+<img src="${escapeHtml(it.imageUrl || CATEGORY_COVER_FALLBACKS.vestidos)}" alt="${escapeHtml(it.name)}" data-fallback-src="${escapeHtml(CATEGORY_COVER_FALLBACKS.vestidos)}" onerror="window.ByAngelyHandleMediaError && window.ByAngelyHandleMediaError(this, 'Peça')" style="width:40px;height:50px;object-fit:cover;border-radius:6px;" />
 <div>
 <strong>${escapeHtml(it.name)}</strong>
 <div style="font-size:0.76rem;color:var(--text-secondary);">Tam: ${escapeHtml(it.size)} • Cor: ${escapeHtml(it.color)} • Qtd: ${it.quantity}x (${formatBRL(it.unitPrice)})</div>
@@ -5743,11 +5819,11 @@ return `
 <section class="section-block">
 <div class="container">
 ${showBanner ? `
-<div id="mandatory-auth-purchase-banner" style="background:#FFF8F3;border:1.5px solid #C99D91;border-radius:12px;padding:18px 22px;margin-bottom:24px;display:flex;align-items:center;gap:14px;box-shadow:0 6px 20px rgba(128,96,68,0.08);">
-<div style="width:40px;height:40px;border-radius:50%;background:#806044;color:#FFF;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1.1rem;">🔒</div>
+<div id="mandatory-auth-purchase-banner" style="background:#F4F4F5;border:1.5px solid #71717A;border-radius:12px;padding:18px 22px;margin-bottom:24px;display:flex;align-items:center;gap:14px;box-shadow:0 6px 20px rgba(17, 17, 17,0.08);">
+<div style="width:40px;height:40px;border-radius:50%;background:#111111;color:#FFF;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1.1rem;">🔒</div>
 <div>
-<strong style="display:block;font-family:var(--font-serif);font-size:1.25rem;color:#292522;margin-bottom:2px;">Identificação Necessária para Comprar</strong>
-<p style="font-size:0.92rem;color:#5C5346;margin:0;">${escapeHtml(MANDATORY_LOGIN_MESSAGE)}</p>
+<strong style="display:block;font-family:var(--font-serif);font-size:1.25rem;color:#111111;margin-bottom:2px;">Identificação Necessária para Comprar</strong>
+<p style="font-size:0.92rem;color:#52525B;margin:0;">${escapeHtml(MANDATORY_LOGIN_MESSAGE)}</p>
 </div>
 </div>
 ` : ''}
@@ -5926,7 +6002,7 @@ ${escapeHtml(meta.label)}
 </div>
 </div>
 ${meta.customerMessage ? `
-<div style="padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:0.85rem;background:${meta.badgeClass === 'confirmed' ? '#EDF7F1' : meta.badgeClass === 'danger' ? '#FDF2F2' : '#FFF8EB'};color:${meta.badgeClass === 'confirmed' ? '#1E4D38' : meta.badgeClass === 'danger' ? '#8E2626' : '#7A5211'};border:1px solid ${meta.badgeClass === 'confirmed' ? '#B8E0C8' : meta.badgeClass === 'danger' ? '#F2B8B5' : '#E2B96B'};">
+<div style="padding:10px 14px;border-radius:8px;margin-bottom:14px;font-size:0.85rem;background:${meta.badgeClass === 'confirmed' ? '#F4F4F5' : meta.badgeClass === 'danger' ? '#F4F4F5' : '#F4F4F5'};color:${meta.badgeClass === 'confirmed' ? '#111111' : meta.badgeClass === 'danger' ? '#111111' : '#18181B'};border:1px solid ${meta.badgeClass === 'confirmed' ? '#111111' : meta.badgeClass === 'danger' ? '#D4D4D8' : '#D4D4D8'};">
 <strong>Status atual:</strong> ${escapeHtml(meta.customerMessage)}
 </div>
 ` : ''}
@@ -6073,9 +6149,6 @@ ${AppState.activeAccountTab === 'returns' ? `
 <div style="margin-bottom:12px;">
 <label style="display:block;font-size:0.78rem;font-weight:600;margin-bottom:4px;">Detalhes da Solicitação *</label>
 <textarea name="reason" rows="2" class="form-control" required placeholder="Informe qual peça deseja trocar ou devolver..."></textarea>
-
-
-
 </div>
 <button type="submit" class="btn btn-primary btn-sm">Registrar Solicitação</button>
 </form>
@@ -6352,23 +6425,25 @@ ${escapeHtml(meta.label)}
 </span>
 </div>
 ${meta.customerMessage ? `
-<div style="padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:0.88rem;background:${meta.badgeClass === 'confirmed' ? '#EDF7F1' : meta.badgeClass === 'danger' ? '#FDF2F2' : '#FFF8EB'};color:${meta.badgeClass === 'confirmed' ? '#1E4D38' : meta.badgeClass === 'danger' ? '#8E2626' : '#7A5211'};border:1px solid ${meta.badgeClass === 'confirmed' ? '#B8E0C8' : meta.badgeClass === 'danger' ? '#F2B8B5' : '#E2B96B'};">
+<div style="padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:0.88rem;background:${meta.badgeClass === 'confirmed' ? '#F4F4F5' : meta.badgeClass === 'danger' ? '#F4F4F5' : '#F4F4F5'};color:${meta.badgeClass === 'confirmed' ? '#111111' : meta.badgeClass === 'danger' ? '#111111' : '#18181B'};border:1px solid ${meta.badgeClass === 'confirmed' ? '#111111' : meta.badgeClass === 'danger' ? '#D4D4D8' : '#D4D4D8'};">
 <strong>${escapeHtml(meta.customerMessage)}</strong>
 </div>
 ` : ''}
+<!-- Linha do Tempo do Pedido -->
 ${meta.step < 9 ? `
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:18px;">
 ${timelineSteps.map((st) => {
 const done = meta.step >= st.step;
 return `
-<div style="padding:8px 10px;border-radius:8px;border:1px solid ${done ? '#2E6F52' : 'var(--border-subtle)'};background:${done ? '#EDF7F1' : 'var(--bg-primary)'};font-size:0.75rem;text-align:center;">
-<div style="font-weight:700;color:${done ? '#1E4D38' : 'var(--text-muted)'};margin-bottom:2px;">${done ? '✓' : '○'}</div>
-<div style="color:${done ? '#1E4D38' : 'var(--text-secondary)'};font-weight:${done ? '600' : '400'};">${escapeHtml(st.label)}</div>
+<div style="padding:8px 10px;border-radius:8px;border:1px solid ${done ? '#111111' : 'var(--border-subtle)'};background:${done ? '#F4F4F5' : 'var(--bg-primary)'};font-size:0.75rem;text-align:center;">
+<div style="font-weight:700;color:${done ? '#111111' : 'var(--text-muted)'};margin-bottom:2px;">${done ? '✓' : '○'}</div>
+<div style="color:${done ? '#111111' : 'var(--text-secondary)'};font-weight:${done ? '600' : '400'};">${escapeHtml(st.label)}</div>
 </div>
 `;
 }).join('')}
 </div>
 ` : ''}
+<!-- Lista de Produtos -->
 <h3 style="font-family:var(--font-serif);font-size:1.25rem;margin-bottom:10px;">Produtos do Pedido</h3>
 <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
 ${(ord.items || []).map((it) => `
@@ -6384,6 +6459,7 @@ ${(ord.items || []).map((it) => `
 </div>
 `).join('')}
 </div>
+<!-- Informações de Entrega e Valores -->
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;font-size:0.84rem;">
 <div style="background:var(--bg-primary);padding:12px;border-radius:8px;">
 <strong style="display:block;margin-bottom:6px;color:var(--accent-brown);">Endereço e Entrega</strong>
@@ -6403,6 +6479,7 @@ ${ord.discount > 0 ? `<div style="display:flex;justify-content:space-between;mar
 <div style="margin-top:6px;font-size:0.78rem;color:var(--text-secondary);"><strong>Forma:</strong> ${escapeHtml(ord.paymentMethodLabel)}</div>
 </div>
 </div>
+<!-- Histórico de Atualizações -->
 ${Array.isArray(ord.notificationsLog) && ord.notificationsLog.length > 0 ? `
 <div style="background:var(--bg-primary);padding:12px;border-radius:8px;font-size:0.8rem;margin-bottom:14px;">
 <strong style="display:block;margin-bottom:6px;">Histórico de Atualizações do Pedido:</strong>
@@ -6632,14 +6709,14 @@ AppState.showPurchaseAuthBanner = false;
 navigateTo('account');
 break;
 }
-case 'proceed-to-checkout': {
-if (!AppState.currentCustomer || !AppState.currentCustomer.email) {
-e.preventDefault();
-e.stopPropagation();
-requireCustomerAuthForPurchase({ type: 'checkout' });
-}
-break;
-}
+    case 'proceed-to-checkout': {
+      e.preventDefault();
+      e.stopPropagation();
+      closeCartDrawer();
+      AppState.lastCreatedOrder = null;
+      navigateTo('checkout');
+      break;
+    }
 case 'buy-now-modal': {
 if (!AppState.currentCustomer || !AppState.currentCustomer.email) {
 e.preventDefault();
@@ -6678,7 +6755,6 @@ break;
 window.ByAngelyApp.addToCart = addToCart;
 window.ByAngelyApp.openCartDrawer = openCartDrawer;
 window.ByAngelyApp.renderCartDrawer = renderCartDrawer;
-
 // ============================================================================
 // BY ANGÉLY — V4: ÁREA DA CLIENTE SEPARADA & LOGIN/CADASTRO EM ETAPAS MOBILE
 // ============================================================================
@@ -6726,7 +6802,6 @@ function formatCpfMask(val) {
 
 function formatCepMask(val) {
   const digits = String(val || '').replace(/\D/g, '').slice(0, 8);
-  if (!digits) return '';
   if (digits.length <= 5) return digits;
   return digits.slice(0, 5) + '-' + digits.slice(5);
 }
@@ -6775,10 +6850,10 @@ function injectV4StylesAndDom() {
         min-height: 42px !important;
         padding: 8px 14px !important;
         border-radius: 999px !important;
-        background-color: #292522 !important;
-        color: #F8F5F0 !important;
-        border: 1px solid #806044 !important;
-        box-shadow: 0 4px 14px rgba(41, 37, 34, 0.2) !important;
+        background-color: #111111 !important;
+        color: #F7F7F7 !important;
+        border: 1px solid #111111 !important;
+        box-shadow: 0 4px 14px rgba(17, 17, 17, 0.2) !important;
         font-size: 0.76rem !important;
         opacity: 0.94 !important;
       }
@@ -6816,7 +6891,7 @@ function injectV4StylesAndDom() {
         gap: 10px;
         margin-bottom: 22px;
         padding-bottom: 14px;
-        border-bottom: 1px solid #E9DFD4;
+        border-bottom: 1px solid #E4E4E7;
       }
       .customer-area-nav-links {
         display: flex;
@@ -6833,20 +6908,20 @@ function injectV4StylesAndDom() {
         border-radius: 999px;
         font-size: 0.78rem;
         font-weight: 600;
-        border: 1px solid #D5C7B8;
+        border: 1px solid #D4D4D8;
         background: #FFFFFF;
-        color: #292522;
+        color: #111111;
         cursor: pointer;
         transition: all 0.18s ease;
       }
       .customer-nav-pill:hover {
-        border-color: #806044;
-        color: #806044;
+        border-color: #111111;
+        color: #111111;
       }
       .customer-nav-pill.active {
-        background: #806044;
+        background: #111111;
         color: #FFFFFF;
-        border-color: #806044;
+        border-color: #111111;
       }
 
       /* Tela de Login e Cadastro — Alternância Mobile e Duas Colunas Equilibradas no Desktop */
@@ -6854,7 +6929,7 @@ function injectV4StylesAndDom() {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 8px;
-        background: #E9DFD4;
+        background: #E4E4E7;
         padding: 5px;
         border-radius: 12px;
         margin: 0 auto 22px;
@@ -6866,7 +6941,7 @@ function injectV4StylesAndDom() {
         border-radius: 9px;
         border: none;
         background: transparent;
-        color: #5C5346;
+        color: #52525B;
         font-size: 0.76rem;
         font-weight: 700;
         letter-spacing: 0.05em;
@@ -6876,9 +6951,9 @@ function injectV4StylesAndDom() {
         text-align: center;
       }
       .auth-mode-tab.active {
-        background: #806044;
+        background: #111111;
         color: #FFFFFF;
-        box-shadow: 0 2px 8px rgba(41, 37, 34, 0.14);
+        box-shadow: 0 2px 8px rgba(17, 17, 17, 0.14);
       }
       .auth-dual-grid {
         display: grid;
@@ -6888,15 +6963,15 @@ function injectV4StylesAndDom() {
       }
       .auth-panel-card {
         background: #FFFFFF;
-        border: 1px solid #E9DFD4;
+        border: 1px solid #E4E4E7;
         border-radius: 14px;
         padding: 26px;
-        box-shadow: 0 4px 18px rgba(41, 37, 34, 0.05);
+        box-shadow: 0 4px 18px rgba(17, 17, 17, 0.05);
         max-width: 100%;
         box-sizing: border-box;
       }
       .auth-panel-card.active-auth-mode {
-        border-color: #C99D91;
+        border-color: #71717A;
       }
       @media (max-width: 900px) {
         .auth-dual-grid {
@@ -6920,33 +6995,33 @@ function injectV4StylesAndDom() {
         display: block;
         font-size: 0.78rem;
         font-weight: 600;
-        color: #292522;
+        color: #111111;
         margin-bottom: 5px;
       }
       .form-field-label .req-star {
-        color: #806044;
+        color: #111111;
       }
       .form-input-v4 {
         width: 100% !important;
         height: 46px !important;
         min-height: 46px !important;
         padding: 10px 14px !important;
-        border: 1px solid #D5C7B8 !important;
+        border: 1px solid #D4D4D8 !important;
         border-radius: 8px !important;
         background: #FFFFFF !important;
-        color: #292522 !important;
+        color: #111111 !important;
         font-size: 0.92rem !important;
         box-sizing: border-box !important;
         transition: border-color 0.18s ease, box-shadow 0.18s ease !important;
       }
       .form-input-v4:focus {
-        border-color: #806044 !important;
-        box-shadow: 0 0 0 3px rgba(128, 96, 68, 0.12) !important;
+        border-color: #111111 !important;
+        box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.12) !important;
         outline: none !important;
       }
       .form-input-v4.has-error {
-        border-color: #B83A3A !important;
-        background: #FFF9F9 !important;
+        border-color: #18181B !important;
+        background: #F7F7F7 !important;
       }
       .password-input-wrapper {
         position: relative;
@@ -6963,9 +7038,9 @@ function injectV4StylesAndDom() {
         height: 32px;
         padding: 0 10px;
         border-radius: 6px;
-        border: 1px solid #E9DFD4;
-        background: #F8F5F0;
-        color: #806044;
+        border: 1px solid #E4E4E7;
+        background: #F7F7F7;
+        color: #111111;
         font-size: 0.72rem;
         font-weight: 600;
         cursor: pointer;
@@ -6973,7 +7048,7 @@ function injectV4StylesAndDom() {
       .field-error-msg {
         display: none;
         font-size: 0.75rem;
-        color: #B83A3A;
+        color: #18181B;
         font-weight: 500;
         margin-top: 4px;
       }
@@ -6998,34 +7073,34 @@ function injectV4StylesAndDom() {
         text-align: center;
         padding: 8px 6px;
         border-radius: 8px;
-        background: #F8F5F0;
-        border: 1px solid #E9DFD4;
+        background: #F7F7F7;
+        border: 1px solid #E4E4E7;
         font-size: 0.72rem;
-        color: #6E655C;
+        color: #71717A;
         cursor: pointer;
       }
       .reg-step-pill.active {
-        background: #FFF8F3;
-        border-color: #806044;
-        color: #292522;
+        background: #F4F4F5;
+        border-color: #111111;
+        color: #111111;
         font-weight: 700;
       }
       .reg-step-pill.completed {
-        background: #EDF7F1;
-        border-color: #2E6F52;
-        color: #1E4D38;
+        background: #F4F4F5;
+        border-color: #111111;
+        color: #111111;
         font-weight: 600;
       }
       .reg-progress-track {
         width: 100%;
         height: 5px;
-        background: #E9DFD4;
+        background: #E4E4E7;
         border-radius: 999px;
         overflow: hidden;
       }
       .reg-progress-bar {
         height: 100%;
-        background: linear-gradient(90deg, #806044, #C99D91);
+        background: linear-gradient(90deg, #111111, #71717A);
         transition: width 0.25s ease;
       }
 
@@ -7050,23 +7125,23 @@ function injectV4StylesAndDom() {
         font-size: 0.78rem;
         font-weight: 600;
         white-space: nowrap;
-        border: 1px solid #D5C7B8;
+        border: 1px solid #D4D4D8;
         background: #FFFFFF;
-        color: #5C5346;
+        color: #52525B;
         cursor: pointer;
       }
       .orders-filter-tab.active {
-        background: #292522;
-        color: #F8F5F0;
-        border-color: #292522;
+        background: #111111;
+        color: #F7F7F7;
+        border-color: #111111;
       }
       .order-card-v4 {
         background: #FFFFFF;
-        border: 1px solid #E9DFD4;
+        border: 1px solid #E4E4E7;
         border-radius: 12px;
         padding: 18px;
         margin-bottom: 16px;
-        box-shadow: 0 3px 12px rgba(41, 37, 34, 0.04);
+        box-shadow: 0 3px 12px rgba(17, 17, 17, 0.04);
         display: flex;
         flex-direction: column;
         gap: 14px;
@@ -7080,7 +7155,7 @@ function injectV4StylesAndDom() {
         flex-wrap: wrap;
         gap: 10px;
         padding-bottom: 12px;
-        border-bottom: 1px solid #E9DFD4;
+        border-bottom: 1px solid #E4E4E7;
       }
       .order-card-v4-products {
         display: flex;
@@ -7092,8 +7167,8 @@ function injectV4StylesAndDom() {
         align-items: center;
         gap: 12px;
         padding: 10px;
-        background: #F8F5F0;
-        border: 1px solid #E9DFD4;
+        background: #F7F7F7;
+        border: 1px solid #E4E4E7;
         border-radius: 8px;
       }
       .order-product-item-v4 img {
@@ -7108,8 +7183,8 @@ function injectV4StylesAndDom() {
         min-width: 0;
       }
       .order-card-v4-payment-summary {
-        background: #F8F5F0;
-        border: 1px solid #E9DFD4;
+        background: #F7F7F7;
+        border: 1px solid #E4E4E7;
         border-radius: 8px;
         padding: 12px 14px;
         display: grid;
@@ -7124,7 +7199,7 @@ function injectV4StylesAndDom() {
         flex-wrap: wrap;
         gap: 10px;
         padding-top: 10px;
-        border-top: 1px solid #E9DFD4;
+        border-top: 1px solid #E4E4E7;
       }
       .address-cards-grid-v4 {
         display: grid;
@@ -7133,8 +7208,8 @@ function injectV4StylesAndDom() {
         margin-bottom: 16px;
       }
       .address-card-v4 {
-        background: #F8F5F0;
-        border: 1px solid #E9DFD4;
+        background: #F7F7F7;
+        border: 1px solid #E4E4E7;
         border-radius: 10px;
         padding: 14px;
         display: flex;
@@ -7143,8 +7218,8 @@ function injectV4StylesAndDom() {
         gap: 10px;
       }
       .address-card-v4.primary {
-        border-color: #806044;
-        background: #FFFBF7;
+        border-color: #111111;
+        background: #FFFFFF;
       }
       .order-detail-two-col {
         display: grid;
@@ -7266,6 +7341,8 @@ navigateTo = function (view, options = {}) {
     const hashMap = {
       home: '#home',
       catalog: '#catalog',
+      cart: '#sacola',
+      checkout: '#checkout',
       account: '#minha-conta',
       orders: '#meus-pedidos',
       favorites: '#favoritos',
@@ -7286,6 +7363,125 @@ navigateTo = function (view, options = {}) {
   }
 };
 
+function renderCartPageView() {
+  sanitizeCartItems();
+  const totals = AppState.cart.length > 0 ? calculateCartTotals() : { subtotal: 0, discount: 0, shippingCost: 0, total: 0, shippingMethod: null };
+  const shippingMethods = (AppState.db.shippingSettings.methods || []).filter((m) => m.enabled);
+  const itemsCount = AppState.cart.reduce((s, i) => s + (Number(i.quantity) || 1), 0);
+  const activePayOpts = getAvailableCheckoutPaymentOptions(AppState.db.paymentSettings);
+  const isOnlyWhatsapp = activePayOpts.length === 1 && activePayOpts[0].id === 'whatsapp';
+
+  return `
+    <section class="section-block" id="view-sacola-page">
+      <div class="container">
+        <div class="section-header" style="margin-bottom:22px;">
+          <div>
+            <span class="section-eyebrow">BY ANGÉLY • Minha Sacola</span>
+            <h1 class="section-title">Sacola de Compras (${itemsCount})</h1>
+            <p style="font-size:0.86rem;color:var(--text-secondary);">Revise tamanhos, cores, quantidades, cupom e modalidade de entrega antes de finalizar.</p>
+          </div>
+          <button type="button" class="btn btn-outline btn-sm" data-action="go-catalog">← Continuar Comprando</button>
+        </div>
+
+        ${AppState.cart.length === 0 ? `
+          <div class="admin-card" style="text-align:center;padding:48px 20px;">
+            <h2 style="font-family:var(--font-serif);font-size:1.65rem;margin-bottom:8px;">Sua sacola está vazia</h2>
+            <p style="color:var(--text-secondary);max-width:440px;margin:0 auto 20px;">Explore vestidos, conjuntos, blusas e peças exclusivas da coleção BY ANGÉLY.</p>
+            <button type="button" class="btn btn-primary" data-action="go-catalog">Explorar Catálogo</button>
+          </div>
+        ` : `
+          <div class="cart-page-grid">
+            <div style="display:flex;flex-direction:column;gap:12px;">
+              ${AppState.cart.map((item) => {
+                const itemSubtotal = (Number(item.unitPrice) || 0) * (Number(item.quantity) || 1);
+                const metaParts = [];
+                if (isValidClothingSize(item.size)) metaParts.push('Tamanho: <strong>' + escapeHtml(item.size) + '</strong>');
+                if (isValidColorName(item.color)) metaParts.push('Cor: <strong>' + escapeHtml(item.color) + '</strong>');
+                return `
+                  <article class="cart-item-card" style="background:#FFFFFF;padding:14px;">
+                    <img
+                      src="${escapeHtml(item.imageUrl || CATEGORY_COVER_FALLBACKS.vestidos)}"
+                      alt="${escapeHtml(item.name)}"
+                      class="cart-item-thumb"
+                      data-fallback-src="${escapeHtml(CATEGORY_COVER_FALLBACKS.vestidos)}"
+                      onerror="window.ByAngelyHandleMediaError && window.ByAngelyHandleMediaError(this, 'Peça')"
+                    />
+                    <div class="cart-item-info">
+                      <strong class="cart-item-title">${escapeHtml(item.name)}</strong>
+                      ${metaParts.length > 0 ? `<div class="cart-item-meta">${metaParts.join(' • ')}</div>` : ''}
+                      <div class="cart-item-prices">
+                        <span>Unitário: ${formatBRL(item.unitPrice)}</span>
+                        <span aria-hidden="true">•</span>
+                        <strong class="cart-item-subtotal">Subtotal: ${formatBRL(itemSubtotal)}</strong>
+                      </div>
+                      <div class="cart-item-actions-row">
+                        <div class="qty-stepper cart-qty-stepper" role="group" aria-label="Quantidade de ${escapeHtml(item.name)}">
+                          <button type="button" class="qty-stepper-btn" data-action="cart-qty-dec" data-key="${escapeHtml(item.key)}" aria-label="Diminuir quantidade">−</button>
+                          <span class="qty-stepper-val">${item.quantity}</span>
+                          <button type="button" class="qty-stepper-btn" data-action="cart-qty-inc" data-key="${escapeHtml(item.key)}" aria-label="Aumentar quantidade">+</button>
+                        </div>
+                        <button type="button" class="cart-item-remove-btn" data-action="cart-remove" data-key="${escapeHtml(item.key)}" aria-label="Remover ${escapeHtml(item.name)}">
+                          Remover
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                `;
+              }).join('')}
+            </div>
+
+            <aside class="admin-card" aria-label="Resumo do Pedido na Sacola">
+              <span class="section-eyebrow">Resumo da Compra</span>
+              <h2 style="font-family:var(--font-serif);font-size:1.35rem;margin-bottom:14px;">Cupom e Entrega</h2>
+              <div class="cart-section-box" style="margin-bottom:14px;">
+                <label for="cart-page-coupon-input" class="cart-section-label">Cupom de Desconto</label>
+                <div class="cart-coupon-row">
+                  <input type="text" id="cart-page-coupon-input" class="form-control cart-coupon-input" placeholder="Ex.: BEMVINDO10" value="${AppState.appliedCoupon ? escapeHtml(AppState.appliedCoupon.code) : ''}" />
+                  <button type="button" class="btn btn-outline btn-sm cart-coupon-btn" data-action="apply-page-coupon">Aplicar</button>
+                </div>
+                ${AppState.appliedCoupon ? `<p class="cart-coupon-feedback">✓ Cupom <strong>${escapeHtml(AppState.appliedCoupon.code)}</strong> aplicado (-${formatBRL(totals.discount)})</p>` : ''}
+              </div>
+
+              <div class="cart-section-box" style="margin-bottom:16px;">
+                <label for="cart-page-shipping-select" class="cart-section-label">Modalidade de Entrega</label>
+                <select id="cart-page-shipping-select" class="form-control cart-shipping-select">
+                  ${shippingMethods.map((m) => `
+                    <option value="${escapeHtml(m.id)}" ${totals.shippingMethod && totals.shippingMethod.id === m.id ? 'selected' : ''}>
+                      ${escapeHtml(m.name)} (${m.priceStatus === 'confirmed' ? (m.price === 0 ? 'Grátis' : formatBRL(m.price)) : 'A confirmar'})
+                    </option>
+                  `).join('')}
+                </select>
+              </div>
+
+              <div class="cart-summary-list" style="margin-bottom:16px;">
+                <div class="cart-summary-row"><span>Subtotal (${itemsCount} ${itemsCount === 1 ? 'peça' : 'peças'})</span><strong>${formatBRL(totals.subtotal)}</strong></div>
+                ${totals.discount > 0 ? `<div class="cart-summary-row discount"><span>Desconto</span><strong>-${formatBRL(totals.discount)}</strong></div>` : ''}
+                <div class="cart-summary-row"><span>Entrega</span><span>${totals.shippingMethod && totals.shippingMethod.priceStatus === 'confirmed' ? formatBRL(totals.shippingCost) : 'A confirmar'}</span></div>
+                <div class="cart-summary-total"><span>Total</span><strong>${formatBRL(totals.total)}</strong></div>
+              </div>
+
+              <button type="button" class="btn btn-primary btn-block" data-action="proceed-to-checkout" id="btn-cart-page-checkout">
+                ${isOnlyWhatsapp ? 'Finalizar pelo WhatsApp →' : 'Ir para Finalização (Checkout) →'}
+              </button>
+            </aside>
+          </div>
+        `}
+      </div>
+    </section>
+  `;
+}
+
+function bindCartPageEvents() {
+  const shipSel = document.getElementById('cart-page-shipping-select');
+  if (shipSel) {
+    shipSel.addEventListener('change', (e) => {
+      AppState.selectedShippingMethodId = e.target.value;
+      renderCartDrawer();
+      renderMainView();
+    });
+  }
+}
+
 renderMainView = function () {
   const mainEl = document.getElementById('app-main-content');
   if (!mainEl) return;
@@ -7298,12 +7494,20 @@ renderMainView = function () {
       mainEl.innerHTML = renderCatalogView();
       bindCatalogFilterEvents();
       break;
+    case 'cart':
+      mainEl.innerHTML = renderCartPageView();
+      bindCartPageEvents();
+      break;
     case 'favorites':
       mainEl.innerHTML = renderFavoritesView();
       break;
     case 'checkout':
       mainEl.innerHTML = renderCheckoutView();
-      bindCheckoutEvents();
+      if (!AppState.lastCreatedOrder && (!AppState.currentCustomer || !AppState.currentCustomer.email)) {
+        bindAccountEvents();
+      } else {
+        bindCheckoutEvents();
+      }
       break;
     case 'account':
       mainEl.innerHTML = renderAccountView();
@@ -7343,8 +7547,7 @@ function getAuthenticatedCustomerOrders() {
     if (o.customerId && cust.id && o.customerId === cust.id) return true;
     const ordEmail = o.customer && o.customer.email ? String(o.customer.email).trim().toLowerCase() : '';
     return ordEmail && ordEmail === emailNorm;
-
-    });
+  });
 }
 
 function renderCustomerAreaNav(activeSection) {
@@ -7389,11 +7592,11 @@ renderCustomerAuthScreen = function (contextLabel) {
         ${renderCustomerAreaNav(contextLabel || 'account')}
 
         ${showBanner ? `
-          <div id="mandatory-auth-purchase-banner" style="background:#FFF8F3;border:1.5px solid #C99D91;border-radius:12px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:14px;box-shadow:0 4px 16px rgba(128,96,68,0.08);">
-            <div style="width:38px;height:38px;border-radius:50%;background:#806044;color:#FFF;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1rem;">🔒</div>
+          <div id="mandatory-auth-purchase-banner" style="background:#F4F4F5;border:1.5px solid #71717A;border-radius:12px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:14px;box-shadow:0 4px 16px rgba(17, 17, 17,0.08);">
+            <div style="width:38px;height:38px;border-radius:50%;background:#111111;color:#FFF;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:1rem;">🔒</div>
             <div>
-              <strong style="display:block;font-family:var(--font-serif);font-size:1.2rem;color:#292522;margin-bottom:2px;">Identificação Necessária para Comprar</strong>
-              <p style="font-size:0.88rem;color:#5C5346;margin:0;">${escapeHtml(MANDATORY_LOGIN_MESSAGE)}</p>
+              <strong style="display:block;font-family:var(--font-serif);font-size:1.2rem;color:#111111;margin-bottom:2px;">Identificação Necessária para Comprar</strong>
+              <p style="font-size:0.88rem;color:#52525B;margin:0;">${escapeHtml(MANDATORY_LOGIN_MESSAGE)}</p>
             </div>
           </div>
         ` : ''}
@@ -7417,7 +7620,7 @@ renderCustomerAuthScreen = function (contextLabel) {
               Acesse seus dados salvos, endereços e acompanhe seus pedidos.
             </p>
 
-            <div id="login-form-error-box" style="display:none;padding:11px 14px;border-radius:8px;background:#FDF2F2;border:1px solid #F2B8B5;color:#8E2626;font-size:0.82rem;margin-bottom:14px;"></div>
+            <div id="login-form-error-box" style="display:none;padding:11px 14px;border-radius:8px;background:#F4F4F5;border:1px solid #D4D4D8;color:#111111;font-size:0.82rem;margin-bottom:14px;"></div>
 
             <form id="customer-login-form" novalidate>
               <div class="form-field-group">
@@ -7429,7 +7632,7 @@ renderCustomerAuthScreen = function (contextLabel) {
               <div class="form-field-group">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
                   <label class="form-field-label" for="login-password-input" style="margin-bottom:0;">Senha <span class="req-star">*</span></label>
-                  <button type="button" data-action="toggle-recover-password" style="background:none;border:none;color:#806044;font-size:0.76rem;font-weight:600;text-decoration:underline;cursor:pointer;padding:0;">
+                  <button type="button" data-action="toggle-recover-password" style="background:none;border:none;color:#111111;font-size:0.76rem;font-weight:600;text-decoration:underline;cursor:pointer;padding:0;">
                     Esqueci minha senha
                   </button>
                 </div>
@@ -7448,10 +7651,10 @@ renderCustomerAuthScreen = function (contextLabel) {
             </form>
 
             <!-- Bloco de Recuperação de Senha -->
-            <div id="customer-recover-container" style="display:${AppState.showRecoverPasswordBox ? 'block' : 'none'};margin-top:16px;padding:14px;background:#F8F5F0;border:1px solid #E9DFD4;border-radius:10px;">
+            <div id="customer-recover-container" style="display:${AppState.showRecoverPasswordBox ? 'block' : 'none'};margin-top:16px;padding:14px;background:#F7F7F7;border:1px solid #E4E4E7;border-radius:10px;">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                <strong style="font-size:0.84rem;color:#292522;">Recuperar Senha de Acesso</strong>
-                <button type="button" data-action="toggle-recover-password" style="background:none;border:none;color:#6E655C;font-size:0.8rem;cursor:pointer;">Fechar ✕</button>
+                <strong style="font-size:0.84rem;color:#111111;">Recuperar Senha de Acesso</strong>
+                <button type="button" data-action="toggle-recover-password" style="background:none;border:none;color:#71717A;font-size:0.8rem;cursor:pointer;">Fechar ✕</button>
               </div>
               <form id="customer-recover-form" novalidate>
                 <p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:10px;">Informe seu e-mail cadastrado e defina uma nova senha segura (mínimo 6 caracteres):</p>
@@ -7468,9 +7671,9 @@ renderCustomerAuthScreen = function (contextLabel) {
               </form>
             </div>
 
-            <div style="margin-top:18px;padding-top:14px;border-top:1px solid #E9DFD4;text-align:center;font-size:0.84rem;color:var(--text-secondary);">
+            <div style="margin-top:18px;padding-top:14px;border-top:1px solid #E4E4E7;text-align:center;font-size:0.84rem;color:var(--text-secondary);">
               Ainda não tem cadastro na BY ANGÉLY?
-              <button type="button" data-action="switch-auth-mode" data-mode="register" style="background:none;border:none;color:#806044;font-weight:700;text-decoration:underline;cursor:pointer;margin-left:4px;">
+              <button type="button" data-action="switch-auth-mode" data-mode="register" style="background:none;border:none;color:#111111;font-weight:700;text-decoration:underline;cursor:pointer;margin-left:4px;">
                 Criar minha conta →
               </button>
             </div>
@@ -7480,7 +7683,7 @@ renderCustomerAuthScreen = function (contextLabel) {
           <div class="auth-panel-card ${mode === 'register' ? 'active-auth-mode' : ''}" id="auth-register-panel">
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:4px;">
               <span class="section-eyebrow">Novo Cadastro • BY ANGÉLY</span>
-              <span style="font-size:0.74rem;color:#806044;font-weight:600;">Etapa ${step} de 3</span>
+              <span style="font-size:0.74rem;color:#111111;font-weight:600;">Etapa ${step} de 3</span>
             </div>
             <h2 style="font-family:var(--font-serif);font-size:1.75rem;margin-bottom:6px;">Criar Minha Conta</h2>
             <p style="font-size:0.83rem;color:var(--text-secondary);margin-bottom:14px;">
@@ -7508,11 +7711,11 @@ renderCustomerAuthScreen = function (contextLabel) {
               </div>
             </div>
 
-            <div id="register-form-error-box" style="display:none;padding:11px 14px;border-radius:8px;background:#FDF2F2;border:1px solid #F2B8B5;color:#8E2626;font-size:0.82rem;margin-bottom:14px;"></div>
+            <div id="register-form-error-box" style="display:none;padding:11px 14px;border-radius:8px;background:#F4F4F5;border:1px solid #D4D4D8;color:#111111;font-size:0.82rem;margin-bottom:14px;"></div>
 
             <form id="customer-register-form" novalidate>
               <!-- ETAPA 1: DADOS PESSOAIS -->
-              <div id="reg-step-panel-1" data-reg-step-panel="1" style="display:${step === 1 ? 'block' : 'none'};廣
+              <div id="reg-step-panel-1" data-reg-step-panel="1" style="display:${step === 1 ? 'block' : 'none'};">
                 <div class="form-field-group">
                   <label class="form-field-label" for="reg-name-input">Nome Completo <span class="req-star">*</span></label>
                   <input type="text" autocomplete="name" name="name" id="reg-name-input" class="form-input-v4" required placeholder="Digite seu nome e sobrenome" value="${escapeHtml(d.name || '')}" />
@@ -7545,9 +7748,9 @@ renderCustomerAuthScreen = function (contextLabel) {
               </div>
 
               <!-- ETAPA 2: SEGURANÇA -->
-              <div id="reg-step-panel-2" data-reg-step-panel="2" style="display:${step === 2 ? 'block' : 'none'};廣
-                <div style="padding:10px 12px;background:#F8F5F0;border:1px solid #E9DFD4;border-radius:8px;margin-bottom:14px;font-size:0.78rem;color:#5C5346;">
-                  <strong style="display:block;color:#292522;margin-bottom:2px;">Requisitos mínimos da senha:</strong>
+              <div id="reg-step-panel-2" data-reg-step-panel="2" style="display:${step === 2 ? 'block' : 'none'};">
+                <div style="padding:10px 12px;background:#F7F7F7;border:1px solid #E4E4E7;border-radius:8px;margin-bottom:14px;font-size:0.78rem;color:#52525B;">
+                  <strong style="display:block;color:#111111;margin-bottom:2px;">Requisitos mínimos da senha:</strong>
                   • Mínimo de <strong>6 caracteres</strong>.<br/>
                   • Recomendamos combinar letras e números para sua segurança.
                 </div>
@@ -7581,11 +7784,11 @@ renderCustomerAuthScreen = function (contextLabel) {
               </div>
 
               <!-- ETAPA 3: ENDEREÇO -->
-              <div id="reg-step-panel-3" data-reg-step-panel="3" style="display:${step === 3 ? 'block' : 'none'};廣
+              <div id="reg-step-panel-3" data-reg-step-panel="3" style="display:${step === 3 ? 'block' : 'none'};">
                 <div class="form-field-group">
                   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
                     <label class="form-field-label" for="reg-cep-input" style="margin-bottom:0;">CEP <span class="req-star">*</span></label>
-                    <span id="reg-cep-lookup-status" style="font-size:0.74rem;color:#806044;font-weight:500;">Digite o CEP para buscar</span>
+                    <span id="reg-cep-lookup-status" style="font-size:0.74rem;color:#111111;font-weight:500;">Digite o CEP para buscar</span>
                   </div>
                   <input type="text" inputmode="numeric" autocomplete="postal-code" name="zipCode" id="reg-cep-input" class="form-input-v4" required placeholder="00000-000" value="${escapeHtml(d.zipCode || '')}" />
                   <span class="field-error-msg" id="reg-error-zipCode">Informe um CEP válido com 8 dígitos.</span>
@@ -7650,9 +7853,9 @@ renderCustomerAuthScreen = function (contextLabel) {
               </div>
             </form>
 
-            <div style="margin-top:18px;padding-top:14px;border-top:1px solid #E9DFD4;text-align:center;font-size:0.84rem;color:var(--text-secondary);">
+            <div style="margin-top:18px;padding-top:14px;border-top:1px solid #E4E4E7;text-align:center;font-size:0.84rem;color:var(--text-secondary);">
               Já possui uma conta cadastrada?
-              <button type="button" data-action="switch-auth-mode" data-mode="login" style="background:none;border:none;color:#806044;font-weight:700;text-decoration:underline;cursor:pointer;margin-left:4px;">
+              <button type="button" data-action="switch-auth-mode" data-mode="login" style="background:none;border:none;color:#111111;font-weight:700;text-decoration:underline;cursor:pointer;margin-left:4px;">
                 Entrar na minha conta →
               </button>
             </div>
@@ -7829,7 +8032,7 @@ async function lookupViaCepAddress(rawCep, targets) {
 
   if (statusEl) {
     statusEl.textContent = 'Consultando CEP...';
-    statusEl.style.color = '#806044';
+    statusEl.style.color = '#111111';
   }
   try {
     const res = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
@@ -7837,7 +8040,7 @@ async function lookupViaCepAddress(rawCep, targets) {
     if (!data || data.erro) {
       if (statusEl) {
         statusEl.textContent = 'CEP não encontrado. Preencha o endereço manualmente.';
-        statusEl.style.color = '#B83A3A';
+        statusEl.style.color = '#18181B';
       }
       return;
     }
@@ -7852,12 +8055,12 @@ async function lookupViaCepAddress(rawCep, targets) {
     syncRegisterDraftFromDom();
     if (statusEl) {
       statusEl.textContent = '✓ Endereço localizado! Confira e preencha o número.';
-      statusEl.style.color = '#1E4D38';
+      statusEl.style.color = '#111111';
     }
   } catch (e) {
     if (statusEl) {
       statusEl.textContent = 'Preencha os campos de endereço abaixo.';
-      statusEl.style.color = '#6E655C';
+      statusEl.style.color = '#71717A';
     }
   }
 }
@@ -7900,7 +8103,7 @@ renderAccountView = function () {
         <div id="meus-dados-e-enderecos">
           <!-- BLOCO 1: DADOS PESSOAIS -->
           <div class="admin-card" style="margin-bottom:20px;">
-            <div style="margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #E9DFD4;">
+            <div style="margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #E4E4E7;">
               <span class="section-eyebrow">Meus Dados e Endereços</span>
               <h2 style="font-family:var(--font-serif);font-size:1.5rem;margin-bottom:2px;">Dados Pessoais</h2>
               <p style="font-size:0.82rem;color:var(--text-secondary);margin:0;">
@@ -7934,7 +8137,7 @@ renderAccountView = function () {
                 </div>
               </div>
 
-              <div style="padding:12px;background:#F8F5F0;border:1px solid #E9DFD4;border-radius:8px;margin:14px 0;">
+              <div style="padding:12px;background:#F7F7F7;border:1px solid #E4E4E7;border-radius:8px;margin:14px 0;">
                 <label style="display:flex;align-items:center;gap:8px;font-size:0.84rem;cursor:pointer;">
                   <input type="checkbox" name="marketingOptIn" ${cust.marketingOptIn ? 'checked' : ''} />
                   <span>Autorizo o recebimento de novidades e promoções da BY ANGÉLY (LGPD).</span>
@@ -7949,7 +8152,7 @@ renderAccountView = function () {
 
           <!-- BLOCO 2: ENDEREÇOS CADASTRADOS (PRINCIPAL E ADICIONAIS) -->
           <div class="admin-card" id="customer-addresses-card" style="margin-bottom:20px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid #E9DFD4;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid #E4E4E7;">
               <div>
                 <span class="section-eyebrow">Entrega e Recebimento</span>
                 <h2 style="font-family:var(--font-serif);font-size:1.5rem;margin-bottom:2px;">Endereços Cadastrados (${addresses.length})</h2>
@@ -7971,19 +8174,19 @@ renderAccountView = function () {
                     <div class="address-card-v4 ${isPrimary ? 'primary' : ''}" data-address-index="${idx}">
                       <div>
                         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;">
-                          <strong style="font-size:0.92rem;color:#292522;">${escapeHtml(addr.label || (isPrimary ? 'Endereço Principal' : 'Endereço ' + (idx + 1)))}</strong>
+                          <strong style="font-size:0.92rem;color:#111111;">${escapeHtml(addr.label || (isPrimary ? 'Endereço Principal' : 'Endereço ' + (idx + 1)))}</strong>
                           <span class="status-pill ${isPrimary ? 'confirmed' : 'info'}">
                             ${isPrimary ? 'Principal' : 'Adicional'}
                           </span>
                         </div>
-                        <div style="font-size:0.84rem;color:#292522;line-height:1.5;">
+                        <div style="font-size:0.84rem;color:#111111;line-height:1.5;">
                           <div>${escapeHtml(addr.street || '')}, nº ${escapeHtml(addr.number || 'S/N')}${addr.complement ? ' — ' + escapeHtml(addr.complement) : ''}</div>
                           <div>${escapeHtml(addr.neighborhood || '')} • ${escapeHtml(cityStateStr)}</div>
                           <div>CEP: ${escapeHtml(addr.zipCode || '')}</div>
                           ${addr.reference ? `<div style="font-size:0.78rem;color:var(--text-secondary);">Ref.: ${escapeHtml(addr.reference)}</div>` : ''}
                         </div>
                       </div>
-                      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:10px;border-top:1px solid #E9DFD4;">
+                      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:10px;border-top:1px solid #E4E4E7;">
                         <button type="button" class="btn btn-outline btn-sm" data-action="open-address-editor" data-index="${idx}" style="font-size:0.74rem;padding:5px 12px;min-height:32px;">
                           Editar
                         </button>
@@ -7993,7 +8196,7 @@ renderAccountView = function () {
                           </button>
                         ` : ''}
                         ${addresses.length > 1 ? `
-                          <button type="button" class="btn btn-outline btn-sm" data-action="delete-customer-address" data-index="${idx}" style="font-size:0.74rem;padding:5px 12px;min-height:32px;color:#B83A3A;border-color:#F2B8B5;">
+                          <button type="button" class="btn btn-outline btn-sm" data-action="delete-customer-address" data-index="${idx}" style="font-size:0.74rem;padding:5px 12px;min-height:32px;color:#18181B;border-color:#D4D4D8;">
                             Excluir
                           </button>
                         ` : ''}
@@ -8006,16 +8209,16 @@ renderAccountView = function () {
               <p style="font-size:0.86rem;color:var(--text-secondary);margin-bottom:14px;">
                 Nenhum endereço cadastrado ainda. Adicione seu endereço principal abaixo:
               </p>
-                        `}
+            `}
 
             <!-- Formulário de Adição / Edição de Endereço -->
-            <div id="address-editor-wrapper" style="display:${showAddrEditor ? 'block' : 'none'};background:#F8F5F0;border:1px solid #D5C7B8;border-radius:10px;padding:16px;margin-top:12px;">
+            <div id="address-editor-wrapper" style="display:${showAddrEditor ? 'block' : 'none'};background:#F7F7F7;border:1px solid #D4D4D8;border-radius:10px;padding:16px;margin-top:12px;">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-                <strong style="font-family:var(--font-serif);font-size:1.25rem;color:#292522;">
+                <strong style="font-family:var(--font-serif);font-size:1.25rem;color:#111111;">
                   ${editingIdx !== null && editingIdx >= 0 ? 'Editar Endereço' : 'Adicionar Novo Endereço'}
                 </strong>
                 ${addresses.length > 0 ? `
-                  <button type="button" data-action="close-address-editor" style="background:none;border:none;color:#6E655C;font-size:0.82rem;cursor:pointer;">Cancelar ✕</button>
+                  <button type="button" data-action="close-address-editor" style="background:none;border:none;color:#71717A;font-size:0.82rem;cursor:pointer;">Cancelar ✕</button>
                 ` : ''}
               </div>
 
@@ -8028,7 +8231,7 @@ renderAccountView = function () {
                   <div class="form-field-group" style="margin-bottom:0;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
                       <label class="form-field-label" for="addr-form-cep" style="margin-bottom:0;">CEP <span class="req-star">*</span></label>
-                      <span id="addr-form-cep-status" style="font-size:0.72rem;color:#806044;"></span>
+                      <span id="addr-form-cep-status" style="font-size:0.72rem;color:#111111;"></span>
                     </div>
                     <input type="text" inputmode="numeric" name="zipCode" id="addr-form-cep" class="form-input-v4" required placeholder="00000-000" value="${escapeHtml(addrBeingEdited.zipCode || '')}" />
                     <span class="field-error-msg" id="addr-error-zipCode">Informe um CEP válido.</span>
@@ -8100,7 +8303,7 @@ renderAccountView = function () {
 
           <!-- BLOCO 3: ALTERAÇÃO SEGURA DE SENHA -->
           <div class="admin-card" style="margin-bottom:0;">
-            <div style="margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #E9DFD4;">
+            <div style="margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #E4E4E7;">
               <span class="section-eyebrow">Segurança da Conta</span>
               <h2 style="font-family:var(--font-serif);font-size:1.5rem;margin-bottom:2px;">Alterar Senha</h2>
               <p style="font-size:0.82rem;color:var(--text-secondary);margin:0;">
@@ -8244,14 +8447,14 @@ function renderOrdersView() {
               <!-- Topo do Cartão: Número, Data e Status -->
               <div class="order-card-v4-header">
                 <div>
-                  <strong style="font-size:1.06rem;color:#292522;display:block;">Pedido ${escapeHtml(ord.orderNumber)}</strong>
+                  <strong style="font-size:1.06rem;color:#111111;display:block;">Pedido ${escapeHtml(ord.orderNumber)}</strong>
                   <span style="font-size:0.8rem;color:var(--text-secondary);">Data da compra: ${formatDateBR(ord.createdAt)}</span>
                 </div>
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                   <span class="status-pill ${meta.badgeClass}">
                     ${escapeHtml(meta.label)}
                   </span>
-                  <strong style="font-size:1.1rem;color:#806044;">${formatBRL(ord.total)}</strong>
+                  <strong style="font-size:1.1rem;color:#111111;">${formatBRL(ord.total)}</strong>
                 </div>
               </div>
 
@@ -8265,12 +8468,12 @@ function renderOrdersView() {
                     <div class="order-product-item-v4">
                       <img src="${escapeHtml(it.imageUrl || CATEGORY_COVER_FALLBACKS.vestidos)}" alt="${escapeHtml(it.name)}" loading="lazy" />
                       <div class="order-product-item-v4-info">
-                        <strong style="font-size:0.9rem;color:#292522;display:block;margin-bottom:2px;">${escapeHtml(it.name)}</strong>
+                        <strong style="font-size:0.9rem;color:#111111;display:block;margin-bottom:2px;">${escapeHtml(it.name)}</strong>
                         <div style="font-size:0.78rem;color:var(--text-secondary);">
                           ${variantMeta ? variantMeta + ' • ' : ''}Qtd: ${it.quantity}x • Unitário: ${formatBRL(it.unitPrice)}
                         </div>
                       </div>
-                      <strong style="font-size:0.9rem;color:#292522;white-space:nowrap;">${formatBRL(it.unitPrice * it.quantity)}</strong>
+                      <strong style="font-size:0.9rem;color:#111111;white-space:nowrap;">${formatBRL(it.unitPrice * it.quantity)}</strong>
                     </div>
                   `;
                 }).join('')}
@@ -8280,19 +8483,19 @@ function renderOrdersView() {
               <div class="order-card-v4-payment-summary">
                 <div>
                   <span style="display:block;font-size:0.72rem;text-transform:uppercase;color:var(--text-muted);">Forma de Pagamento</span>
-                  <strong style="color:#292522;">${escapeHtml(ord.paymentMethodLabel || (ord.paymentMethod === 'pix' ? 'Pix' : 'WhatsApp'))}</strong>
+                  <strong style="color:#111111;">${escapeHtml(ord.paymentMethodLabel || (ord.paymentMethod === 'pix' ? 'Pix' : 'WhatsApp'))}</strong>
                 </div>
                 <div>
                   <span style="display:block;font-size:0.72rem;text-transform:uppercase;color:var(--text-muted);">Status do Pagamento</span>
-                  <strong style="color:#292522;">${escapeHtml(meta.paymentLabel)}</strong>
+                  <strong style="color:#111111;">${escapeHtml(meta.paymentLabel)}</strong>
                 </div>
                 <div>
                   <span style="display:block;font-size:0.72rem;text-transform:uppercase;color:var(--text-muted);">Status do Pedido</span>
-                  <strong style="color:#292522;">${escapeHtml(meta.label)}</strong>
+                  <strong style="color:#111111;">${escapeHtml(meta.label)}</strong>
                 </div>
                 <div>
                   <span style="display:block;font-size:0.72rem;text-transform:uppercase;color:var(--text-muted);">Valor Total</span>
-                  <strong style="color:#806044;font-size:0.95rem;">${formatBRL(ord.total)}</strong>
+                  <strong style="color:#111111;font-size:0.95rem;">${formatBRL(ord.total)}</strong>
                 </div>
               </div>
 
@@ -8377,7 +8580,7 @@ openOrderDetailModal = function (orderId) {
   body.innerHTML = `
     <div>
       <!-- Cabeçalho dos Detalhes -->
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;padding-bottom:14px;border-bottom:1px solid #E9DFD4;margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;padding-bottom:14px;border-bottom:1px solid #E4E4E7;margin-bottom:16px;">
         <div>
           <span class="section-eyebrow">Detalhes Completos da Compra</span>
           <h2 style="font-family:var(--font-serif);font-size:1.7rem;margin-bottom:2px;">Pedido ${escapeHtml(ord.orderNumber)}</h2>
@@ -8390,34 +8593,34 @@ openOrderDetailModal = function (orderId) {
 
       <!-- Linha do Tempo ou Aviso de Pedido Cancelado -->
       ${isCancelled ? `
-        <div style="background:#FDF2F2;border:1.5px solid #F2B8B5;border-radius:10px;padding:16px;margin-bottom:18px;">
-          <strong style="display:block;font-size:0.95rem;color:#8E2626;margin-bottom:6px;">
+        <div style="background:#F4F4F5;border:1.5px solid #D4D4D8;border-radius:10px;padding:16px;margin-bottom:18px;">
+          <strong style="display:block;font-size:0.95rem;color:#111111;margin-bottom:6px;">
             Pedido Cancelado — ${escapeHtml(meta.label)}
           </strong>
-          <p style="font-size:0.84rem;color:#6E2828;margin-bottom:8px;">
+          <p style="font-size:0.84rem;color:#52525B;margin-bottom:8px;">
             <strong>Motivo:</strong> ${escapeHtml(cancelReason)}
           </p>
-          <div style="font-size:0.82rem;color:#6E2828;">
+          <div style="font-size:0.82rem;color:#52525B;">
             <strong>Situação do pagamento:</strong> ${escapeHtml(meta.paymentLabel)}
           </div>
         </div>
       ` : `
         <div style="margin-bottom:18px;">
-          <strong style="display:block;font-size:0.82rem;text-transform:uppercase;letter-spacing:0.05em;color:#806044;margin-bottom:10px;">
+          <strong style="display:block;font-size:0.82rem;text-transform:uppercase;letter-spacing:0.05em;color:#111111;margin-bottom:10px;">
             Acompanhamento do Pedido
           </strong>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;">
             ${allTimelineSteps.map((st) => {
               const isDone = st.idx < currentTimelineIdx || (st.idx === 2 && currentTimelineIdx >= 3) || currentTimelineIdx === 7;
               const isCurrent = st.idx === currentTimelineIdx && currentTimelineIdx < 7;
-              const bg = isDone ? '#EDF7F1' : isCurrent ? '#FFF8EB' : '#F8F5F0';
-              const border = isDone ? '#2E6F52' : isCurrent ? '#806044' : '#E9DFD4';
-              const color = isDone ? '#1E4D38' : isCurrent ? '#806044' : '#6E655C';
+              const bg = isDone ? '#F4F4F5' : isCurrent ? '#F4F4F5' : '#F7F7F7';
+              const border = isDone ? '#111111' : isCurrent ? '#111111' : '#E4E4E7';
+              const color = isDone ? '#111111' : isCurrent ? '#111111' : '#71717A';
               const icon = isDone ? '✓ Concluído' : isCurrent ? '● Etapa Atual' : '○ Aguardando';
               return `
                 <div style="padding:10px;border-radius:8px;border:1px solid ${border};background:${bg};font-size:0.76rem;">
                   <div style="font-weight:700;color:${color};margin-bottom:3px;font-size:0.7rem;">${icon}</div>
-                  <div style="color:${color};font-weight:${isDone || isCurrent ? '700' : '500'};廣>${escapeHtml(st.label)}</div>
+                  <div style="color:${color};font-weight:${isDone || isCurrent ? '700' : '500'};">${escapeHtml(st.label)}</div>
                 </div>
               `;
             }).join('')}
@@ -8437,14 +8640,14 @@ openOrderDetailModal = function (orderId) {
               <div class="order-product-item-v4">
                 <img src="${escapeHtml(it.imageUrl || CATEGORY_COVER_FALLBACKS.vestidos)}" alt="${escapeHtml(it.name)}" />
                 <div class="order-product-item-v4-info">
-                  <strong style="font-size:0.92rem;color:#292522;display:block;margin-bottom:2px;">${escapeHtml(it.name)}</strong>
+                  <strong style="font-size:0.92rem;color:#111111;display:block;margin-bottom:2px;">${escapeHtml(it.name)}</strong>
                   <div style="font-size:0.78rem;color:var(--text-secondary);">
                     ${variantText ? variantText + ' • ' : ''}Quantidade: ${it.quantity} • Preço unitário: ${formatBRL(it.unitPrice)}
                   </div>
                 </div>
                 <div style="text-align:right;white-space:nowrap;">
                   <span style="display:block;font-size:0.7rem;color:var(--text-muted);">Subtotal</span>
-                  <strong style="font-size:0.92rem;color:#292522;">${formatBRL(it.unitPrice * it.quantity)}</strong>
+                  <strong style="font-size:0.92rem;color:#111111;">${formatBRL(it.unitPrice * it.quantity)}</strong>
                 </div>
               </div>
             `;
@@ -8454,8 +8657,8 @@ openOrderDetailModal = function (orderId) {
 
       <!-- Detalhes do Pagamento, Valores, Endereço e Rastreamento -->
       <div class="order-detail-two-col">
-        <div style="background:#F8F5F0;border:1px solid #E9DFD4;padding:14px;border-radius:10px;font-size:0.84rem;">
-          <strong style="display:block;margin-bottom:8px;color:#806044;text-transform:uppercase;font-size:0.76rem;letter-spacing:0.05em;">
+        <div style="background:#F7F7F7;border:1px solid #E4E4E7;padding:14px;border-radius:10px;font-size:0.84rem;">
+          <strong style="display:block;margin-bottom:8px;color:#111111;text-transform:uppercase;font-size:0.76rem;letter-spacing:0.05em;">
             Pagamento e Valores
           </strong>
           <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
@@ -8463,7 +8666,7 @@ openOrderDetailModal = function (orderId) {
             <strong>${formatBRL(ord.subtotal || ord.total)}</strong>
           </div>
           ${ord.discount > 0 ? `
-            <div style="display:flex;justify-content:space-between;margin-bottom:5px;color:#1E4D38;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:5px;color:#111111;">
               <span>Desconto aplicado:</span>
               <strong>-${formatBRL(ord.discount)}</strong>
             </div>
@@ -8472,17 +8675,17 @@ openOrderDetailModal = function (orderId) {
             <span>Entrega (${escapeHtml(ord.shipping ? ord.shipping.methodName : 'Padrão')}):</span>
             <strong>${ord.shipping && ord.shipping.cost > 0 ? formatBRL(ord.shipping.cost) : 'Grátis / A confirmar'}</strong>
           </div>
-          <div style="display:flex;justify-content:space-between;font-size:1.05rem;font-weight:700;padding-top:8px;border-top:1px solid #D5C7B8;margin-bottom:10px;color:#292522;">
+          <div style="display:flex;justify-content:space-between;font-size:1.05rem;font-weight:700;padding-top:8px;border-top:1px solid #D4D4D8;margin-bottom:10px;color:#111111;">
             <span>Total do Pedido:</span>
-            <span style="color:#806044;">${formatBRL(ord.total)}</span>
+            <span style="color:#111111;">${formatBRL(ord.total)}</span>
           </div>
           <div style="margin-bottom:4px;"><strong>Forma de pagamento:</strong> ${escapeHtml(ord.paymentMethodLabel || 'Pix')}</div>
           <div style="margin-bottom:4px;"><strong>Status do pagamento:</strong> ${escapeHtml(meta.paymentLabel)}</div>
           <div><strong>Status da preparação/entrega:</strong> ${escapeHtml(meta.label)}</div>
         </div>
 
-        <div style="background:#F8F5F0;border:1px solid #E9DFD4;padding:14px;border-radius:10px;font-size:0.84rem;">
-          <strong style="display:block;margin-bottom:8px;color:#806044;text-transform:uppercase;font-size:0.76rem;letter-spacing:0.05em;">
+        <div style="background:#F7F7F7;border:1px solid #E4E4E7;padding:14px;border-radius:10px;font-size:0.84rem;">
+          <strong style="display:block;margin-bottom:8px;color:#111111;text-transform:uppercase;font-size:0.76rem;letter-spacing:0.05em;">
             Entrega e Rastreamento
           </strong>
           <div style="margin-bottom:6px;">
@@ -8497,10 +8700,10 @@ openOrderDetailModal = function (orderId) {
               ${addr.reference ? `<br/>Ref.: ${escapeHtml(addr.reference)}` : ''}
             </div>
           ` : ''}
-          <div style="margin-top:8px;padding-top:8px;border-top:1px solid #E9DFD4;">
+          <div style="margin-top:8px;padding-top:8px;border-top:1px solid #E4E4E7;">
             <strong>Código de rastreamento:</strong><br/>
             ${ord.shipping && ord.shipping.trackingCode ? `
-              <span style="display:inline-block;margin-top:4px;background:#EDF7F1;color:#1E4D38;border:1px solid #2E6F52;padding:4px 10px;border-radius:6px;font-family:monospace;font-weight:700;">
+              <span style="display:inline-block;margin-top:4px;background:#F4F4F5;color:#111111;border:1px solid #111111;padding:4px 10px;border-radius:6px;font-family:monospace;font-weight:700;">
                 ${escapeHtml(ord.shipping.trackingCode)}
               </span>
             ` : `
@@ -8511,7 +8714,7 @@ openOrderDetailModal = function (orderId) {
       </div>
 
       <!-- Rodapé do Modal -->
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding-top:12px;border-top:1px solid #E9DFD4;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding-top:12px;border-top:1px solid #E4E4E7;">
         <div>
           ${!isCancelled ? `
             <button type="button" class="btn btn-outline btn-sm" data-action="open-return-request" data-order-number="${escapeHtml(ord.orderNumber)}">
@@ -8645,13 +8848,13 @@ function renderReturnsView() {
           ${myReturns.length === 0 ? `
             <p style="font-size:0.86rem;color:var(--text-muted);margin:0;">Você ainda não possui solicitações de troca ou devolução registradas.</p>
           ` : myReturns.map((r) => `
-            <div style="padding:12px 14px;border:1px solid #E9DFD4;background:#F8F5F0;border-radius:8px;margin-bottom:10px;font-size:0.85rem;">
+            <div style="padding:12px 14px;border:1px solid #E4E4E7;background:#F7F7F7;border-radius:8px;margin-bottom:10px;font-size:0.85rem;">
               <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
                 <strong>Pedido ${escapeHtml(r.orderNumber)} — ${escapeHtml(r.type)}</strong>
                 <span class="status-pill pending">${escapeHtml(r.status)}</span>
               </div>
               <p style="margin:6px 0 0;color:var(--text-secondary);">${escapeHtml(r.reason)}</p>
-              ${r.ownerResponse ? `<p style="margin:6px 0 0;color:#1E4D38;"><strong>Resposta da BY ANGÉLY:</strong> ${escapeHtml(r.ownerResponse)}</p>` : ''}
+              ${r.ownerResponse ? `<p style="margin:6px 0 0;color:#111111;"><strong>Resposta da BY ANGÉLY:</strong> ${escapeHtml(r.ownerResponse)}</p>` : ''}
             </div>
           `).join('')}
         </div>
@@ -8969,7 +9172,7 @@ bindAccountEvents = function () {
   // 5. Formulário de Endereço (Adicionar / Editar) em Minha Conta
   const addrForm = document.getElementById('customer-address-form');
   if (addrForm) {
-      const addrCepInput = document.getElementById('addr-form-cep');
+    const addrCepInput = document.getElementById('addr-form-cep');
     if (addrCepInput) {
       addrCepInput.addEventListener('input', () => {
         addrCepInput.value = formatCepMask(addrCepInput.value);
@@ -9313,8 +9516,47 @@ document.addEventListener('click', async (e) => {
 
 // Restaura a visualização correspondente ao hash da URL ao carregar ou recarregar a página
 function syncViewFromLocationHash() {
-  const h = window.location.hash;
-  if (h === '#minha-conta' || h === '#account') {
+  const raw = String(window.location.hash || '').trim().toLowerCase();
+  if (!raw || raw === '#') return;
+  const h = raw.split('?')[0];
+  if (h === '#home') {
+    navigateTo('home', { preserveScroll: true });
+  } else if (h === '#catalogo' || h === '#catalog') {
+    AppState.filters.availability = 'all';
+    navigateTo('catalog', { preserveScroll: true });
+  } else if (h === '#promocoes') {
+    AppState.filters.availability = 'promo';
+    navigateTo('catalog', { preserveScroll: true });
+  } else if (h === '#sacola' || h === '#cart') {
+    navigateTo('cart', { preserveScroll: true });
+  } else if (h === '#checkout') {
+    navigateTo('checkout', { preserveScroll: true });
+  } else if (h === '#login') {
+    AppState.authMode = 'login';
+    AppState.showRecoverPasswordBox = false;
+    AppState.showPurchaseAuthBanner = false;
+    navigateTo('account', { preserveScroll: true });
+  } else if (h === '#recuperar-senha') {
+    AppState.authMode = 'login';
+    AppState.showRecoverPasswordBox = true;
+    AppState.showPurchaseAuthBanner = false;
+    navigateTo('account', { preserveScroll: true });
+  } else if (h === '#cadastro' || h === '#cadastro-etapa-1' || h === '#cadastro-dados') {
+    AppState.authMode = 'register';
+    AppState.registerStep = 1;
+    AppState.showPurchaseAuthBanner = false;
+    navigateTo('account', { preserveScroll: true });
+  } else if (h === '#cadastro-etapa-2' || h === '#cadastro-senha') {
+    AppState.authMode = 'register';
+    AppState.registerStep = 2;
+    AppState.showPurchaseAuthBanner = false;
+    navigateTo('account', { preserveScroll: true });
+  } else if (h === '#cadastro-etapa-3' || h === '#cadastro-endereco') {
+    AppState.authMode = 'register';
+    AppState.registerStep = 3;
+    AppState.showPurchaseAuthBanner = false;
+    navigateTo('account', { preserveScroll: true });
+  } else if (h === '#minha-conta' || h === '#account') {
     navigateTo('account', { preserveScroll: true });
   } else if (h === '#meus-pedidos' || h === '#orders') {
     navigateTo('orders', { preserveScroll: true });
@@ -9322,6 +9564,12 @@ function syncViewFromLocationHash() {
     navigateTo('favorites', { preserveScroll: true });
   } else if (h === '#trocas' || h === '#returns') {
     navigateTo('returns', { preserveScroll: true });
+  } else if (h === '#atendimento' || h === '#contato') {
+    navigateTo('contact', { preserveScroll: true });
+  } else if (h === '#politicas') {
+    navigateTo('policies', { preserveScroll: true });
+  } else if (h === '#admin') {
+    navigateTo('admin', { preserveScroll: true });
   }
 }
 
@@ -9329,8 +9577,6 @@ window.addEventListener('DOMContentLoaded', () => {
   setTimeout(syncViewFromLocationHash, 20);
 });
 window.addEventListener('hashchange', syncViewFromLocationHash);
-
-
 // ============================================================================
 // BY ANGELY — V5: CORRECAO DEFINITIVA DE LOGIN E CADASTRO EXCLUDENTES EM 3 ETAPAS
 // ============================================================================
@@ -9367,20 +9613,20 @@ function injectV5AuthStylesAndCompactFooter() {
       'body.auth-page-active .site-footer .footer-grid, body.auth-page-active .site-footer .footer-bottom { display: none !important; }',
       'body.auth-page-active #auth-compact-footer { display: block !important; }',
       '.auth-compact-footer-inner { max-width: 520px; margin: 0 auto; padding: 0 16px; text-align: center; }',
-      '.auth-compact-footer-brand { font-family: var(--font-serif); font-size: 1.15rem; color: #F8F5F0; letter-spacing: 0.08em; margin-bottom: 10px; }',
+      '.auth-compact-footer-brand { font-family: var(--font-serif); font-size: 1.15rem; color: #F7F7F7; letter-spacing: 0.08em; margin-bottom: 10px; }',
       '.auth-compact-footer-links { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 12px; margin-bottom: 10px; }',
-      '.auth-compact-footer-link { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 999px; background: rgba(248,245,240,0.08); border: 1px solid rgba(233,223,212,0.22); color: #F8F5F0 !important; font-size: 0.75rem; font-weight: 500; text-decoration: none; cursor: pointer; }',
-      '.auth-compact-footer-copy { font-size: 0.72rem; color: rgba(233,223,212,0.7); margin: 0; }',
+      '.auth-compact-footer-link { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 999px; background: rgba(255, 255, 255,0.08); border: 1px solid rgba(228, 228, 231,0.22); color: #F7F7F7 !important; font-size: 0.75rem; font-weight: 500; text-decoration: none; cursor: pointer; }',
+      '.auth-compact-footer-copy { font-size: 0.72rem; color: rgba(228, 228, 231,0.7); margin: 0; }',
       '.customer-area-shell.is-auth-screen { padding: 12px 0 26px !important; }',
       '.auth-single-wrapper { max-width: 470px; width: 100%; margin: 0 auto; box-sizing: border-box; }',
       '.auth-top-back-bar { display: flex; align-items: center; justify-content: flex-start; margin-bottom: 10px; }',
-      '.auth-back-catalog-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: #FFFFFF; border: 1px solid #D5C7B8; color: #292522; font-size: 0.76rem; font-weight: 600; cursor: pointer; }',
-      '.auth-mode-switcher-v5 { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 6px !important; background: #E9DFD4 !important; padding: 5px !important; border-radius: 12px !important; margin-bottom: 14px !important; width: 100% !important; box-sizing: border-box !important; }',
-      '.auth-mode-tab-v5 { min-height: 44px !important; padding: 8px 10px !important; border-radius: 9px !important; border: none !important; background: transparent !important; color: #5C5346 !important; font-size: 0.75rem !important; font-weight: 700 !important; letter-spacing: 0.03em !important; text-transform: uppercase !important; cursor: pointer !important; text-align: center !important; }',
-      '.auth-mode-tab-v5.active { background: #806044 !important; color: #FFFFFF !important; box-shadow: 0 2px 8px rgba(41,37,34,0.15) !important; }',
-      '.auth-card-v5 { background: #FFFFFF !important; border: 1px solid #E9DFD4 !important; border-radius: 14px !important; padding: 20px 18px !important; box-shadow: 0 6px 22px rgba(41,37,34,0.05) !important; width: 100% !important; box-sizing: border-box !important; }',
+      '.auth-back-catalog-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: #FFFFFF; border: 1px solid #D4D4D8; color: #111111; font-size: 0.76rem; font-weight: 600; cursor: pointer; }',
+      '.auth-mode-switcher-v5 { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 6px !important; background: #E4E4E7 !important; padding: 5px !important; border-radius: 12px !important; margin-bottom: 14px !important; width: 100% !important; box-sizing: border-box !important; }',
+      '.auth-mode-tab-v5 { min-height: 44px !important; padding: 8px 10px !important; border-radius: 9px !important; border: none !important; background: transparent !important; color: #52525B !important; font-size: 0.75rem !important; font-weight: 700 !important; letter-spacing: 0.03em !important; text-transform: uppercase !important; cursor: pointer !important; text-align: center !important; }',
+      '.auth-mode-tab-v5.active { background: #111111 !important; color: #FFFFFF !important; box-shadow: 0 2px 8px rgba(17, 17, 17,0.15) !important; }',
+      '.auth-card-v5 { background: #FFFFFF !important; border: 1px solid #E4E4E7 !important; border-radius: 14px !important; padding: 20px 18px !important; box-shadow: 0 6px 22px rgba(17, 17, 17,0.05) !important; width: 100% !important; box-sizing: border-box !important; }',
       '@media (max-width: 480px) { .auth-card-v5 { padding: 16px 14px !important; } .auth-mode-tab-v5 { font-size: 0.71rem !important; padding: 8px 6px !important; } }',
-      '.field-error-v5 { display: none; font-size: 0.75rem; color: #B83A3A; font-weight: 500; margin-top: 4px; line-height: 1.35; }',
+      '.field-error-v5 { display: none; font-size: 0.75rem; color: #18181B; font-weight: 500; margin-top: 4px; line-height: 1.35; }',
       '.field-error-v5.visible { display: block !important; }'
     ].join(' ');
     document.head.appendChild(style);
@@ -9555,12 +9801,13 @@ setFieldErrorState = function (inputId, errorId, hasError, customMsg) {
   setV5FieldError(inputId, errorId, hasError ? (customMsg || 'Preencha este campo corretamente.') : '');
 };
 showRegisterStepInDom = function (targetStep) {
+
   syncAllAuthDraftsFromDom();
   AppState.registerStep = Math.max(1, Math.min(3, Number(targetStep) || 1));
   renderMainView();
 };
 
-renderCustomerAuthScreen = function () {
+renderCustomerAuthScreen = function (contextLabel) {
   const showBanner = Boolean(AppState.showPurchaseAuthBanner);
   const mode = AppState.authMode === 'register' ? 'register' : 'login';
   const step = Math.max(1, Math.min(3, Number(AppState.registerStep) || 1));
@@ -9599,7 +9846,7 @@ renderCustomerAuthScreen = function () {
       '      <input type="password" autocomplete="new-password" name="password" id="reg-password-input" class="form-input-v4" required minlength="6" placeholder="Crie uma senha (mín. 6 caracteres)" value="' + escapeHtml(d.password || '') + '" />',
       '      <button type="button" class="password-toggle-btn" data-action="toggle-password-visibility" data-target="reg-password-input">Mostrar</button>',
       '    </div>',
-      '    <span style="display:block;font-size:0.73rem;color:#6E655C;margin-top:4px;">Requisito mínimo: pelo menos 6 caracteres.</span>',
+      '    <span style="display:block;font-size:0.73rem;color:#71717A;margin-top:4px;">Requisito mínimo: pelo menos 6 caracteres.</span>',
       '    <span class="field-error-v5" id="reg-error-password" style="display:none;"></span>',
       '  </div>',
       '  <div class="form-field-group">',
@@ -9616,14 +9863,13 @@ renderCustomerAuthScreen = function () {
       '  </div>',
       '</div>'
     ].join('');
-  }
-  else {
+  } else {
     activeStepHtml = [
       '<div id="reg-step-panel-3" data-reg-step-panel="3">',
       '  <div class="form-field-group">',
       '    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">',
       '      <label class="form-field-label" for="reg-cep-input" style="margin-bottom:0;">CEP <span class="req-star">*</span></label>',
-      '      <span id="reg-cep-lookup-status" style="font-size:0.73rem;color:#806044;font-weight:500;">Digite o CEP para preencher</span>',
+      '      <span id="reg-cep-lookup-status" style="font-size:0.73rem;color:#111111;font-weight:500;">Digite o CEP para preencher</span>',
       '    </div>',
       '    <input type="text" inputmode="numeric" autocomplete="postal-code" name="zipCode" id="reg-cep-input" class="form-input-v4" required placeholder="00000-000" value="' + escapeHtml(d.zipCode || '') + '" />',
       '    <span class="field-error-v5" id="reg-error-zipCode" style="display:none;"></span>',
@@ -9678,7 +9924,7 @@ renderCustomerAuthScreen = function () {
     '  <span class="section-eyebrow">Acesso da Cliente</span>',
     '  <h1 style="font-family:var(--font-serif);font-size:1.65rem;margin-bottom:4px;">Entrar na Minha Conta</h1>',
     '  <p style="font-size:0.83rem;color:var(--text-secondary);margin-bottom:16px;">Entre com seu e-mail e senha para acessar sua conta e seus pedidos.</p>',
-    '  <div id="login-form-error-box" style="display:none;padding:10px 13px;border-radius:8px;background:#FDF2F2;border:1px solid #F2B8B5;color:#8E2626;font-size:0.81rem;margin-bottom:14px;"></div>',
+    '  <div id="login-form-error-box" style="display:none;padding:10px 13px;border-radius:8px;background:#F4F4F5;border:1px solid #D4D4D8;color:#111111;font-size:0.81rem;margin-bottom:14px;"></div>',
     '  <form id="customer-login-form" novalidate>',
     '    <div class="form-field-group">',
     '      <label class="form-field-label" for="login-email-input">E-mail <span class="req-star">*</span></label>',
@@ -9688,7 +9934,7 @@ renderCustomerAuthScreen = function () {
     '    <div class="form-field-group">',
     '      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">',
     '        <label class="form-field-label" for="login-password-input" style="margin-bottom:0;">Senha <span class="req-star">*</span></label>',
-    '        <button type="button" data-action="toggle-recover-password" style="background:none;border:none;color:#806044;font-size:0.75rem;font-weight:600;text-decoration:underline;cursor:pointer;padding:0;">Recuperar senha</button>',
+    '        <button type="button" data-action="toggle-recover-password" style="background:none;border:none;color:#111111;font-size:0.75rem;font-weight:600;text-decoration:underline;cursor:pointer;padding:0;">Recuperar senha</button>',
     '      </div>',
     '      <div class="password-input-wrapper">',
     '        <input type="password" autocomplete="current-password" name="password" id="login-password-input" class="form-input-v4" required placeholder="Digite sua senha" value="' + escapeHtml(l.password || '') + '" />',
@@ -9698,8 +9944,8 @@ renderCustomerAuthScreen = function () {
     '    </div>',
     '    <button type="submit" id="btn-login-submit" class="btn btn-primary btn-block" style="height:48px;font-size:0.86rem;margin-top:6px;">Entrar na Minha Conta</button>',
     '  </form>',
-    '  <div id="customer-recover-container" style="display:' + (AppState.showRecoverPasswordBox ? 'block' : 'none') + ';margin-top:14px;padding:14px;background:#F8F5F0;border:1px solid #E9DFD4;border-radius:10px;">',
-    '    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong style="font-size:0.83rem;color:#292522;">Recuperar Senha</strong><button type="button" data-action="toggle-recover-password" style="background:none;border:none;color:#6E655C;font-size:0.78rem;cursor:pointer;">Fechar ✕</button></div>',
+    '  <div id="customer-recover-container" style="display:' + (AppState.showRecoverPasswordBox ? 'block' : 'none') + ';margin-top:14px;padding:14px;background:#F7F7F7;border:1px solid #E4E4E7;border-radius:10px;">',
+    '    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong style="font-size:0.83rem;color:#111111;">Recuperar Senha</strong><button type="button" data-action="toggle-recover-password" style="background:none;border:none;color:#71717A;font-size:0.78rem;cursor:pointer;">Fechar ✕</button></div>',
     '    <form id="customer-recover-form" novalidate>',
     '      <p style="font-size:0.77rem;color:var(--text-secondary);margin-bottom:10px;">Informe seu e-mail cadastrado e defina uma nova senha (mínimo 6 caracteres):</p>',
     '      <div class="form-field-group" style="margin-bottom:10px;"><input type="email" inputmode="email" name="email" id="recover-email-input" class="form-input-v4" required placeholder="E-mail cadastrado" /></div>',
@@ -9707,11 +9953,11 @@ renderCustomerAuthScreen = function () {
     '      <button type="submit" class="btn btn-outline btn-sm" style="width:100%;height:42px;">Redefinir Senha</button>',
     '    </form>',
     '  </div>',
-    '  <div style="margin-top:16px;padding-top:14px;border-top:1px solid #E9DFD4;text-align:center;font-size:0.83rem;color:var(--text-secondary);">Primeira vez na BY ANGÉLY? <button type="button" data-action="switch-auth-mode" data-mode="register" style="background:none;border:none;color:#806044;font-weight:700;text-decoration:underline;cursor:pointer;margin-left:4px;">Criar Minha Conta →</button></div>',
+    '  <div style="margin-top:16px;padding-top:14px;border-top:1px solid #E4E4E7;text-align:center;font-size:0.83rem;color:var(--text-secondary);">Primeira vez na BY ANGÉLY? <button type="button" data-action="switch-auth-mode" data-mode="register" style="background:none;border:none;color:#111111;font-weight:700;text-decoration:underline;cursor:pointer;margin-left:4px;">Criar Minha Conta →</button></div>',
     '</div>'
   ].join('') : [
     '<div class="auth-card-v5" id="auth-register-panel">',
-    '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;"><span class="section-eyebrow">Novo Cadastro</span><span style="font-size:0.75rem;color:#806044;font-weight:700;">Etapa ' + step + ' de 3</span></div>',
+    '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;"><span class="section-eyebrow">Novo Cadastro</span><span style="font-size:0.75rem;color:#111111;font-weight:700;">Etapa ' + step + ' de 3</span></div>',
     '  <h1 style="font-family:var(--font-serif);font-size:1.65rem;margin-bottom:12px;">Criar Minha Conta</h1>',
     '  <div class="reg-stepper-header">',
     '    <div class="reg-stepper-steps">',
@@ -9721,24 +9967,30 @@ renderCustomerAuthScreen = function () {
     '    </div>',
     '    <div class="reg-progress-track" aria-hidden="true"><div class="reg-progress-bar" id="reg-progress-bar-fill" style="width:' + progressPct + '%;"></div></div>',
     '  </div>',
-    '  <div id="register-form-error-box" style="display:none;padding:10px 13px;border-radius:8px;background:#FDF2F2;border:1px solid #F2B8B5;color:#8E2626;font-size:0.81rem;margin-bottom:14px;"></div>',
+    '  <div id="register-form-error-box" style="display:none;padding:10px 13px;border-radius:8px;background:#F4F4F5;border:1px solid #D4D4D8;color:#111111;font-size:0.81rem;margin-bottom:14px;"></div>',
     '  <form id="customer-register-form" novalidate>' + activeStepHtml + '</form>',
-    '  <div style="margin-top:16px;padding-top:14px;border-top:1px solid #E9DFD4;text-align:center;font-size:0.83rem;color:var(--text-secondary);">Já possui cadastro? <button type="button" data-action="switch-auth-mode" data-mode="login" style="background:none;border:none;color:#806044;font-weight:700;text-decoration:underline;cursor:pointer;margin-left:4px;">Entrar na Minha Conta →</button></div>',
+    '  <div style="margin-top:16px;padding-top:14px;border-top:1px solid #E4E4E7;text-align:center;font-size:0.83rem;color:var(--text-secondary);">Já possui cadastro? <button type="button" data-action="switch-auth-mode" data-mode="login" style="background:none;border:none;color:#111111;font-weight:700;text-decoration:underline;cursor:pointer;margin-left:4px;">Entrar na Minha Conta →</button></div>',
     '</div>'
   ].join('');
+
+  const innerAuthHtml = [
+    '<div class="auth-single-wrapper" style="' + (contextLabel === 'checkout' ? 'max-width:none;' : '') + '">',
+      (contextLabel === 'checkout' ? '' : renderCustomerAreaNav("account")),
+      (showBanner ? '<div id="mandatory-auth-purchase-banner" style="background:#F4F4F5;border:1.5px solid #D4D4D8;border-radius:12px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;"><div style="width:32px;height:32px;border-radius:50%;background:#111111;color:#FFFFFF;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:0.9rem;">🔒</div><p style="font-size:0.81rem;color:#52525B;margin:0;line-height:1.4;">' + escapeHtml(MANDATORY_LOGIN_MESSAGE) + '</p></div>' : ''),
+    '  <div class="auth-mode-switcher-v5" id="auth-mode-switcher" role="tablist" aria-label="Autenticação da Cliente">',
+    '    <button type="button" id="auth-tab-btn-login" role="tab" aria-selected="' + (mode === 'login') + '" class="auth-mode-tab-v5 ' + (mode === 'login' ? 'active' : '') + '" data-action="switch-auth-mode" data-mode="login">Entrar na Minha Conta</button>',
+    '    <button type="button" id="auth-tab-btn-register" role="tab" aria-selected="' + (mode === 'register') + '" class="auth-mode-tab-v5 ' + (mode === 'register' ? 'active' : '') + '" data-action="switch-auth-mode" data-mode="register">Criar Minha Conta</button>',
+    '  </div>',
+      activeFormHtml,
+    '</div>'
+  ].join('');
+
+  if (contextLabel === 'checkout') return innerAuthHtml;
 
   return [
     '<section class="section-block customer-area-shell is-auth-screen" id="view-customer-auth">',
     '  <div class="container">',
-    '    <div class="auth-single-wrapper">',
-          renderCustomerAreaNav("account"),
-          (showBanner ? '<div id="mandatory-auth-purchase-banner" style="background:#FFF8F3;border:1.5px solid #C99D91;border-radius:12px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;"><div style="width:32px;height:32px;border-radius:50%;background:#806044;color:#FFF;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:0.9rem;">🔒</div><p style="font-size:0.81rem;color:#5C5346;margin:0;line-height:1.4;">' + escapeHtml(MANDATORY_LOGIN_MESSAGE) + '</p></div>' : ''),
-    '      <div class="auth-mode-switcher-v5" id="auth-mode-switcher" role="tablist" aria-label="Autenticação da Cliente">',
-    '        <button type="button" id="auth-tab-btn-login" role="tab" aria-selected="' + (mode === 'login') + '" class="auth-mode-tab-v5 ' + (mode === 'login' ? 'active' : '') + '" data-action="switch-auth-mode" data-mode="login">Entrar na Minha Conta</button>',
-    '        <button type="button" id="auth-tab-btn-register" role="tab" aria-selected="' + (mode === 'register') + '" class="auth-mode-tab-v5 ' + (mode === 'register' ? 'active' : '') + '" data-action="switch-auth-mode" data-mode="register">Criar Minha Conta</button>',
-    '      </div>',
-          activeFormHtml,
-    '    </div>',
+    innerAuthHtml,
     '  </div>',
     '</section>'
   ].join('');
@@ -9895,1330 +10147,1078 @@ document.addEventListener('click', (e) => {
 
 setTimeout(syncAuthPageBodyState, 10);
 
-  
-if (window.ByAngelyPix && window.ByAngelyPix.generatePixPayload) {
-const _origPixGen = window.ByAngelyPix.generatePixPayload;
-window.ByAngelyPix.generatePixPayload = function(params) {
-const p = Object.assign({}, params);
-const raw = String(p.pixKey || '').trim();
-const kt = String(p.keyType || '').toLowerCase();
-if (kt === 'numero' || kt === 'direta') {
-p.pixKey = raw;
-p.keyType = 'aleatoria';
-} else if (kt === 'phone' || kt === 'telefone' || kt === 'celular') {
-const digits = raw.replace(/\D/g, '');
-if (raw.indexOf('@') !== -1) { p.pixKey = raw.toLowerCase(); p.keyType = 'aleatoria'; }
-else if (digits && digits.length !== 10 && digits.length !== 11 && !(digits.indexOf('55') === 0 && digits.length >= 12 && digits.length <= 13)) {
-p.pixKey = raw.charAt(0) === '+' ? '+' + digits : digits;
-p.keyType = 'aleatoria';
-}
-}
-return _origPixGen.call(this, p);
-};
-}
-function isPaymentOptionConfigured(methodId, paySettings) {
-const pay = paySettings || (AppState.db && AppState.db.paymentSettings) || {};
-if (methodId === 'whatsapp') {
-return Boolean(pay.whatsapp);
-}
-if (methodId === 'pix') {
-if (!pay.pix) return false;
-const key = String(pay.pix.pixKey || '').trim();
-const rec = String(pay.pix.recipientName || 'BY ANGELY').trim();
-if (key.length < 1 || key.toLowerCase().includes('a confirmar') || rec.length < 1 || rec.toLowerCase().includes('a confirmar')) {
-return false;
-}
-return true;
-}
-if (methodId === 'creditCard' || methodId === 'credit_card') {
-if (!pay.creditCard) return false;
-const prov = String(pay.creditCard.providerName || pay.creditCard.provider || '').trim();
-const link = String(pay.creditCard.externalPaymentLink || '').trim();
-const pubKey = String(pay.creditCard.publicKey || '').trim();
-const hasRealLink = (link.startsWith('http://') || link.startsWith('https://')) && !link.includes('wa.me/');
-const hasApiCreds = Boolean(pay.creditCard.pspApiConfigured || pay.creditCard.hasSecretCredentials || pubKey.length >= 4);
-return Boolean(prov.length >= 2 && !prov.toLowerCase().includes('a confirmar') && (hasRealLink || hasApiCreds));
-}
-if (methodId === 'debitCard' || methodId === 'debit_card') {
-if (!pay.debitCard) return false;
-const prov = String(pay.debitCard.providerName || pay.debitCard.provider || '').trim();
-const link = String(pay.debitCard.externalPaymentLink || '').trim();
-const pubKey = String(pay.debitCard.publicKey || '').trim();
-const hasRealLink = (link.startsWith('http://') || link.startsWith('https://')) && !link.includes('wa.me/');
-const hasApiCreds = Boolean(pay.debitCard.pspApiConfigured || pay.debitCard.hasSecretCredentials || pubKey.length >= 4);
-return Boolean(prov.length >= 2 && !prov.toLowerCase().includes('a confirmar') && (hasRealLink || hasApiCreds));
-}
-if (methodId === 'payOnPickup' || methodId === 'pay_on_pickup') {
-return Boolean(pay.payOnPickup);
-}
-return false;
-}
-/**
-* Retorna diagnóstico detalhado do estado de configuração e validação de cada forma de pagamento para o Painel Admin
-*/
-function getPaymentIntegrationStatus(methodId, paySettings, storeSettings) {
-const pay = paySettings || (AppState.db && AppState.db.paymentSettings) || {};
-const st = storeSettings || (AppState.db && AppState.db.storeSettings) || {};
-if (methodId === 'whatsapp') {
-return {
-stateCode: 'validated',
-badgeClass: 'confirmed',
-label: 'Integração validada (+55 28 99987-1458)',
-detail: 'Canal oficial conectado e mensagem automática validada.'
-};
-}
-if (methodId === 'pix') {
-if (!pay.pix) {
-return { stateCode: 'pending', badgeClass: 'pending', label: 'Aguardando configuração', detail: 'Informe a chave Pix da loja.' };
-}
-const key = String(pay.pix.pixKey || '').trim();
-const rec = String(pay.pix.recipientName || 'BY ANGELY').trim();
-const kType = String(pay.pix.keyType || 'telefone').toLowerCase();
-if (!key || key.toLowerCase().includes('a confirmar') || !rec || rec.toLowerCase().includes('a confirmar')) {
-return { stateCode: 'pending', badgeClass: 'pending', label: 'Aguardando configuração', detail: 'Preencha a chave Pix ou número e o nome do recebedor.' };
-}
-if (pay.pix.pspWebhookConfigured) {
-return {
-stateCode: 'validated',
-badgeClass: 'confirmed',
-label: 'Integração validada',
-detail: 'Chave Pix (' + key + ') • QR Code EMV + Webhook automático ativo.'
-};
-}
-return {
-stateCode: 'configured',
-badgeClass: 'info',
-label: 'Configurado (' + kType.toUpperCase() + ')',
-detail: 'Chave Pix (' + key + ') pronta para recebimento.'
-};
-}
-if (methodId === 'creditCard' || methodId === 'debitCard') {
-const cardObj = pay[methodId] || {};
-const prov = String(cardObj.providerName || cardObj.provider || '').trim();
-const link = String(cardObj.externalPaymentLink || '').trim();
-const hasRealLink = (link.startsWith('http://') || link.startsWith('https://')) && !link.includes('wa.me/');
-const hasSecret = Boolean(cardObj.hasSecretCredentials || cardObj.hasBackendSecretConfigured || cardObj.pspApiConfigured);
-if (hasSecret && prov.length >= 2) {
-return {
-stateCode: 'validated',
-badgeClass: 'confirmed',
-label: 'Integração validada',
-detail: 'Credencial privada armazenada no servidor (' + prov + ').'
-};
-}
-if (hasRealLink && prov.length >= 2) {
-return {
-stateCode: 'configured',
-badgeClass: 'info',
-label: 'Configurado (Link HTTPS externo)',
-detail: 'Redirecionamento externo configurado para ' + prov + '.'
-};
-}
-return {
-stateCode: 'pending',
-badgeClass: 'pending',
-label: 'Aguardando configuração',
-detail: 'Informe a URL HTTPS real do provedor ou token secreto da API antes de ativar.'
-};
-}
-if (methodId === 'payOnPickup') {
-const addrPending = !st.addressLine || String(st.addressLine).toLowerCase().includes('a confirmar');
-if (addrPending) {
-return {
-stateCode: 'pending',
-badgeClass: 'pending',
-label: 'Aguardando configuração de endereço',
-detail: 'Confirme o endereço completo de retirada em Itaperuna na aba Dados da Loja.'
-};
-}
-return {
-stateCode: 'configured',
-badgeClass: 'confirmed',
-label: 'Configurado',
-detail: 'Endereço presencial em Itaperuna confirmado.'
-};
-}
-return { stateCode: 'pending', badgeClass: 'pending', label: 'Aguardando configuração', detail: '' };
-}
-function getAdminRequestHeaders() {
-const headers = {};
-if (AppState.currentAdmin) {
-headers['X-Admin-Role'] = AppState.currentAdmin.role || 'Proprietária';
-headers['X-Admin-Email'] = AppState.currentAdmin.email || '';
-if (AppState.currentAdmin.token) {
-headers['X-Admin-Token'] = AppState.currentAdmin.token;
-headers['Authorization'] = 'Bearer ' + AppState.currentAdmin.token;
-}
-}
-return headers;
-}
-async function loadDatabase() {
-const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
-let supaState = null;
-let serverState = null;
-let localState = null;
-try {
-const saved = localStorage.getItem(STORAGE_KEY_DB);
-if (saved) localState = JSON.parse(saved);
-} catch (e) {}
-const tasks = [];
-if (window.ByAngelyCloud && window.ByAngelyCloud.fetchStateFromSupabase) {
-tasks.push(
-window.ByAngelyCloud.fetchStateFromSupabase()
-.then((st) => { supaState = st; })
-.catch(() => {})
-);
-}
-tasks.push(
-fetch(apiBase + '/api/state', {
-cache: 'no-store',
-headers: getAdminRequestHeaders()
-})
-.then((res) => (res.ok ? res.json() : null))
-.then((st) => { serverState = st; })
-.catch(() => {})
-);
-await Promise.allSettled(tasks);
-const candidates = [serverState, supaState, localState].filter((c) => c && c.storeSettings);
-let chosen = null;
-if (candidates.length > 0) {
-candidates.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
-chosen = candidates[0];
-if (serverState && serverState.paymentSettings && Number(serverState.paymentSettings.paymentConfigVersion) >= 4) {
-const chosenPayVer = chosen.paymentSettings ? Number(chosen.paymentSettings.paymentConfigVersion || 0) : 0;
-const serverTs = new Date(serverState.updatedAt || 0).getTime();
-const chosenTs = new Date(chosen.updatedAt || 0).getTime();
-if (chosenPayVer < 4 || serverTs >= chosenTs - 5000) {
-chosen.paymentSettings = serverState.paymentSettings;
-}
-}
-if (serverState && Array.isArray(serverState.orders)) {
-chosen.orders = serverState.orders;
-}
-if (serverState && Array.isArray(serverState.customers)) {
-chosen.customers = serverState.customers;
-}
-if (serverState && Array.isArray(serverState.auditLog) && serverState.auditLog.length > 0) {
-chosen.auditLog = serverState.auditLog;
-}
-const allRealProductsMap = new Map();
-candidates.forEach((cand) => {
-(cand.products || []).forEach((p) => {
-if (p && !p.isDemo && p.id) {
-allRealProductsMap.set(p.id, p);
-}
-});
-});
-if (allRealProductsMap.size > 0) {
-const existingIds = new Set((chosen.products || []).map((p) => p.id));
-allRealProductsMap.forEach((realProd, id) => {
-if (!existingIds.has(id)) {
-chosen.products = [realProd, ...(chosen.products || [])];
-}
-});
-}
-} else {
-chosen = window.ByAngelySeed.createInitialDatabase();
-}
-const hadMissingCatImages =
-supaState &&
-Array.isArray(supaState.categories) &&
-supaState.categories.some((c) => !c.imageUrl || String(c.imageUrl).trim().length < 8);
-const hadFakeOrders =
-supaState &&
-Array.isArray(supaState.orders) &&
-supaState.orders.some((o) => o.id === 'ord-demo-1001' || o.orderNumber === 'BYA-2026-1042');
-AppState.db = normalizeAndRepairDatabase(chosen);
-try {
-localStorage.setItem(STORAGE_KEY_DB, JSON.stringify(AppState.db));
-} catch (e) {}
-if (hadMissingCatImages || hadFakeOrders || !supaState) {
-saveDatabase();
-}
-}
-async function saveDatabase(auditAction) {
-if (!AppState.db) return;
-AppState.db = normalizeAndRepairDatabase(AppState.db);
-if (auditAction) {
-AppState.db.auditLog = AppState.db.auditLog || [];
-AppState.db.auditLog.unshift({
-id: 'log-' + Date.now(),
-timestamp: new Date().toISOString(),
-actor: AppState.currentAdmin ? AppState.currentAdmin.name : 'Sistema/Cliente',
-actorRole: AppState.currentAdmin ? (AppState.currentAdmin.role || 'Administrador') : 'Cliente',
-action: auditAction
-});
-if (AppState.db.auditLog.length > 250) {
-AppState.db.auditLog = AppState.db.auditLog.slice(0, 250);
-}
-}
-AppState.db.updatedAt = new Date().toISOString();
-try {
-localStorage.setItem(STORAGE_KEY_DB, JSON.stringify(AppState.db));
-} catch (e) {
-console.warn('Aviso: limite de armazenamento local atingido.', e);
-}
-const syncPromises = [];
-if (window.ByAngelyCloud && window.ByAngelyCloud.saveStateToSupabase) {
-syncPromises.push(window.ByAngelyCloud.saveStateToSupabase(AppState.db).catch(() => {}));
-}
-const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
-syncPromises.push(
-fetch(apiBase + '/api/state', {
-method: 'POST',
-headers: {
-'Content-Type': 'application/json',
-...getAdminRequestHeaders()
-},
-body: JSON.stringify(AppState.db)
-}).catch(() => {})
-);
-await Promise.allSettled(syncPromises);
-}
-if (_origNormalizeAndRepairDatabase) {
-normalizeAndRepairDatabase = function (rawDb) {
-const rawPayIn = (rawDb && rawDb.paymentSettings) || {};
-const rawPixIn = rawPayIn.pix || {};
-const repaired = _origNormalizeAndRepairDatabase(rawDb);
-repaired.storeSettings = repaired.storeSettings || {};
-repaired.storeSettings.homeSections = {
-showHero: true,
-showFeatured: true,
-showNewArrivals: true,
-showPromos: true,
-showCategories: true,
-showBestSellers: false,
-showBrandStory: true,
-showContactSection: false,
-...(repaired.storeSettings.homeSections || {})
-};
-repaired.paymentSettings = repaired.paymentSettings || {};
-repaired.paymentSettings.paymentConfigVersion = 4;
-if (rawPayIn.whatsapp && typeof rawPayIn.whatsapp.enabled === 'boolean') {
-repaired.paymentSettings.whatsapp = { ...(repaired.paymentSettings.whatsapp || {}), ...rawPayIn.whatsapp, enabled: rawPayIn.whatsapp.enabled };
-}
-if (rawPayIn.creditCard && typeof rawPayIn.creditCard.enabled === 'boolean') {
-repaired.paymentSettings.creditCard = { ...(repaired.paymentSettings.creditCard || {}), ...rawPayIn.creditCard, enabled: rawPayIn.creditCard.enabled };
-}
-if (rawPayIn.debitCard && typeof rawPayIn.debitCard.enabled === 'boolean') {
-repaired.paymentSettings.debitCard = { ...(repaired.paymentSettings.debitCard || {}), ...rawPayIn.debitCard, enabled: rawPayIn.debitCard.enabled };
-}
-if (rawPayIn.payOnPickup && typeof rawPayIn.payOnPickup.enabled === 'boolean') {
-repaired.paymentSettings.payOnPickup = { ...(repaired.paymentSettings.payOnPickup || {}), ...rawPayIn.payOnPickup, enabled: rawPayIn.payOnPickup.enabled };
-}
-const preservedPixEnabled = typeof rawPixIn.enabled === 'boolean'
-? rawPixIn.enabled
-: (typeof (repaired.paymentSettings.pix && repaired.paymentSettings.pix.enabled) === 'boolean' ? repaired.paymentSettings.pix.enabled : true);
-const preservedPixKey = (rawPixIn.pixKey && !String(rawPixIn.pixKey).toLowerCase().includes('a confirmar'))
-? String(rawPixIn.pixKey).trim()
-: ((repaired.paymentSettings.pix && repaired.paymentSettings.pix.pixKey) || '+5528999871458');
-const preservedKeyType = (rawPixIn.keyType && String(rawPixIn.keyType).trim())
-? String(rawPixIn.keyType).trim().toLowerCase()
-: ((repaired.paymentSettings.pix && repaired.paymentSettings.pix.keyType) || 'telefone');
-const preservedRecipientName = (rawPixIn.recipientName && !String(rawPixIn.recipientName).toLowerCase().includes('a confirmar'))
-? String(rawPixIn.recipientName).trim()
-: ((repaired.paymentSettings.pix && repaired.paymentSettings.pix.recipientName) || 'BY ANGELY');
-const preservedRecipientCity = (rawPixIn.recipientCity && String(rawPixIn.recipientCity).trim())
-? String(rawPixIn.recipientCity).trim()
-: ((repaired.paymentSettings.pix && repaired.paymentSettings.pix.recipientCity) || 'ITAPERUNA');
-const preservedTxidPrefix = (rawPixIn.txidPrefix && String(rawPixIn.txidPrefix).trim())
-? String(rawPixIn.txidPrefix).trim()
-: ((repaired.paymentSettings.pix && repaired.paymentSettings.pix.txidPrefix) || 'BYANGELY');
-repaired.paymentSettings.pix = {
-...(repaired.paymentSettings.pix || {}),
-enabled: preservedPixEnabled,
-keyType: preservedKeyType,
-pixKey: preservedPixKey,
-recipientName: preservedRecipientName,
-recipientCity: preservedRecipientCity,
-txidPrefix: preservedTxidPrefix,
-expirationMinutes: Math.max(1, Number((rawPixIn.expirationMinutes || (repaired.paymentSettings.pix && repaired.paymentSettings.pix.expirationMinutes))) || 15),
-confirmationMode: (rawPixIn.confirmationMode) || (repaired.paymentSettings.pix && repaired.paymentSettings.pix.confirmationMode) || 'webhook_auto',
-pspWebhookConfigured: rawPixIn.pspWebhookConfigured !== undefined ? Boolean(rawPixIn.pspWebhookConfigured) : true
-};
-return repaired;
-};
-}
-  
-if (window.ByAngelyApp) {
-window.ByAngelyApp.loadDatabase = loadDatabase;
-window.ByAngelyApp.saveDatabase = saveDatabase;
-window.ByAngelyApp.isPaymentOptionConfigured = isPaymentOptionConfigured;
-window.ByAngelyApp.getPaymentIntegrationStatus = getPaymentIntegrationStatus;
-}
+// ============================================================================
+// BY ANGELY — V6: CANCELAMENTO DE PEDIDOS (ANTES E APÓS PAGAMENTO),
+// EXCLUSÃO/ANONIMIZAÇÃO DE CONTA PELA CLIENTE E SUPORTE ADMIN MOBILE
+// ============================================================================
 const CUSTOMER_CANCELLED_ORDER_EXACT_MSG =
-'Seu pedido foi cancelado. Você poderá continuar navegando pela loja e escolher outros produtos quando quiser.';
+  'Seu pedido foi cancelado. Você poderá continuar navegando pela loja e escolher outros produtos quando quiser.';
+
 AppState.lastCancelledOrderBannerMessage = AppState.lastCancelledOrderBannerMessage || '';
 AppState.lastCancelledOrderNumber = AppState.lastCancelledOrderNumber || '';
+
 function isOrderAwaitingPaymentV6(ord) {
-if (!ord) return false;
-const st = String(ord.status || 'awaiting_payment');
-return (
-(st === 'awaiting_payment' || st === 'awaiting_confirmation' || st === 'awaiting_whatsapp') &&
-ord.paymentStatus !== 'paid'
-);
+  if (!ord) return false;
+  const st = String(ord.status || 'awaiting_payment');
+  return (
+    (st === 'awaiting_payment' || st === 'awaiting_confirmation' || st === 'awaiting_whatsapp') &&
+    ord.paymentStatus !== 'paid'
+  );
 }
+
 function isOrderPaidAndEligibleForCancelRequestV6(ord) {
-if (!ord) return false;
-const st = String(ord.status || '');
-if (st === 'cancelled' || st === 'cancelled_expired') return false;
-return (
-ord.paymentStatus === 'paid' ||
-[
-'payment_approved',
-'paid',
-'awaiting_separation',
-'in_separation',
-'preparing',
-'ready_for_shipping',
-'shipped',
-'out_for_delivery',
-'delivered',
-'late_payment_reconciliation'
-].includes(st)
-);
+  if (!ord) return false;
+  const st = String(ord.status || '');
+  if (st === 'cancelled' || st === 'cancelled_expired') return false;
+  return (
+    ord.paymentStatus === 'paid' ||
+    [
+      'payment_approved',
+      'paid',
+      'awaiting_separation',
+      'in_separation',
+      'preparing',
+      'ready_for_shipping',
+      'shipped',
+      'out_for_delivery',
+      'delivered',
+      'late_payment_reconciliation'
+    ].includes(st)
+  );
 }
+
 function renderCancellationRequestBadgeHtmlV6(ord) {
-if (!ord || !ord.cancellationRequest) return '';
-const req = ord.cancellationRequest;
-let bg = '#FFF8EB';
-let border = '#E2B96B';
-let color = '#7A5211';
-if (req.status === 'approved' || req.status === 'refunded') {
-bg = '#EDF7F1';
-border = '#2E6F52';
-color = '#1E4D38';
-} else if (req.status === 'rejected') {
-bg = '#FDF2F2';
-border = '#F2B8B5';
-color = '#8E2626';
+  if (!ord || !ord.cancellationRequest) return '';
+  const req = ord.cancellationRequest;
+  let bg = '#F4F4F5';
+  let border = '#D4D4D8';
+  let color = '#18181B';
+  if (req.status === 'approved' || req.status === 'refunded') {
+    bg = '#F4F4F5';
+    border = '#111111';
+    color = '#111111';
+  } else if (req.status === 'rejected') {
+    bg = '#F4F4F5';
+    border = '#D4D4D8';
+    color = '#111111';
+  }
+  return [
+    '<div class="order-cancel-request-box-v6" style="margin-top:12px;padding:12px 14px;border-radius:10px;background:' + bg + ';border:1px solid ' + border + ';font-size:0.82rem;color:' + color + ';">',
+    '  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:4px;">',
+    '    <strong>Solicitação de Cancelamento (Pedido Pago): ' + escapeHtml(req.statusLabel || 'Em análise pela loja') + '</strong>',
+    '    <span style="font-size:0.74rem;opacity:0.85;">' + formatDateBR(req.updatedAt || req.createdAt) + '</span>',
+    '  </div>',
+    '  <div><strong>Motivo informado:</strong> ' + escapeHtml(req.reason || '') + '</div>',
+    (req.adminReason ? '<div style="margin-top:4px;"><strong>Posicionamento da loja:</strong> ' + escapeHtml(req.adminReason) + '</div>' : ''),
+    (req.refundReference ? '<div style="margin-top:4px;"><strong>Comprovante / Referência do reembolso:</strong> ' + escapeHtml(req.refundReference) + '</div>' : ''),
+    '</div>'
+  ].join('');
 }
-return [
-'<div class="order-cancel-request-box-v6" style="margin-top:12px;padding:12px 14px;border-radius:10px;background:' + bg + ';border:1px solid ' + border + ';font-size:0.82rem;color:' + color + ';">',
-' <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:4px;">',
-' <strong>Solicitação de Cancelamento (Pedido Pago): ' + escapeHtml(req.statusLabel || 'Em análise pela loja') + '</strong>',
-' <span style="font-size:0.74rem;opacity:0.85;">' + formatDateBR(req.updatedAt || req.createdAt) + '</span>',
-' </div>',
-' <div><strong>Motivo informado:</strong> ' + escapeHtml(req.reason || '') + '</div>',
-(req.adminReason ? '<div style="margin-top:4px;"><strong>Posicionamento da loja:</strong> ' + escapeHtml(req.adminReason) + '</div>' : ''),
-(req.refundReference ? '<div style="margin-top:4px;"><strong>Comprovante / Referência do reembolso:</strong> ' + escapeHtml(req.refundReference) + '</div>' : ''),
-'</div>'
-].join('');
-}
+
 function syncAdminAndAuthBodyStateV6() {
-syncAuthPageBodyState();
-const isAdmin = AppState.currentView === 'admin';
-document.body.classList.toggle('admin-page-active', isAdmin);
-const catNav = document.getElementById('category-strip-nav');
-if (catNav) {
-catNav.style.display = (isAdmin || isAuthScreenActiveV5()) ? 'none' : '';
+  syncAuthPageBodyState();
+  const isAdmin = AppState.currentView === 'admin';
+  document.body.classList.toggle('admin-page-active', isAdmin);
+  const catNav = document.getElementById('category-strip-nav');
+  if (catNav) {
+    catNav.style.display = (isAdmin || isAuthScreenActiveV5()) ? 'none' : '';
+  }
+  const floatWa = document.querySelector('.floating-whatsapp-concierge');
+  if (floatWa && isAdmin) {
+    floatWa.style.display = 'none';
+  }
 }
-const floatWa = document.querySelector('.floating-whatsapp-concierge');
-if (floatWa && isAdmin) {
-floatWa.style.display = 'none';
-}
-}
+
 function ensureV6CustomerModals() {
-if (!document.getElementById('by-angely-v6-customer-styles')) {
-const st = document.createElement('style');
-st.id = 'by-angely-v6-customer-styles';
-st.textContent = [
-'body.admin-page-active #category-strip-nav, body.admin-page-active .category-strip { display: none !important; }',
-'body.admin-page-active .floating-whatsapp-concierge { display: none !important; }',
-'.v6-modal-backdrop { position: fixed; inset: 0; background: rgba(28, 24, 21, 0.62); backdrop-filter: blur(3px); z-index: 9998; display: none; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; }',
-'.v6-modal-backdrop.open { display: flex !important; }',
-'.v6-modal-card { background: #FFFFFF; border: 1px solid #D5C7B8; border-radius: 14px; max-width: 520px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 22px 20px; box-shadow: 0 18px 48px rgba(28, 24, 21, 0.24); box-sizing: border-box; }',
-'@media (max-width: 480px) { .v6-modal-card { padding: 18px 15px; } }'
-].join(' ');
-document.head.appendChild(st);
+  if (!document.getElementById('by-angely-v6-customer-styles')) {
+    const st = document.createElement('style');
+    st.id = 'by-angely-v6-customer-styles';
+    st.textContent = [
+      'body.admin-page-active #category-strip-nav, body.admin-page-active .category-strip { display: none !important; }',
+      'body.admin-page-active .floating-whatsapp-concierge { display: none !important; }',
+      '.v6-modal-backdrop { position: fixed; inset: 0; background: rgba(17, 17, 17, 0.62); backdrop-filter: blur(3px); z-index: 9998; display: none; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; }',
+      '.v6-modal-backdrop.open { display: flex !important; }',
+      '.v6-modal-card { background: #FFFFFF; border: 1px solid #D4D4D8; border-radius: 14px; max-width: 520px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 22px 20px; box-shadow: 0 18px 48px rgba(17, 17, 17, 0.24); box-sizing: border-box; }',
+      '@media (max-width: 480px) { .v6-modal-card { padding: 18px 15px; } }'
+    ].join(' ');
+    document.head.appendChild(st);
+  }
+
+  // Modal 1: Confirmação de Cancelamento de Pedido Antes do Pagamento
+  if (!document.getElementById('customer-cancel-order-modal')) {
+    const m1 = document.createElement('div');
+    m1.id = 'customer-cancel-order-modal';
+    m1.className = 'v6-modal-backdrop';
+    m1.setAttribute('aria-hidden', 'true');
+    m1.innerHTML = [
+      '<div class="v6-modal-card" role="dialog" aria-modal="true" aria-labelledby="cancel-unpaid-modal-title">',
+      '  <span class="section-eyebrow" style="color:#111111;">Cancelamento de Pedido</span>',
+      '  <h2 id="cancel-unpaid-modal-title" style="font-family:var(--font-serif);font-size:1.55rem;margin-bottom:8px;color:#111111;">Deseja cancelar este pedido?</h2>',
+      '  <p id="cancel-unpaid-modal-desc" style="font-size:0.86rem;color:#52525B;line-height:1.5;margin-bottom:14px;">Ao confirmar o cancelamento, a cobrança Pix vinculada será invalidada imediatamente e as peças reservadas retornarão ao estoque da loja.</p>',
+      '  <div class="form-field-group" style="margin-bottom:14px;">',
+      '    <label class="form-field-label" for="cancel-unpaid-reason-input">Motivo do cancelamento (opcional)</label>',
+      '    <input type="text" id="cancel-unpaid-reason-input" class="form-input-v4" placeholder="Ex.: Vou escolher outro tamanho ou forma de pagamento" />',
+      '  </div>',
+      '  <div id="cancel-unpaid-error-box" style="display:none;padding:10px 12px;border-radius:8px;background:#F4F4F5;border:1px solid #D4D4D8;color:#111111;font-size:0.8rem;margin-bottom:12px;"></div>',
+      '  <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">',
+      '    <button type="button" class="btn btn-outline btn-sm" data-action="close-cancel-order-modal" style="min-height:42px;padding:0 16px;">Voltar e manter pedido</button>',
+      '    <button type="button" id="btn-confirm-cancel-unpaid-order" class="btn btn-primary btn-sm" data-action="confirm-cancel-order" data-order-id="" style="min-height:42px;padding:0 18px;background:#111111;border-color:#111111;color:#FFFFFF;">Confirmar cancelamento</button>',
+      '  </div>',
+      '</div>'
+    ].join('');
+    document.body.appendChild(m1);
+  }
+
+  // Modal 2: Solicitação de Cancelamento de Pedido Pago
+  if (!document.getElementById('customer-paid-cancel-request-modal')) {
+    const m2 = document.createElement('div');
+    m2.id = 'customer-paid-cancel-request-modal';
+    m2.className = 'v6-modal-backdrop';
+    m2.setAttribute('aria-hidden', 'true');
+    m2.innerHTML = [
+      '<div class="v6-modal-card" role="dialog" aria-modal="true" aria-labelledby="paid-cancel-req-title">',
+      '  <span class="section-eyebrow">Pedido com Pagamento Confirmado</span>',
+      '  <h2 id="paid-cancel-req-title" style="font-family:var(--font-serif);font-size:1.55rem;margin-bottom:8px;color:#111111;">Solicitar Cancelamento e Reembolso</h2>',
+      '  <p id="paid-cancel-req-desc" style="font-size:0.84rem;color:#52525B;line-height:1.5;margin-bottom:14px;">Como o pagamento deste pedido já foi confirmado, sua solicitação será encaminhada para análise prioritária da administração da BY ANGÉLY para aprovação e processamento do estorno.</p>',
+      '  <form id="customer-paid-cancel-request-form" novalidate>',
+      '    <input type="hidden" id="paid-cancel-order-id-input" value="" />',
+      '    <div class="form-field-group" style="margin-bottom:14px;">',
+      '      <label class="form-field-label" for="paid-cancel-reason-input">Informe o motivo da solicitação <span class="req-star">*</span></label>',
+      '      <textarea id="paid-cancel-reason-input" class="form-input-v4" rows="3" required placeholder="Descreva o motivo para cancelamento e estorno do pedido..." style="height:auto;padding:10px 12px;"></textarea>',
+      '    </div>',
+      '    <div id="paid-cancel-error-box" style="display:none;padding:10px 12px;border-radius:8px;background:#F4F4F5;border:1px solid #D4D4D8;color:#111111;font-size:0.8rem;margin-bottom:12px;"></div>',
+      '    <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">',
+      '      <button type="button" class="btn btn-outline btn-sm" data-action="close-paid-cancel-request-modal" style="min-height:42px;padding:0 16px;">Voltar</button>',
+      '      <button type="submit" id="btn-submit-paid-cancel-request" class="btn btn-primary btn-sm" style="min-height:42px;padding:0 18px;">Enviar solicitação</button>',
+      '    </div>',
+      '  </form>',
+      '</div>'
+    ].join('');
+    document.body.appendChild(m2);
+  }
+
+  // Modal 3: Solicitação de Exclusão / Anonimização da Própria Conta (LGPD)
+  if (!document.getElementById('customer-delete-account-modal')) {
+    const m3 = document.createElement('div');
+    m3.id = 'customer-delete-account-modal';
+    m3.className = 'v6-modal-backdrop';
+    m3.setAttribute('aria-hidden', 'true');
+    m3.innerHTML = [
+      '<div class="v6-modal-card" role="dialog" aria-modal="true" aria-labelledby="delete-account-modal-title">',
+      '  <span class="section-eyebrow" style="color:#111111;">Privacidade e Titularidade de Dados • LGPD</span>',
+      '  <h2 id="delete-account-modal-title" style="font-family:var(--font-serif);font-size:1.55rem;margin-bottom:8px;color:#111111;">Excluir Minha Conta</h2>',
+      '  <div style="background:#F4F4F5;border:1px solid #E4E4E7;border-radius:10px;padding:12px 14px;font-size:0.81rem;color:#52525B;line-height:1.5;margin-bottom:14px;">',
+      '    <strong style="display:block;color:#111111;margin-bottom:4px;">Antes de confirmar, saiba o que acontecerá:</strong>',
+      '    <ul style="margin:0;padding-left:18px;">',
+      '      <li><strong>Encerramento do acesso:</strong> sua conta será desativada permanentemente e não permitirá novos logins ou compras.</li>',
+      '      <li><strong>Dados excluídos/anonimizados:</strong> nome completo, telefone/WhatsApp, CPF, endereços salvos e sacola serão anonimizados.</li>',
+      '      <li><strong>Retenção legal obrigatória:</strong> registros fiscais, financeiros e de pedidos concluídos são preservados exclusivamente pelo prazo legal (Art. 16 da LGPD — Lei nº 13.709/2018), sem permitir novo acesso.</li>',
+      '      <li><strong>Pedidos em andamento:</strong> pedidos não pagos serão cancelados imediatamente; se houver pedido pago em preparação/entrega, a exclusão ficará vinculada à conclusão da entrega.</li>',
+      '    </ul>',
+      '  </div>',
+      '  <form id="customer-delete-account-form" novalidate>',
+      '    <div class="form-field-group" style="margin-bottom:12px;">',
+      '      <label class="form-field-label" for="delete-account-password-input">Confirme sua senha atual para segurança <span class="req-star">*</span></label>',
+      '      <div class="password-input-wrapper">',
+      '        <input type="password" id="delete-account-password-input" name="password" class="form-input-v4" required placeholder="Digite sua senha atual" />',
+      '        <button type="button" class="password-toggle-btn" data-action="toggle-password-visibility" data-target="delete-account-password-input">Mostrar</button>',
+      '      </div>',
+      '    </div>',
+      '    <div class="form-field-group" style="margin-bottom:12px;">',
+      '      <label class="form-field-label" for="delete-account-reason-input">Motivo da saída (opcional)</label>',
+      '      <input type="text" id="delete-account-reason-input" name="reason" class="form-input-v4" placeholder="Opcional: conte-nos o motivo" />',
+      '    </div>',
+      '    <label style="display:flex;align-items:flex-start;gap:8px;font-size:0.8rem;color:#111111;margin-bottom:14px;cursor:pointer;">',
+      '      <input type="checkbox" id="delete-account-confirm-checkbox" name="confirmDeletion" required style="margin-top:3px;" />',
+      '      <span>Compreendo que esta ação encerrará o acesso à minha conta e anonimizará meus dados pessoais cadastrais.</span>',
+      '    </label>',
+      '    <div id="delete-account-error-box" style="display:none;padding:10px 12px;border-radius:8px;background:#F4F4F5;border:1px solid #D4D4D8;color:#111111;font-size:0.8rem;margin-bottom:12px;"></div>',
+      '    <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">',
+      '      <button type="button" class="btn btn-outline btn-sm" data-action="close-delete-account-modal" style="min-height:42px;padding:0 16px;">Cancelar e manter conta</button>',
+      '      <button type="submit" id="btn-confirm-delete-account" class="btn btn-primary btn-sm" style="min-height:42px;padding:0 18px;background:#111111;border-color:#111111;color:#FFFFFF;">Confirmar exclusão da minha conta</button>',
+      '    </div>',
+      '  </form>',
+      '</div>'
+    ].join('');
+    document.body.appendChild(m3);
+  }
 }
-if (!document.getElementById('customer-cancel-order-modal')) {
-const m1 = document.createElement('div');
-m1.id = 'customer-cancel-order-modal';
-m1.className = 'v6-modal-backdrop';
-m1.setAttribute('aria-hidden', 'true');
-m1.innerHTML = [
-'<div class="v6-modal-card" role="dialog" aria-modal="true" aria-labelledby="cancel-unpaid-modal-title">',
-' <span class="section-eyebrow" style="color:#8E2626;">Cancelamento de Pedido</span>',
-' <h2 id="cancel-unpaid-modal-title" style="font-family:var(--font-serif);font-size:1.55rem;margin-bottom:8px;color:#292522;">Deseja cancelar este pedido?</h2>',
-' <p id="cancel-unpaid-modal-desc" style="font-size:0.86rem;color:#5C5346;line-height:1.5;margin-bottom:14px;">Ao confirmar o cancelamento, a cobrança Pix vinculada será invalidada imediatamente e as peças reservadas retornarão ao estoque da loja.</p>',
-' <div class="form-field-group" style="margin-bottom:14px;">',
-' <label class="form-field-label" for="cancel-unpaid-reason-input">Motivo do cancelamento (opcional)</label>',
-' <input type="text" id="cancel-unpaid-reason-input" class="form-input-v4" placeholder="Ex.: Vou escolher outro tamanho ou forma de pagamento" />',
-' </div>',
-' <div id="cancel-unpaid-error-box" style="display:none;padding:10px 12px;border-radius:8px;background:#FDF2F2;border:1px solid #F2B8B5;color:#8E2626;font-size:0.8rem;margin-bottom:12px;"></div>',
-' <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">',
-' <button type="button" class="btn btn-outline btn-sm" data-action="close-cancel-order-modal" style="min-height:42px;padding:0 16px;">Voltar e manter pedido</button>',
-' <button type="button" id="btn-confirm-cancel-unpaid-order" class="btn btn-primary btn-sm" data-action="confirm-cancel-order" data-order-id="" style="min-height:42px;padding:0 18px;background:#8E2626;border-color:#8E2626;color:#FFFFFF;">Confirmar cancelamento</button>',
-' </div>',
-'</div>'
-].join('');
-document.body.appendChild(m1);
-}
-if (!document.getElementById('customer-paid-cancel-request-modal')) {
-const m2 = document.createElement('div');
-m2.id = 'customer-paid-cancel-request-modal';
-m2.className = 'v6-modal-backdrop';
-m2.setAttribute('aria-hidden', 'true');
-m2.innerHTML = [
-'<div class="v6-modal-card" role="dialog" aria-modal="true" aria-labelledby="paid-cancel-req-title">',
-' <span class="section-eyebrow">Pedido com Pagamento Confirmado</span>',
-' <h2 id="paid-cancel-req-title" style="font-family:var(--font-serif);font-size:1.55rem;margin-bottom:8px;color:#292522;">Solicitar Cancelamento e Reembolso</h2>',
-' <p id="paid-cancel-req-desc" style="font-size:0.84rem;color:#5C5346;line-height:1.5;margin-bottom:14px;">Como o pagamento deste pedido já foi confirmado, sua solicitação será encaminhada para análise prioritária da administração da BY ANGÉLY para aprovação e processamento do estorno.</p>',
-' <form id="customer-paid-cancel-request-form" novalidate>',
-' <input type="hidden" id="paid-cancel-order-id-input" value="" />',
-' <div class="form-field-group" style="margin-bottom:14px;">',
-' <label class="form-field-label" for="paid-cancel-reason-input">Informe o motivo da solicitação <span class="req-star">*</span></label>',
-' <textarea id="paid-cancel-reason-input" class="form-input-v4" rows="3" required placeholder="Descreva o motivo para cancelamento e estorno do pedido..." style="height:auto;padding:10px 12px;"></textarea>',
-' </div>',
-' <div id="paid-cancel-error-box" style="display:none;padding:10px 12px;border-radius:8px;background:#FDF2F2;border:1px solid #F2B8B5;color:#8E2626;font-size:0.8rem;margin-bottom:12px;"></div>',
-' <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">',
-' <button type="button" class="btn btn-outline btn-sm" data-action="close-paid-cancel-request-modal" style="min-height:42px;padding:0 16px;">Voltar</button>',
-' <button type="submit" id="btn-submit-paid-cancel-request" class="btn btn-primary btn-sm" style="min-height:42px;padding:0 18px;">Enviar solicitação</button>',
-' </div>',
-' </form>',
-'</div>'
-].join('');
-document.body.appendChild(m2);
-}
-if (!document.getElementById('customer-delete-account-modal')) {
-const m3 = document.createElement('div');
-m3.id = 'customer-delete-account-modal';
-m3.className = 'v6-modal-backdrop';
-m3.setAttribute('aria-hidden', 'true');
-m3.innerHTML = [
-'<div class="v6-modal-card" role="dialog" aria-modal="true" aria-labelledby="delete-account-modal-title">',
-' <span class="section-eyebrow" style="color:#8E2626;">Privacidade e Titularidade de Dados • LGPD</span>',
-' <h2 id="delete-account-modal-title" style="font-family:var(--font-serif);font-size:1.55rem;margin-bottom:8px;color:#292522;">Excluir Minha Conta</h2>',
-' <div style="background:#FFF8F3;border:1px solid #E9DFD4;border-radius:10px;padding:12px 14px;font-size:0.81rem;color:#5C5346;line-height:1.5;margin-bottom:14px;">',
-' <strong style="display:block;color:#292522;margin-bottom:4px;">Antes de confirmar, saiba o que acontecerá:</strong>',
-' <ul style="margin:0;padding-left:18px;">',
-' <li><strong>Encerramento do acesso:</strong> sua conta será desativada permanentemente e não permitirá novos logins ou compras.</li>',
-' <li><strong>Dados excluídos/anonimizados:</strong> nome completo, telefone/WhatsApp, CPF, endereços salvos e sacola serão anonimizados.</li>',
-' <li><strong>Retenção legal obrigatória:</strong> registros fiscais, financeiros e de pedidos concluídos são preservados exclusivamente pelo prazo legal (Art. 16 da LGPD — Lei nº 13.709/2018), sem permitir novo acesso.</li>',
-' <li><strong>Pedidos em andamento:</strong> pedidos não pagos serão cancelados imediatamente; se houver pedido pago em preparação/entrega, a exclusão ficará vinculada à conclusão da entrega.</li>',
-' </ul>',
-' </div>',
-' <form id="customer-delete-account-form" novalidate>',
-' <div class="form-field-group" style="margin-bottom:12px;">',
-' <label class="form-field-label" for="delete-account-password-input">Confirme sua senha atual para segurança <span class="req-star">*</span></label>',
-' <div class="password-input-wrapper">',
-' <input type="password" id="delete-account-password-input" name="password" class="form-input-v4" required placeholder="Digite sua senha atual" />',
-' <button type="button" class="password-toggle-btn" data-action="toggle-password-visibility" data-target="delete-account-password-input">Mostrar</button>',
-' </div>',
-' </div>',
-' <div class="form-field-group" style="margin-bottom:12px;">',
-' <label class="form-field-label" for="delete-account-reason-input">Motivo da saída (opcional)</label>',
-' <input type="text" id="delete-account-reason-input" name="reason" class="form-input-v4" placeholder="Opcional: conte-nos o motivo" />',
-' </div>',
-' <label style="display:flex;align-items:flex-start;gap:8px;font-size:0.8rem;color:#292522;margin-bottom:14px;cursor:pointer;">',
-' <input type="checkbox" id="delete-account-confirm-checkbox" name="confirmDeletion" required style="margin-top:3px;" />',
-' <span>Compreendo que esta ação encerrará o acesso à minha conta e anonimizará meus dados pessoais cadastrais.</span>',
-' </label>',
-' <div id="delete-account-error-box" style="display:none;padding:10px 12px;border-radius:8px;background:#FDF2F2;border:1px solid #F2B8B5;color:#8E2626;font-size:0.8rem;margin-bottom:12px;"></div>',
-' <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">',
-' <button type="button" class="btn btn-outline btn-sm" data-action="close-delete-account-modal" style="min-height:42px;padding:0 16px;">Cancelar e manter conta</button>',
-' <button type="submit" id="btn-confirm-delete-account" class="btn btn-primary btn-sm" style="min-height:42px;padding:0 18px;background:#8E2626;border-color:#8E2626;color:#FFFFFF;">Confirmar exclusão da minha conta</button>',
-' </div>',
-' </form>',
-'</div>'
-].join('');
-document.body.appendChild(m3);
-}
-}
+
+// Sobrescreve renderAccountView para incluir o cartão "Excluir minha conta" (LGPD)
 const _origRenderAccountViewV5 = renderAccountView;
 renderAccountView = function () {
-const baseHtml = _origRenderAccountViewV5();
-if (!isCustomerAuthenticatedV5()) return baseHtml;
-const cust = AppState.currentCustomer || {};
-const hasDeletionReq = cust.accountStatus === 'deletion_requested' || cust.deletionRequestedAt;
-const deletionCardHtml = [
-'<div class="admin-card" id="customer-delete-account-card" style="margin-top:20px;border-color:#F2B8B5;background:#FFFDFD;">',
-' <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">',
-' <div style="max-width:640px;">',
-' <span class="section-eyebrow" style="color:#8E2626;">Privacidade e Controle de Dados (LGPD)</span>',
-' <h2 style="font-family:var(--font-serif);font-size:1.4rem;margin-bottom:4px;color:#292522;">Encerramento e Exclusão da Conta</h2>',
-' <p style="font-size:0.82rem;color:var(--text-secondary);margin:0;line-height:1.5;">',
-' Você pode solicitar a exclusão e anonimização dos seus dados pessoais a qualquer momento. Registros financeiros e fiscais de compras concluídas são mantidos apenas pelo prazo legal obrigatório, sem permitir novo acesso.',
-' </p>',
-(hasDeletionReq
-? '<div style="margin-top:10px;padding:10px 12px;border-radius:8px;background:#FFF8EB;border:1px solid #E2B96B;color:#7A5211;font-size:0.8rem;"><strong>Solicitação registrada:</strong> Sua solicitação de exclusão está vinculada à conclusão dos seus pedidos pagos em andamento.</div>'
-: ''),
-' </div>',
-' <div style="display:flex;align-items:center;">',
-' <button type="button" id="btn-open-delete-account-modal" class="btn btn-outline btn-sm" data-action="open-delete-account-modal" style="color:#8E2626;border-color:#F2B8B5;background:#FDF2F2;min-height:42px;padding:0 18px;">',
-' Excluir minha conta',
-' </button>',
-' </div>',
-' </div>',
-'</div>'
-].join('');
-const marker = '</form>\n          </div>\n        </div>\n      </div>\n    </section>';
-if (baseHtml.includes(marker)) {
-return baseHtml.replace(marker, '</form>\n          </div>\n          ' + deletionCardHtml + '\n        </div>\n      </div>\n    </section>');
-}
-return baseHtml.replace('</section>', '<div class="container" style="max-width:960px;margin-top:16px;">' + deletionCardHtml + '</div></section>');
+  const baseHtml = _origRenderAccountViewV5();
+  if (!isCustomerAuthenticatedV5()) return baseHtml;
+  const cust = AppState.currentCustomer || {};
+  const hasDeletionReq = cust.accountStatus === 'deletion_requested' || cust.deletionRequestedAt;
+  const deletionCardHtml = [
+    '<div class="admin-card" id="customer-delete-account-card" style="margin-top:20px;border-color:#D4D4D8;background:#FFFFFF;">',
+    '  <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">',
+    '    <div style="max-width:640px;">',
+    '      <span class="section-eyebrow" style="color:#111111;">Privacidade e Controle de Dados (LGPD)</span>',
+    '      <h2 style="font-family:var(--font-serif);font-size:1.4rem;margin-bottom:4px;color:#111111;">Encerramento e Exclusão da Conta</h2>',
+    '      <p style="font-size:0.82rem;color:var(--text-secondary);margin:0;line-height:1.5;">',
+    '        Você pode solicitar a exclusão e anonimização dos seus dados pessoais a qualquer momento. Registros financeiros e fiscais de compras concluídas são mantidos apenas pelo prazo legal obrigatório, sem permitir novo acesso.',
+    '      </p>',
+    (hasDeletionReq
+      ? '<div style="margin-top:10px;padding:10px 12px;border-radius:8px;background:#F4F4F5;border:1px solid #D4D4D8;color:#18181B;font-size:0.8rem;"><strong>Solicitação registrada:</strong> Sua solicitação de exclusão está vinculada à conclusão dos seus pedidos pagos em andamento.</div>'
+      : ''),
+    '    </div>',
+    '    <div style="display:flex;align-items:center;">',
+    '      <button type="button" id="btn-open-delete-account-modal" class="btn btn-outline btn-sm" data-action="open-delete-account-modal" style="color:#111111;border-color:#D4D4D8;background:#F4F4F5;min-height:42px;padding:0 18px;">',
+    '        Excluir minha conta',
+    '      </button>',
+    '    </div>',
+    '  </div>',
+    '</div>'
+  ].join('');
+
+  // Injeta antes do fechamento de #meus-dados-e-enderecos
+  const marker = '</form>\n          </div>\n        </div>\n      </div>\n    </section>';
+  if (baseHtml.includes(marker)) {
+    return baseHtml.replace(marker, '</form>\n          </div>\n          ' + deletionCardHtml + '\n        </div>\n      </div>\n    </section>');
+  }
+  return baseHtml.replace('</section>', '<div class="container" style="max-width:960px;margin-top:16px;">' + deletionCardHtml + '</div></section>');
 };
+
+// Injeta botões de Cancelar Pedido (antes do pagamento) e Solicitar Cancelamento (após pagamento) em Meus Pedidos, Detalhes e Confirmação
 function enhanceOrderViewsV6() {
-ensureV6CustomerModals();
-const ordersShell = document.getElementById('view-meus-pedidos');
-if (ordersShell && AppState.lastCancelledOrderBannerMessage) {
-const container = ordersShell.querySelector('.container');
-if (container && !document.getElementById('customer-cancelled-order-banner')) {
-const banner = document.createElement('div');
-banner.id = 'customer-cancelled-order-banner';
-banner.style.cssText = 'background:#EDF7F1;border:1.5px solid #2E6F52;border-radius:12px;padding:16px 18px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;';
-banner.innerHTML = [
-'<div>',
-'  <strong style="display:block;font-size:0.95rem;color:#1E4D38;margin-bottom:2px;">Pedido ' + escapeHtml(AppState.lastCancelledOrderNumber || '') + ' cancelado com sucesso</strong>',
-'  <p style="font-size:0.86rem;color:#1E4D38;margin:0;" id="customer-cancelled-order-exact-text">' + escapeHtml(AppState.lastCancelledOrderBannerMessage) + '</p>',
-'</div>',
-'<div style="display:flex;gap:8px;align-items:center;">',
-'  <button type="button" class="btn btn-primary btn-sm" data-action="go-catalog">Continuar navegando na loja</button>',
-'  <button type="button" class="btn btn-outline btn-sm" data-action="dismiss-cancelled-order-banner">Fechar</button>',
-'</div>'
-].join('');
-const navEl = container.querySelector('.customer-area-nav');
-if (navEl && navEl.nextSibling) {
-container.insertBefore(banner, navEl.nextSibling);
-} else {
-container.prepend(banner);
+  ensureV6CustomerModals();
+
+  // 1. Se houver banner de pedido recém-cancelado, exibe no topo de Meus Pedidos
+  const ordersShell = document.getElementById('view-meus-pedidos');
+  if (ordersShell && AppState.lastCancelledOrderBannerMessage) {
+    const container = ordersShell.querySelector('.container');
+    if (container && !document.getElementById('customer-cancelled-order-banner')) {
+      const banner = document.createElement('div');
+      banner.id = 'customer-cancelled-order-banner';
+      banner.style.cssText = 'background:#F4F4F5;border:1.5px solid #111111;border-radius:12px;padding:16px 18px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;';
+      banner.innerHTML = [
+        '<div>',
+        '  <strong style="display:block;font-size:0.95rem;color:#111111;margin-bottom:2px;">Pedido ' + escapeHtml(AppState.lastCancelledOrderNumber || '') + ' cancelado com sucesso</strong>',
+        '  <p style="font-size:0.86rem;color:#111111;margin:0;" id="customer-cancelled-order-exact-text">' + escapeHtml(AppState.lastCancelledOrderBannerMessage) + '</p>',
+        '</div>',
+        '<div style="display:flex;gap:8px;align-items:center;">',
+        '  <button type="button" class="btn btn-primary btn-sm" data-action="go-catalog">Continuar navegando na loja</button>',
+        '  <button type="button" class="btn btn-outline btn-sm" data-action="dismiss-cancelled-order-banner">Fechar</button>',
+        '</div>'
+      ].join('');
+      const navEl = container.querySelector('.customer-area-nav');
+      if (navEl && navEl.nextSibling) {
+        container.insertBefore(banner, navEl.nextSibling);
+      } else {
+        container.prepend(banner);
+      }
+    }
+  }
+
+  // 2. Cartões de pedidos em Meus Pedidos
+  document.querySelectorAll('article.order-card-v4[data-order-card-id]').forEach((card) => {
+    const orderId = card.getAttribute('data-order-card-id');
+    const ord = (AppState.db && AppState.db.orders || []).find((o) => o && o.id === orderId);
+    if (!ord) return;
+
+    const actionsBar = card.querySelector('.order-card-v4-actions');
+    if (actionsBar && !actionsBar.hasAttribute('data-v6-enhanced')) {
+      actionsBar.setAttribute('data-v6-enhanced', 'true');
+      if (isOrderAwaitingPaymentV6(ord)) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-outline btn-sm btn-cancel-unpaid-order';
+        btn.setAttribute('data-action', 'open-cancel-order-modal');
+        btn.setAttribute('data-order-id', ord.id);
+        btn.setAttribute('data-order-number', ord.orderNumber || '');
+        btn.style.cssText = 'min-height:42px;padding:0 16px;color:#111111;border-color:#D4D4D8;background:#F4F4F5;';
+        btn.textContent = 'Cancelar pedido';
+        actionsBar.appendChild(btn);
+      } else if (isOrderPaidAndEligibleForCancelRequestV6(ord)) {
+        if (!ord.cancellationRequest || ord.cancellationRequest.status === 'rejected') {
+          const btnReq = document.createElement('button');
+          btnReq.type = 'button';
+          btnReq.className = 'btn btn-outline btn-sm btn-request-paid-cancel';
+          btnReq.setAttribute('data-action', 'open-paid-cancel-request-modal');
+          btnReq.setAttribute('data-order-id', ord.id);
+          btnReq.setAttribute('data-order-number', ord.orderNumber || '');
+          btnReq.style.cssText = 'min-height:42px;padding:0 16px;color:#111111;border-color:#D4D4D8;';
+          btnReq.textContent = 'Solicitar cancelamento';
+          actionsBar.appendChild(btnReq);
+        }
+      }
+    }
+
+    if (ord.cancellationRequest && !card.querySelector('.order-cancel-request-box-v6')) {
+      const boxWrapper = document.createElement('div');
+      boxWrapper.innerHTML = renderCancellationRequestBadgeHtmlV6(ord);
+      if (actionsBar) {
+        card.insertBefore(boxWrapper.firstElementChild, actionsBar);
+      } else {
+        card.appendChild(boxWrapper.firstElementChild);
+      }
+    }
+  });
+
+  // 3. Tela de Confirmação de Pedido (QR Code Pix / Aguardando pagamento)
+  if (AppState.lastCreatedOrder) {
+    const ord = (AppState.db && AppState.db.orders || []).find((o) => o && o.id === AppState.lastCreatedOrder.id) || AppState.lastCreatedOrder;
+    const pixBox = document.getElementById('pix-awaiting-box');
+    if (pixBox && isOrderAwaitingPaymentV6(ord) && !document.getElementById('btn-confirmation-cancel-order')) {
+      const cancelWrap = document.createElement('div');
+      cancelWrap.style.cssText = 'margin-top:14px;padding-top:12px;border-top:1px dashed #E4E4E7;';
+      cancelWrap.innerHTML = '<button type="button" id="btn-confirmation-cancel-order" class="btn btn-outline btn-sm" data-action="open-cancel-order-modal" data-order-id="' + escapeHtml(ord.id) + '" data-order-number="' + escapeHtml(ord.orderNumber) + '" style="color:#111111;border-color:#D4D4D8;background:#F4F4F5;min-height:40px;padding:0 16px;">Cancelar pedido</button>';
+      pixBox.appendChild(cancelWrap);
+    }
+    const expiredBanner = document.getElementById('pix-expired-banner');
+    if (expiredBanner && ord.status === 'cancelled' && ord.cancelledBy === 'customer') {
+      const pEl = expiredBanner.querySelector('p');
+      if (pEl) {
+        pEl.textContent = CUSTOMER_CANCELLED_ORDER_EXACT_MSG;
+      }
+    }
+  }
 }
-}
-}
-document.querySelectorAll('article.order-card-v4[data-order-card-id]').forEach((card) => {
-const orderId = card.getAttribute('data-order-card-id');
-const ord = (AppState.db && AppState.db.orders || []).find((o) => o && o.id === orderId);
-if (!ord) return;
-const actionsBar = card.querySelector('.order-card-v4-actions');
-if (actionsBar && !actionsBar.hasAttribute('data-v6-enhanced')) {
-actionsBar.setAttribute('data-v6-enhanced', 'true');
-if (isOrderAwaitingPaymentV6(ord)) {
-const btn = document.createElement('button');
-btn.type = 'button';
-btn.className = 'btn btn-outline btn-sm btn-cancel-unpaid-order';
-btn.setAttribute('data-action', 'open-cancel-order-modal');
-btn.setAttribute('data-order-id', ord.id);
-btn.setAttribute('data-order-number', ord.orderNumber || '');
-btn.style.cssText = 'min-height:42px;padding:0 16px;color:#8E2626;border-color:#F2B8B5;background:#FDF2F2;';
-btn.textContent = 'Cancelar pedido';
-actionsBar.appendChild(btn);
-} else if (isOrderPaidAndEligibleForCancelRequestV6(ord)) {
-if (!ord.cancellationRequest || ord.cancellationRequest.status === 'rejected') {
-const btnReq = document.createElement('button');
-btnReq.type = 'button';
-btnReq.className = 'btn btn-outline btn-sm btn-request-paid-cancel';
-btnReq.setAttribute('data-action', 'open-paid-cancel-request-modal');
-btnReq.setAttribute('data-order-id', ord.id);
-btnReq.setAttribute('data-order-number', ord.orderNumber || '');
-btnReq.style.cssText = 'min-height:42px;padding:0 16px;color:#806044;border-color:#D5C7B8;';
-btnReq.textContent = 'Solicitar cancelamento';
-actionsBar.appendChild(btnReq);
-}
-}
-}
-if (ord.cancellationRequest && !card.querySelector('.order-cancel-request-box-v6')) {
-const boxWrapper = document.createElement('div');
-boxWrapper.innerHTML = renderCancellationRequestBadgeHtmlV6(ord);
-if (actionsBar) {
-card.insertBefore(boxWrapper.firstElementChild, actionsBar);
-} else {
-card.appendChild(boxWrapper.firstElementChild);
-}
-}
-});
-if (AppState.lastCreatedOrder) {
-const ord = (AppState.db && AppState.db.orders || []).find((o) => o && o.id === AppState.lastCreatedOrder.id) || AppState.lastCreatedOrder;
-const pixBox = document.getElementById('pix-awaiting-box');
-if (pixBox && isOrderAwaitingPaymentV6(ord) && !document.getElementById('btn-confirmation-cancel-order')) {
-const cancelWrap = document.createElement('div');
-cancelWrap.style.cssText = 'margin-top:14px;padding-top:12px;border-top:1px dashed #E9DFD4;';
-cancelWrap.innerHTML = '<button type="button" id="btn-confirmation-cancel-order" class="btn btn-outline btn-sm" data-action="open-cancel-order-modal" data-order-id="' + escapeHtml(ord.id) + '" data-order-number="' + escapeHtml(ord.orderNumber) + '" style="color:#8E2626;border-color:#F2B8B5;background:#FDF2F2;min-height:40px;padding:0 16px;">Cancelar pedido</button>';
-pixBox.appendChild(cancelWrap);
-}
-const expiredBanner = document.getElementById('pix-expired-banner');
-if (expiredBanner && ord.status === 'cancelled' && ord.cancelledBy === 'customer') {
-const pEl = expiredBanner.querySelector('p');
-if (pEl) {
-pEl.textContent = CUSTOMER_CANCELLED_ORDER_EXACT_MSG;
-}
-}
-}
-}
+
 const _origOpenOrderDetailModalV5 = openOrderDetailModal;
 openOrderDetailModal = function (orderId) {
-_origOpenOrderDetailModalV5(orderId);
-ensureV6CustomerModals();
-const ord = (AppState.db && AppState.db.orders || []).find((o) => o && o.id === orderId);
-const body = document.getElementById('order-detail-modal-body');
-if (!ord || !body) return;
-if (ord.status === 'cancelled' && ord.cancelledBy === 'customer') {
-const cancelNotice = document.createElement('div');
-cancelNotice.style.cssText = 'background:#EDF7F1;border:1px solid #2E6F52;border-radius:10px;padding:12px 14px;margin-bottom:14px;color:#1E4D38;font-size:0.85rem;font-weight:600;';
-cancelNotice.textContent = ord.customerCancelMessage || CUSTOMER_CANCELLED_ORDER_EXACT_MSG;
-body.prepend(cancelNotice);
-}
-if (ord.cancellationRequest && !body.querySelector('.order-cancel-request-box-v6')) {
-const wrap = document.createElement('div');
-wrap.style.marginBottom = '16px';
-wrap.innerHTML = renderCancellationRequestBadgeHtmlV6(ord);
-body.insertBefore(wrap, body.lastElementChild);
-}
-const closeBtn = body.querySelector('[data-action="close-order-detail-modal"]');
-const footerActions = closeBtn ? closeBtn.parentElement : null;
-if (footerActions && !footerActions.hasAttribute('data-v6-modal-enhanced')) {
-footerActions.setAttribute('data-v6-modal-enhanced', 'true');
-if (isOrderAwaitingPaymentV6(ord)) {
-const btn = document.createElement('button');
-btn.type = 'button';
-btn.className = 'btn btn-outline btn-sm';
-btn.id = 'btn-modal-cancel-unpaid-order';
-btn.setAttribute('data-action', 'open-cancel-order-modal');
-btn.setAttribute('data-order-id', ord.id);
-btn.setAttribute('data-order-number', ord.orderNumber || '');
-btn.style.cssText = 'color:#8E2626;border-color:#F2B8B5;background:#FDF2F2;';
-  btn.textContent = 'Cancelar pedido';
-footerActions.insertBefore(btn, closeBtn);
-} else if (isOrderPaidAndEligibleForCancelRequestV6(ord) && (!ord.cancellationRequest || ord.cancellationRequest.status === 'rejected')) {
-const btnReq = document.createElement('button');
-btnReq.type = 'button';
-btnReq.className = 'btn btn-outline btn-sm';
-btnReq.id = 'btn-modal-request-paid-cancel';
-btnReq.setAttribute('data-action', 'open-paid-cancel-request-modal');
-btnReq.setAttribute('data-order-id', ord.id);
-btnReq.setAttribute('data-order-number', ord.orderNumber || '');
-btnReq.style.cssText = 'color:#806044;border-color:#D5C7B8;';
-btnReq.textContent = 'Solicitar cancelamento';
-footerActions.insertBefore(btnReq, closeBtn);
-}
-}
+  _origOpenOrderDetailModalV5(orderId);
+  ensureV6CustomerModals();
+  const ord = (AppState.db && AppState.db.orders || []).find((o) => o && o.id === orderId);
+  const body = document.getElementById('order-detail-modal-body');
+  if (!ord || !body) return;
+
+  if (ord.status === 'cancelled' && ord.cancelledBy === 'customer') {
+    const cancelNotice = document.createElement('div');
+    cancelNotice.style.cssText = 'background:#F4F4F5;border:1px solid #111111;border-radius:10px;padding:12px 14px;margin-bottom:14px;color:#111111;font-size:0.85rem;font-weight:600;';
+    cancelNotice.textContent = ord.customerCancelMessage || CUSTOMER_CANCELLED_ORDER_EXACT_MSG;
+    body.prepend(cancelNotice);
+  }
+
+  if (ord.cancellationRequest && !body.querySelector('.order-cancel-request-box-v6')) {
+    const wrap = document.createElement('div');
+    wrap.style.marginBottom = '16px';
+    wrap.innerHTML = renderCancellationRequestBadgeHtmlV6(ord);
+    body.insertBefore(wrap, body.lastElementChild);
+  }
+
+  const closeBtn = body.querySelector('[data-action="close-order-detail-modal"]');
+  const footerActions = closeBtn ? closeBtn.parentElement : null;
+  if (footerActions && !footerActions.hasAttribute('data-v6-modal-enhanced')) {
+    footerActions.setAttribute('data-v6-modal-enhanced', 'true');
+    if (isOrderAwaitingPaymentV6(ord)) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-outline btn-sm';
+      btn.id = 'btn-modal-cancel-unpaid-order';
+      btn.setAttribute('data-action', 'open-cancel-order-modal');
+      btn.setAttribute('data-order-id', ord.id);
+      btn.setAttribute('data-order-number', ord.orderNumber || '');
+      btn.style.cssText = 'color:#111111;border-color:#D4D4D8;background:#F4F4F5;';
+      btn.textContent = 'Cancelar pedido';
+      footerActions.insertBefore(btn, closeBtn);
+    } else if (isOrderPaidAndEligibleForCancelRequestV6(ord) && (!ord.cancellationRequest || ord.cancellationRequest.status === 'rejected')) {
+      const btnReq = document.createElement('button');
+      btnReq.type = 'button';
+      btnReq.className = 'btn btn-outline btn-sm';
+      btnReq.id = 'btn-modal-request-paid-cancel';
+      btnReq.setAttribute('data-action', 'open-paid-cancel-request-modal');
+      btnReq.setAttribute('data-order-id', ord.id);
+      btnReq.setAttribute('data-order-number', ord.orderNumber || '');
+      btnReq.style.cssText = 'color:#111111;border-color:#D4D4D8;';
+      btnReq.textContent = 'Solicitar cancelamento';
+      footerActions.insertBefore(btnReq, closeBtn);
+    }
+  }
 };
+
 const _origRenderMainViewV5 = renderMainView;
 renderMainView = function () {
-syncAdminAndAuthBodyStateV6();
-_origRenderMainViewV5();
-syncAdminAndAuthBodyStateV6();
-enhanceOrderViewsV6();
+  syncAdminAndAuthBodyStateV6();
+  _origRenderMainViewV5();
+  syncAdminAndAuthBodyStateV6();
+  enhanceOrderViewsV6();
 };
+
 function openCancelUnpaidOrderModalV6(orderId, orderNumber) {
-ensureV6CustomerModals();
-const modal = document.getElementById('customer-cancel-order-modal');
-const titleEl = document.getElementById('cancel-unpaid-modal-title');
-const reasonInp = document.getElementById('cancel-unpaid-reason-input');
-const errBox = document.getElementById('cancel-unpaid-error-box');
-const confirmBtn = document.getElementById('btn-confirm-cancel-unpaid-order');
-if (!modal || !confirmBtn) return;
-if (titleEl) titleEl.textContent = 'Cancelar Pedido ' + (orderNumber || '') + '?';
-if (reasonInp) reasonInp.value = '';
-if (errBox) errBox.style.display = 'none';
-confirmBtn.setAttribute('data-order-id', orderId || '');
-confirmBtn.disabled = false;
-confirmBtn.textContent = 'Confirmar cancelamento';
-modal.classList.add('open');
-modal.setAttribute('aria-hidden', 'false');
+  ensureV6CustomerModals();
+  const modal = document.getElementById('customer-cancel-order-modal');
+  const titleEl = document.getElementById('cancel-unpaid-modal-title');
+  const reasonInp = document.getElementById('cancel-unpaid-reason-input');
+  const errBox = document.getElementById('cancel-unpaid-error-box');
+  const confirmBtn = document.getElementById('btn-confirm-cancel-unpaid-order');
+  if (!modal || !confirmBtn) return;
+  if (titleEl) titleEl.textContent = 'Cancelar Pedido ' + (orderNumber || '') + '?';
+  if (reasonInp) reasonInp.value = '';
+  if (errBox) errBox.style.display = 'none';
+  confirmBtn.setAttribute('data-order-id', orderId || '');
+  confirmBtn.disabled = false;
+  confirmBtn.textContent = 'Confirmar cancelamento';
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
 }
+
 function closeCancelUnpaidOrderModalV6() {
-const modal = document.getElementById('customer-cancel-order-modal');
-if (modal) {
-modal.classList.remove('open');
-modal.setAttribute('aria-hidden', 'true');
+  const modal = document.getElementById('customer-cancel-order-modal');
+  if (modal) {
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+  }
 }
-}
+
 function openPaidCancelRequestModalV6(orderId, orderNumber) {
-ensureV6CustomerModals();
-const modal = document.getElementById('customer-paid-cancel-request-modal');
-const titleEl = document.getElementById('paid-cancel-req-title');
-const idInp = document.getElementById('paid-cancel-order-id-input');
-const reasonInp = document.getElementById('paid-cancel-reason-input');
-const errBox = document.getElementById('paid-cancel-error-box');
-if (!modal || !idInp) return;
-if (titleEl) titleEl.textContent = 'Solicitar Cancelamento • ' + (orderNumber || 'Pedido Pago');
-idInp.value = orderId || '';
-if (reasonInp) reasonInp.value = '';
-if (errBox) errBox.style.display = 'none';
-modal.classList.add('open');
-modal.setAttribute('aria-hidden', 'false');
+  ensureV6CustomerModals();
+  const modal = document.getElementById('customer-paid-cancel-request-modal');
+  const titleEl = document.getElementById('paid-cancel-req-title');
+  const idInp = document.getElementById('paid-cancel-order-id-input');
+  const reasonInp = document.getElementById('paid-cancel-reason-input');
+  const errBox = document.getElementById('paid-cancel-error-box');
+  if (!modal || !idInp) return;
+  if (titleEl) titleEl.textContent = 'Solicitar Cancelamento • ' + (orderNumber || 'Pedido Pago');
+  idInp.value = orderId || '';
+  if (reasonInp) reasonInp.value = '';
+  if (errBox) errBox.style.display = 'none';
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
 }
+
 function closePaidCancelRequestModalV6() {
-const modal = document.getElementById('customer-paid-cancel-request-modal');
-if (modal) {
-modal.classList.remove('open');
-modal.setAttribute('aria-hidden', 'true');
+  const modal = document.getElementById('customer-paid-cancel-request-modal');
+  if (modal) {
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+  }
 }
-}
+
 function openDeleteAccountModalV6() {
-ensureV6CustomerModals();
-const modal = document.getElementById('customer-delete-account-modal');
-const pwdInp = document.getElementById('delete-account-password-input');
-const reasonInp = document.getElementById('delete-account-reason-input');
-const chkInp = document.getElementById('delete-account-confirm-checkbox');
-const errBox = document.getElementById('delete-account-error-box');
-if (!modal) return;
-if (pwdInp) pwdInp.value = '';
-if (reasonInp) reasonInp.value = '';
-if (chkInp) chkInp.checked = false;
-if (errBox) errBox.style.display = 'none';
-modal.classList.add('open');
-modal.setAttribute('aria-hidden', 'false');
+  ensureV6CustomerModals();
+  const modal = document.getElementById('customer-delete-account-modal');
+  const pwdInp = document.getElementById('delete-account-password-input');
+  const reasonInp = document.getElementById('delete-account-reason-input');
+  const chkInp = document.getElementById('delete-account-confirm-checkbox');
+  const errBox = document.getElementById('delete-account-error-box');
+  if (!modal) return;
+  if (pwdInp) pwdInp.value = '';
+  if (reasonInp) reasonInp.value = '';
+  if (chkInp) chkInp.checked = false;
+  if (errBox) errBox.style.display = 'none';
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
 }
+
 function closeDeleteAccountModalV6() {
-const modal = document.getElementById('customer-delete-account-modal');
-if (modal) {
-modal.classList.remove('open');
-modal.setAttribute('aria-hidden', 'true');
+  const modal = document.getElementById('customer-delete-account-modal');
+  if (modal) {
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+  }
 }
-}
+
+// Eventos globais de clique e submissão para Cancelamento de Pedidos e Exclusão de Conta
 document.addEventListener('click', async (e) => {
-const target = e.target.closest('[data-action]');
-if (!target) return;
-const action = target.getAttribute('data-action');
-const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
-if (action === 'open-cancel-order-modal') {
-e.preventDefault();
-e.stopPropagation();
-const orderId = target.getAttribute('data-order-id') || '';
-const orderNum = target.getAttribute('data-order-number') || '';
-openCancelUnpaidOrderModalV6(orderId, orderNum);
-return;
-}
-if (action === 'close-cancel-order-modal') {
-e.preventDefault();
-e.stopPropagation();
-closeCancelUnpaidOrderModalV6();
-return;
-}
-if (action === 'dismiss-cancelled-order-banner') {
-e.preventDefault();
-e.stopPropagation();
-AppState.lastCancelledOrderBannerMessage = '';
-AppState.lastCancelledOrderNumber = '';
-const b = document.getElementById('customer-cancelled-order-banner');
-if (b) b.remove();
-return;
-}
-if (action === 'confirm-cancel-order') {
-e.preventDefault();
-e.stopPropagation();
-const orderId = target.getAttribute('data-order-id') || '';
-if (!orderId) return;
-const reasonInp = document.getElementById('cancel-unpaid-reason-input');
-const errBox = document.getElementById('cancel-unpaid-error-box');
-const reason = reasonInp && reasonInp.value.trim()
-? reasonInp.value.trim()
-: 'Cancelado pela cliente antes do pagamento.';
-target.disabled = true;
-target.textContent = 'Cancelando pedido...';
-if (errBox) errBox.style.display = 'none';
-const headers = { 'Content-Type': 'application/json' };
-if (AppState.currentCustomer && AppState.currentCustomer.token) {
-headers['Authorization'] = 'Bearer ' + AppState.currentCustomer.token;
-}
-try {
-const res = await fetch(apiBase + '/api/orders/' + encodeURIComponent(orderId) + '/cancel', {
-method: 'POST',
-headers,
-body: JSON.stringify({
-customerId: AppState.currentCustomer ? AppState.currentCustomer.id : '',
-email: AppState.currentCustomer ? AppState.currentCustomer.email : '',
-reason
-})
-});
-const data = await res.json();
-if (res.status === 409 && data && data.alreadyPaid) {
-closeCancelUnpaidOrderModalV6();
-await loadDatabase();
-renderMainView();
-showToast(data.error || 'O pagamento deste pedido já foi confirmado! Você pode abrir uma solicitação de cancelamento de pedido pago.', 'warning');
-if (data.canRequestPaidCancellation) {
-const ord = (AppState.db.orders || []).find((o) => o && o.id === orderId);
-openPaidCancelRequestModalV6(orderId, ord ? ord.orderNumber : '');
-}
-return;
-}
-if (!res.ok || !data || !data.ok) {
-const msg = (data && data.error) || 'Não foi possível cancelar este pedido.';
-if (errBox) {
-errBox.textContent = msg;
-errBox.style.display = 'block';
-}
-target.disabled = false;
-target.textContent = 'Confirmar cancelamento';
-showToast(msg, 'danger');
-return;
-}
-stopPixPaymentPolling();
-closeCancelUnpaidOrderModalV6();
-const exactMsg = data.customerCancelMessage || CUSTOMER_CANCELLED_ORDER_EXACT_MSG;
-AppState.lastCancelledOrderBannerMessage = exactMsg;
-AppState.lastCancelledOrderNumber = (data.order && data.order.orderNumber) || '';
-if (AppState.lastCreatedOrder && AppState.lastCreatedOrder.id === orderId) {
-AppState.lastCreatedOrder = data.order;
-}
-await loadDatabase();
-renderMainView();
-const detailModal = document.getElementById('order-detail-modal');
-if (detailModal && detailModal.classList.contains('open')) {
-openOrderDetailModal(orderId);
-}
-showToast(exactMsg, 'success');
-} catch (err) {
-target.disabled = false;
-target.textContent = 'Confirmar cancelamento';
-showToast('Erro de conexão ao cancelar o pedido.', 'danger');
-}
-return;
-}
-if (action === 'open-paid-cancel-request-modal') {
-e.preventDefault();
-e.stopPropagation();
-const orderId = target.getAttribute('data-order-id') || '';
-const orderNum = target.getAttribute('data-order-number') || '';
-openPaidCancelRequestModalV6(orderId, orderNum);
-return;
-}
-if (action === 'close-paid-cancel-request-modal') {
-e.preventDefault();
-e.stopPropagation();
-closePaidCancelRequestModalV6();
-return;
-}
-if (action === 'open-delete-account-modal') {
-e.preventDefault();
-e.stopPropagation();
-openDeleteAccountModalV6();
-return;
-}
-if (action === 'close-delete-account-modal') {
-e.preventDefault();
-e.stopPropagation();
-closeDeleteAccountModalV6();
-return;
-}
+  const target = e.target.closest('[data-action]');
+  if (!target) return;
+  const action = target.getAttribute('data-action');
+  const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+
+  if (action === 'open-cancel-order-modal') {
+    e.preventDefault();
+    e.stopPropagation();
+    const orderId = target.getAttribute('data-order-id') || '';
+    const orderNum = target.getAttribute('data-order-number') || '';
+    openCancelUnpaidOrderModalV6(orderId, orderNum);
+    return;
+  }
+
+  if (action === 'close-cancel-order-modal') {
+    e.preventDefault();
+    e.stopPropagation();
+    closeCancelUnpaidOrderModalV6();
+    return;
+  }
+
+  if (action === 'dismiss-cancelled-order-banner') {
+    e.preventDefault();
+    e.stopPropagation();
+    AppState.lastCancelledOrderBannerMessage = '';
+    AppState.lastCancelledOrderNumber = '';
+    const b = document.getElementById('customer-cancelled-order-banner');
+    if (b) b.remove();
+    return;
+  }
+
+  if (action === 'confirm-cancel-order') {
+    e.preventDefault();
+    e.stopPropagation();
+    const orderId = target.getAttribute('data-order-id') || '';
+    if (!orderId) return;
+    const reasonInp = document.getElementById('cancel-unpaid-reason-input');
+    const errBox = document.getElementById('cancel-unpaid-error-box');
+    const reason = reasonInp && reasonInp.value.trim()
+      ? reasonInp.value.trim()
+      : 'Cancelado pela cliente antes do pagamento.';
+    target.disabled = true;
+    target.textContent = 'Cancelando pedido...';
+    if (errBox) errBox.style.display = 'none';
+
+    const headers = { 'Content-Type': 'application/json' };
+    if (AppState.currentCustomer && AppState.currentCustomer.token) {
+      headers['Authorization'] = 'Bearer ' + AppState.currentCustomer.token;
+    }
+
+    try {
+      const res = await fetch(apiBase + '/api/orders/' + encodeURIComponent(orderId) + '/cancel', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          customerId: AppState.currentCustomer ? AppState.currentCustomer.id : '',
+          email: AppState.currentCustomer ? AppState.currentCustomer.email : '',
+          reason
+        })
+      });
+      const data = await res.json();
+
+      // Item 4: Proteção contra pagamento simultâneo ao cancelamento
+      if (res.status === 409 && data && data.alreadyPaid) {
+        closeCancelUnpaidOrderModalV6();
+        await loadDatabase();
+        renderMainView();
+        showToast(data.error || 'O pagamento deste pedido já foi confirmado! Você pode abrir uma solicitação de cancelamento de pedido pago.', 'warning');
+        if (data.canRequestPaidCancellation) {
+          const ord = (AppState.db.orders || []).find((o) => o && o.id === orderId);
+          openPaidCancelRequestModalV6(orderId, ord ? ord.orderNumber : '');
+        }
+        return;
+      }
+
+      if (!res.ok || !data || !data.ok) {
+        const msg = (data && data.error) || 'Não foi possível cancelar este pedido.';
+        if (errBox) {
+          errBox.textContent = msg;
+          errBox.style.display = 'block';
+        }
+        target.disabled = false;
+        target.textContent = 'Confirmar cancelamento';
+        showToast(msg, 'danger');
+        return;
+      }
+
+      stopPixPaymentPolling();
+      closeCancelUnpaidOrderModalV6();
+      const exactMsg = data.customerCancelMessage || CUSTOMER_CANCELLED_ORDER_EXACT_MSG;
+      AppState.lastCancelledOrderBannerMessage = exactMsg;
+      AppState.lastCancelledOrderNumber = (data.order && data.order.orderNumber) || '';
+      if (AppState.lastCreatedOrder && AppState.lastCreatedOrder.id === orderId) {
+        AppState.lastCreatedOrder = data.order;
+      }
+      await loadDatabase();
+      renderMainView();
+      const detailModal = document.getElementById('order-detail-modal');
+      if (detailModal && detailModal.classList.contains('open')) {
+        openOrderDetailModal(orderId);
+      }
+      showToast(exactMsg, 'success');
+    } catch (err) {
+      target.disabled = false;
+      target.textContent = 'Confirmar cancelamento';
+      showToast('Erro de conexão ao cancelar o pedido.', 'danger');
+    }
+    return;
+  }
+
+  if (action === 'open-paid-cancel-request-modal') {
+    e.preventDefault();
+    e.stopPropagation();
+    const orderId = target.getAttribute('data-order-id') || '';
+    const orderNum = target.getAttribute('data-order-number') || '';
+    openPaidCancelRequestModalV6(orderId, orderNum);
+    return;
+  }
+
+  if (action === 'close-paid-cancel-request-modal') {
+    e.preventDefault();
+    e.stopPropagation();
+    closePaidCancelRequestModalV6();
+    return;
+  }
+
+  if (action === 'open-delete-account-modal') {
+    e.preventDefault();
+    e.stopPropagation();
+    openDeleteAccountModalV6();
+    return;
+  }
+
+  if (action === 'close-delete-account-modal') {
+    e.preventDefault();
+    e.stopPropagation();
+    closeDeleteAccountModalV6();
+    return;
+  }
 }, true);
+
 document.addEventListener('submit', async (e) => {
-const form = e.target;
-if (!form || !form.id) return;
-const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
-if (form.id === 'customer-paid-cancel-request-form') {
-e.preventDefault();
-const orderId = (document.getElementById('paid-cancel-order-id-input') || {}).value || '';
-const reasonEl = document.getElementById('paid-cancel-reason-input');
-const errBox = document.getElementById('paid-cancel-error-box');
-const submitBtn = document.getElementById('btn-submit-paid-cancel-request');
-const reason = String((reasonEl && reasonEl.value) || '').trim();
-if (errBox) errBox.style.display = 'none';
-if (reason.length < 5) {
-if (errBox) {
-errBox.textContent = 'Por favor, informe o motivo da solicitação de cancelamento (mínimo de 5 caracteres).';
-errBox.style.display = 'block';
-}
-return;
-}
-if (submitBtn) {
-submitBtn.disabled = true;
-submitBtn.textContent = 'Enviando...';
-}
-const headers = { 'Content-Type': 'application/json' };
-if (AppState.currentCustomer && AppState.currentCustomer.token) {
-headers['Authorization'] = 'Bearer ' + AppState.currentCustomer.token;
-}
-try {
-const res = await fetch(apiBase + '/api/orders/' + encodeURIComponent(orderId) + '/request-cancellation', {
-method: 'POST',
-headers,
-body: JSON.stringify({
-customerId: AppState.currentCustomer ? AppState.currentCustomer.id : '',
-email: AppState.currentCustomer ? AppState.currentCustomer.email : '',
-reason
-})
+  const form = e.target;
+  if (!form || !form.id) return;
+  const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+
+  if (form.id === 'customer-paid-cancel-request-form') {
+    e.preventDefault();
+    const orderId = (document.getElementById('paid-cancel-order-id-input') || {}).value || '';
+    const reasonEl = document.getElementById('paid-cancel-reason-input');
+    const errBox = document.getElementById('paid-cancel-error-box');
+    const submitBtn = document.getElementById('btn-submit-paid-cancel-request');
+    const reason = String((reasonEl && reasonEl.value) || '').trim();
+    if (errBox) errBox.style.display = 'none';
+
+    if (reason.length < 5) {
+      if (errBox) {
+        errBox.textContent = 'Por favor, informe o motivo da solicitação de cancelamento (mínimo de 5 caracteres).';
+        errBox.style.display = 'block';
+      }
+      return;
+    }
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Enviando...';
+    }
+
+    const headers = { 'Content-Type': 'application/json' };
+    if (AppState.currentCustomer && AppState.currentCustomer.token) {
+      headers['Authorization'] = 'Bearer ' + AppState.currentCustomer.token;
+    }
+
+    try {
+      const res = await fetch(apiBase + '/api/orders/' + encodeURIComponent(orderId) + '/request-cancellation', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          customerId: AppState.currentCustomer ? AppState.currentCustomer.id : '',
+          email: AppState.currentCustomer ? AppState.currentCustomer.email : '',
+          reason
+        })
+      });
+      const data = await res.json();
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Enviar solicitação';
+      }
+      if (!res.ok || !data || !data.ok) {
+        const msg = (data && data.error) || 'Não foi possível registrar a solicitação.';
+        if (errBox) {
+          errBox.textContent = msg;
+          errBox.style.display = 'block';
+        }
+        showToast(msg, 'danger');
+        return;
+      }
+      closePaidCancelRequestModalV6();
+      await loadDatabase();
+      renderMainView();
+      const detailModal = document.getElementById('order-detail-modal');
+      if (detailModal && detailModal.classList.contains('open')) {
+        openOrderDetailModal(orderId);
+      }
+      showToast(data.message || 'Solicitação de cancelamento enviada para análise da loja!', 'success');
+    } catch (err) {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Enviar solicitação';
+      }
+      showToast('Erro de conexão ao enviar solicitação.', 'danger');
+    }
+    return;
+  }
+
+  if (form.id === 'customer-delete-account-form') {
+    e.preventDefault();
+    const pwdEl = document.getElementById('delete-account-password-input');
+    const reasonEl = document.getElementById('delete-account-reason-input');
+    const chkEl = document.getElementById('delete-account-confirm-checkbox');
+    const errBox = document.getElementById('delete-account-error-box');
+    const submitBtn = document.getElementById('btn-confirm-delete-account');
+    if (errBox) errBox.style.display = 'none';
+
+    const password = String((pwdEl && pwdEl.value) || '');
+    const reason = String((reasonEl && reasonEl.value) || '').trim();
+    const confirmed = Boolean(chkEl && chkEl.checked);
+
+    if (!confirmed) {
+      if (errBox) {
+        errBox.textContent = 'Marque a caixa de confirmação para declarar ciência sobre a exclusão da conta.';
+        errBox.style.display = 'block';
+      }
+      return;
+    }
+    if (!password) {
+      if (errBox) {
+        errBox.textContent = 'Informe sua senha atual para confirmar a exclusão.';
+        errBox.style.display = 'block';
+      }
+      return;
+    }
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Processando...';
+    }
+
+    const headers = { 'Content-Type': 'application/json' };
+    if (AppState.currentCustomer && AppState.currentCustomer.token) {
+      headers['Authorization'] = 'Bearer ' + AppState.currentCustomer.token;
+    }
+
+    try {
+      const res = await fetch(apiBase + '/api/customer/delete-account', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          customerId: AppState.currentCustomer ? AppState.currentCustomer.id : '',
+          email: AppState.currentCustomer ? AppState.currentCustomer.email : '',
+          password,
+          reason,
+          confirmDeletion: true
+        })
+      });
+      const data = await res.json();
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Confirmar exclusão da minha conta';
+      }
+      if (!res.ok || !data || !data.ok) {
+        const msg = (data && data.error) || 'Não foi possível concluir a solicitação de exclusão.';
+        if (errBox) {
+          errBox.textContent = msg;
+          errBox.style.display = 'block';
+        }
+        showToast(msg, 'danger');
+        return;
+      }
+
+      closeDeleteAccountModalV6();
+      if (data.mode === 'deletion_requested_pending_orders') {
+        if (AppState.currentCustomer) {
+          AppState.currentCustomer.accountStatus = 'deletion_requested';
+          AppState.currentCustomer.deletionRequestedAt = new Date().toISOString();
+          localStorage.setItem(STORAGE_KEY_CUSTOMER_SESSION, JSON.stringify(AppState.currentCustomer));
+        }
+        await loadDatabase();
+        renderMainView();
+        showToast(data.message, 'warning');
+      } else {
+        AppState.currentCustomer = null;
+        AppState.cart = [];
+        saveCart();
+        try {
+          localStorage.removeItem(STORAGE_KEY_CUSTOMER_SESSION);
+        } catch (err) {}
+        await loadDatabase();
+        updateHeaderCounters();
+        navigateTo('home');
+        showToast(data.message || 'Sua conta foi excluída e seus dados pessoais foram anonimizados.', 'success');
+      }
+    } catch (err) {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Confirmar exclusão da minha conta';
+      }
+      showToast('Erro de conexão ao processar exclusão da conta.', 'danger');
+    }
+  }
 });
-const data = await res.json();
-if (submitBtn) {
-submitBtn.disabled = false;
-submitBtn.textContent = 'Enviar solicitação';
-}
-if (!res.ok || !data || !data.ok) {
-const msg = (data && data.error) || 'Não foi possível registrar a solicitação.';
-if (errBox) {
-errBox.textContent = msg;
-errBox.style.display = 'block';
-}
-showToast(msg, 'danger');
-return;
-}
-closePaidCancelRequestModalV6();
-await loadDatabase();
-renderMainView();
-const detailModal = document.getElementById('order-detail-modal');
-if (detailModal && detailModal.classList.contains('open')) {
-openOrderDetailModal(orderId);
-}
-showToast(data.message || 'Solicitação de cancelamento enviada para análise da loja!', 'success');
-} catch (err) {
-if (submitBtn) {
-submitBtn.disabled = false;
-submitBtn.textContent = 'Enviar solicitação';
-}
-showToast('Erro de conexão ao enviar solicitação.', 'danger');
-}
-return;
-}
-if (form.id === 'customer-delete-account-form') {
-e.preventDefault();
-const pwdEl = document.getElementById('delete-account-password-input');
-const reasonEl = document.getElementById('delete-account-reason-input');
-const chkEl = document.getElementById('delete-account-confirm-checkbox');
-const errBox = document.getElementById('delete-account-error-box');
-const submitBtn = document.getElementById('btn-confirm-delete-account');
-if (errBox) errBox.style.display = 'none';
-const password = String((pwdEl && pwdEl.value) || '');
-const reason = String((reasonEl && reasonEl.value) || '').trim();
-const confirmed = Boolean(chkEl && chkEl.checked);
-if (!confirmed) {
-if (errBox) {
-errBox.textContent = 'Marque a caixa de confirmação para declarar ciência sobre a exclusão da conta.';
-errBox.style.display = 'block';
-}
-return;
-}
-if (!password) {
-if (errBox) {
-errBox.textContent = 'Informe sua senha atual para confirmar a exclusão.';
-errBox.style.display = 'block';
-}
-return;
-}
-if (submitBtn) {
-submitBtn.disabled = true;
-submitBtn.textContent = 'Processando...';
-}
-const headers = { 'Content-Type': 'application/json' };
-if (AppState.currentCustomer && AppState.currentCustomer.token) {
-headers['Authorization'] = 'Bearer ' + AppState.currentCustomer.token;
-}
-try {
-const res = await fetch(apiBase + '/api/customer/delete-account', {
-method: 'POST',
-headers,
-body: JSON.stringify({
-customerId: AppState.currentCustomer ? AppState.currentCustomer.id : '',
-email: AppState.currentCustomer ? AppState.currentCustomer.email : '',
-password,
-reason,
-confirmDeletion: true
-})
-});
-const data = await res.json();
-if (submitBtn) {
-submitBtn.disabled = false;
-submitBtn.textContent = 'Confirmar exclusão da minha conta';
-}
-if (!res.ok || !data || !data.ok) {
-const msg = (data && data.error) || 'Não foi possível concluir a solicitação de exclusão.';
-if (errBox) {
-errBox.textContent = msg;
-errBox.style.display = 'block';
-}
-showToast(msg, 'danger');
-return;
-}
-closeDeleteAccountModalV6();
-if (data.mode === 'deletion_requested_pending_orders') {
-if (AppState.currentCustomer) {
-AppState.currentCustomer.accountStatus = 'deletion_requested';
-AppState.currentCustomer.deletionRequestedAt = new Date().toISOString();
-  localStorage.setItem(STORAGE_KEY_CUSTOMER_SESSION, JSON.stringify(AppState.currentCustomer));
-}
-await loadDatabase();
-renderMainView();
-showToast(data.message, 'warning');
-} else {
-AppState.currentCustomer = null;
-AppState.cart = [];
-saveCart();
-try {
-localStorage.removeItem(STORAGE_KEY_CUSTOMER_SESSION);
-} catch (err) {}
-await loadDatabase();
-updateHeaderCounters();
-navigateTo('home');
-showToast(data.message || 'Sua conta foi excluída e seus dados pessoais foram anonimizados.', 'success');
-}
-} catch (err) {
-if (submitBtn) {
-submitBtn.disabled = false;
-submitBtn.textContent = 'Confirmar exclusão da minha conta';
-}
-showToast('Erro de conexão ao processar exclusão da conta.', 'danger');
-}
-}
-});
+
 setTimeout(() => {
-ensureV6CustomerModals();
-syncAdminAndAuthBodyStateV6();
-enhanceOrderViewsV6();
+  ensureV6CustomerModals();
+  syncAdminAndAuthBodyStateV6();
+  enhanceOrderViewsV6();
 }, 30);
+
+// ============================================================================
+// TELEMETRIA DE PRIMEIRA PARTE — ANÁLISE DA LOJA (LGPD SAFE, SEM FINGERPRINTING)
+// ============================================================================
 const STORAGE_KEY_VISITOR_ID = 'by_angely_vid_v1';
 const STORAGE_KEY_SESSION_ID = 'by_angely_sid_v1';
 const STORAGE_KEY_SESSION_TS = 'by_angely_sid_ts_v1';
 const STORAGE_KEY_ANALYTICS_CONSENT = 'by_angely_analytics_consent_v1';
+
 function getOrCreateVisitorId() {
-try {
-let vid = localStorage.getItem(STORAGE_KEY_VISITOR_ID);
-if (!vid) {
-vid = 'vis_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
-localStorage.setItem(STORAGE_KEY_VISITOR_ID, vid);
+  try {
+    let vid = localStorage.getItem(STORAGE_KEY_VISITOR_ID);
+    if (!vid) {
+      vid = 'vis_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem(STORAGE_KEY_VISITOR_ID, vid);
+    }
+    return vid;
+  } catch (_e) {
+    return 'vis_mem_' + Date.now().toString(36);
+  }
 }
-return vid;
-} catch (_e) {
-return 'vis_mem_' + Date.now().toString(36);
-}
-}
+
 function getOrCreateSessionId() {
-const now = Date.now();
-try {
-let sid = sessionStorage.getItem(STORAGE_KEY_SESSION_ID);
-const lastTs = Number(sessionStorage.getItem(STORAGE_KEY_SESSION_TS) || 0);
-if (!sid || (lastTs > 0 && now - lastTs > 30 * 60 * 1000)) {
-sid = 'ses_' + now.toString(36) + '_' + Math.random().toString(36).slice(2, 10);
-sessionStorage.setItem(STORAGE_KEY_SESSION_ID, sid);
+  const now = Date.now();
+  try {
+    let sid = sessionStorage.getItem(STORAGE_KEY_SESSION_ID);
+    const lastTs = Number(sessionStorage.getItem(STORAGE_KEY_SESSION_TS) || 0);
+    // Janela de inatividade de 30 minutos para sessão
+    if (!sid || (lastTs > 0 && now - lastTs > 30 * 60 * 1000)) {
+      sid = 'ses_' + now.toString(36) + '_' + Math.random().toString(36).slice(2, 10);
+      sessionStorage.setItem(STORAGE_KEY_SESSION_ID, sid);
+    }
+    sessionStorage.setItem(STORAGE_KEY_SESSION_TS, String(now));
+    return sid;
+  } catch (_e) {
+    return 'ses_mem_' + Math.floor(now / 1800000);
+  }
 }
-sessionStorage.setItem(STORAGE_KEY_SESSION_TS, String(now));
-return sid;
-} catch (_e) {
-return 'ses_mem_' + Math.floor(now / 1800000);
-}
-}
+
 function getUrlUtmParams() {
-try {
-const params = new URLSearchParams(window.location.search || '');
-return {
-utmSource: params.get('utm_source') || '',
-utmMedium: params.get('utm_medium') || '',
-utmCampaign: params.get('utm_campaign') || '',
-utmTerm: params.get('utm_term') || '',
-utmContent: params.get('utm_content') || ''
-};
-} catch (_e) {
-return { utmSource: '', utmMedium: '', utmCampaign: '', utmTerm: '', utmContent: '' };
+  try {
+    const params = new URLSearchParams(window.location.search || '');
+    return {
+      utmSource: params.get('utm_source') || '',
+      utmMedium: params.get('utm_medium') || '',
+      utmCampaign: params.get('utm_campaign') || '',
+      utmTerm: params.get('utm_term') || '',
+      utmContent: params.get('utm_content') || ''
+    };
+  } catch (_e) {
+    return { utmSource: '', utmMedium: '', utmCampaign: '', utmTerm: '', utmContent: '' };
+  }
 }
-}
+
 function sendAnalyticsEvent(type, extra = {}) {
-try {
-if (AppState.currentView === 'admin' && !extra.forceTrackInAdmin) return;
-if (localStorage.getItem(STORAGE_KEY_ANALYTICS_CONSENT) === 'declined') return;
-const visitorId = getOrCreateVisitorId();
-const sessionId = getOrCreateSessionId();
-const utm = getUrlUtmParams();
-const cust = AppState.currentCustomer;
-const defaultAddr = cust && Array.isArray(cust.addresses) && cust.addresses[0] ? cust.addresses[0] : null;
-const cartTotal = Array.isArray(AppState.cart)
-? AppState.cart.reduce((acc, it) => {
-const p = (AppState.db.products || []).find((pr) => pr.id === it.productId);
-const price = p ? getEffectivePrice(p) : Number(it.unitPrice || 0);
-return acc + price * (Number(it.quantity) || 1);
-}, 0)
-: 0;
-const payload = {
-type,
-visitorId,
-sessionId,
-isAuthenticated: Boolean(cust && cust.id),
-customerId: cust && cust.id ? cust.id : undefined,
-page: extra.page || AppState.currentView || 'home',
-referrer: document.referrer || '',
-userAgent: navigator.userAgent || '',
-screen: window.screen ? (window.screen.width + 'x' + window.screen.height) : '',
-timezone: (Intl && Intl.DateTimeFormat && Intl.DateTimeFormat().resolvedOptions().timeZone) || 'America/Sao_Paulo',
-state: extra.state || (defaultAddr && defaultAddr.state) || undefined,
-city: extra.city || (defaultAddr && defaultAddr.city) || undefined,
-cartTotal: Number(cartTotal.toFixed(2)),
-...utm,
-...extra
-};
-const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
-fetch(apiBase + '/api/analytics/event', {
-method: 'POST',
-headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify(payload),
-keepalive: true
-}).catch(() => {});
-} catch (_err) {}
+  try {
+    // Não rastreia navegação interna do próprio painel administrativo como visita de cliente
+    if (AppState.currentView === 'admin' && !extra.forceTrackInAdmin) return;
+    if (localStorage.getItem(STORAGE_KEY_ANALYTICS_CONSENT) === 'declined') return;
+
+    const visitorId = getOrCreateVisitorId();
+    const sessionId = getOrCreateSessionId();
+    const utm = getUrlUtmParams();
+    const cust = AppState.currentCustomer;
+    const defaultAddr = cust && Array.isArray(cust.addresses) && cust.addresses[0] ? cust.addresses[0] : null;
+    const cartTotal = Array.isArray(AppState.cart)
+      ? AppState.cart.reduce((acc, it) => {
+          const p = (AppState.db.products || []).find((pr) => pr.id === it.productId);
+          const price = p ? getEffectivePrice(p) : Number(it.unitPrice || 0);
+          return acc + price * (Number(it.quantity) || 1);
+        }, 0)
+      : 0;
+
+    const payload = {
+      type,
+      visitorId,
+      sessionId,
+      isAuthenticated: Boolean(cust && cust.id),
+      customerId: cust && cust.id ? cust.id : undefined,
+      page: extra.page || AppState.currentView || 'home',
+      referrer: document.referrer || '',
+      userAgent: navigator.userAgent || '',
+      screen: window.screen ? `${window.screen.width}x${window.screen.height}` : '',
+      timezone: (Intl && Intl.DateTimeFormat && Intl.DateTimeFormat().resolvedOptions().timeZone) || 'America/Sao_Paulo',
+      state: extra.state || (defaultAddr && defaultAddr.state) || undefined,
+      city: extra.city || (defaultAddr && defaultAddr.city) || undefined,
+      cartTotal: Number(cartTotal.toFixed(2)),
+      ...utm,
+      ...extra
+    };
+
+    const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+    fetch(apiBase + '/api/analytics/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      keepalive: true
+    }).catch(() => {});
+  } catch (_err) {}
 }
+
 window.ByAngelyAnalytics = {
-track: sendAnalyticsEvent,
-getVisitorId: getOrCreateVisitorId,
-getSessionId: getOrCreateSessionId
+  track: sendAnalyticsEvent,
+  getVisitorId: getOrCreateVisitorId,
+  getSessionId: getOrCreateSessionId
 };
+
+// Intercepta abertura de detalhes de produto (product_view / product_detail_click)
 const _origOpenProductModalAnalytics = openProductModal;
 openProductModal = function (productId) {
-_origOpenProductModalAnalytics(productId);
-const prod = (AppState.db.products || []).find((p) => p && p.id === productId);
-if (prod) {
-sendAnalyticsEvent('product_view', {
-productId: prod.id,
-productName: prod.name,
-category: prod.categoryName || prod.category || '',
-price: getEffectivePrice(prod)
-});
-}
+  _origOpenProductModalAnalytics(productId);
+  const prod = (AppState.db.products || []).find((p) => p && p.id === productId);
+  if (prod) {
+    sendAnalyticsEvent('product_view', {
+      productId: prod.id,
+      productName: prod.name,
+      category: prod.categoryName || prod.category || '',
+      price: getEffectivePrice(prod)
+    });
+  }
 };
+
+// Intercepta adição à sacola (add_to_cart)
 const _origAddToCartAnalytics = addToCart;
 addToCart = function (productId, size, color, quantity = 1, options = {}) {
-const beforeLen = Array.isArray(AppState.cart)
-? AppState.cart.reduce((a, b) => a + (Number(b.quantity) || 0), 0)
-: 0;
-const added = _origAddToCartAnalytics(productId, size, color, quantity, options);
-const afterLen = Array.isArray(AppState.cart)
-? AppState.cart.reduce((a, b) => a + (Number(b.quantity) || 0), 0)
-: 0;
-if (afterLen > beforeLen) {
-const prod = (AppState.db.products || []).find((p) => p && p.id === productId);
-if (prod) {
-sendAnalyticsEvent('add_to_cart', {
-productId: prod.id,
-productName: prod.name,
-category: prod.categoryName || prod.category || '',
-quantity: afterLen - beforeLen,
-price: getEffectivePrice(prod)
-});
-}
-}
-return added;
+  const beforeLen = Array.isArray(AppState.cart)
+    ? AppState.cart.reduce((a, b) => a + (Number(b.quantity) || 0), 0)
+    : 0;
+  const added = _origAddToCartAnalytics(productId, size, color, quantity, options);
+  const afterLen = Array.isArray(AppState.cart)
+    ? AppState.cart.reduce((a, b) => a + (Number(b.quantity) || 0), 0)
+    : 0;
+  if (afterLen > beforeLen) {
+    const prod = (AppState.db.products || []).find((p) => p && p.id === productId);
+    if (prod) {
+      sendAnalyticsEvent('add_to_cart', {
+        productId: prod.id,
+        productName: prod.name,
+        category: prod.categoryName || prod.category || '',
+        quantity: afterLen - beforeLen,
+        price: getEffectivePrice(prod)
+      });
+    }
+  }
+  return added;
 };
+
+// Intercepta remoção da sacola (remove_from_cart)
 if (typeof removeFromCart === 'function') {
-const _origRemoveFromCartAnalytics = removeFromCart;
-removeFromCart = function (index) {
-const item = AppState.cart && AppState.cart[index];
-const prodId = item ? item.productId : '';
-_origRemoveFromCartAnalytics(index);
-if (prodId) {
-sendAnalyticsEvent('remove_from_cart', { productId: prodId });
+  const _origRemoveFromCartAnalytics = removeFromCart;
+  removeFromCart = function (index) {
+    const item = AppState.cart && AppState.cart[index];
+    const prodId = item ? item.productId : '';
+    _origRemoveFromCartAnalytics(index);
+    if (prodId) {
+      sendAnalyticsEvent('remove_from_cart', { productId: prodId });
+    }
+  };
 }
-};
-}
+
+// Intercepta favoritos (wishlist_add)
 if (typeof toggleWishlist === 'function') {
-const _origToggleWishlistAnalytics = toggleWishlist;
-toggleWishlist = function (productId) {
-const wasFav = AppState.wishlist.includes(productId);
-_origToggleWishlistAnalytics(productId);
-if (!wasFav && AppState.wishlist.includes(productId)) {
-const prod = (AppState.db.products || []).find((p) => p && p.id === productId);
-sendAnalyticsEvent('wishlist_add', {
-productId,
-productName: prod ? prod.name : '',
-category: prod ? (prod.categoryName || prod.category || '') : ''
-});
+  const _origToggleWishlistAnalytics = toggleWishlist;
+  toggleWishlist = function (productId) {
+    const wasFav = AppState.wishlist.includes(productId);
+    _origToggleWishlistAnalytics(productId);
+    if (!wasFav && AppState.wishlist.includes(productId)) {
+      const prod = (AppState.db.products || []).find((p) => p && p.id === productId);
+      sendAnalyticsEvent('wishlist_add', {
+        productId,
+        productName: prod ? prod.name : '',
+        category: prod ? (prod.categoryName || prod.category || '') : ''
+      });
+    }
+  };
 }
-};
-}
+
+// Intercepta mudanças de tela (page_view e begin_checkout)
 const _origNavigateToAnalytics = navigateTo;
 navigateTo = function (view, options = {}) {
-const prevView = AppState.currentView;
-_origNavigateToAnalytics(view, options);
-if (AppState.currentView && AppState.currentView !== 'admin') {
-if (AppState.currentView !== prevView) {
-sendAnalyticsEvent('page_view', { page: AppState.currentView });
-}
-if (AppState.currentView === 'checkout') {
-sendAnalyticsEvent('begin_checkout', {
-page: 'checkout',
-stage: 'Iniciou a finalização da compra (Checkout)'
-});
-}
-}
+  const prevView = AppState.currentView;
+  _origNavigateToAnalytics(view, options);
+  if (AppState.currentView && AppState.currentView !== 'admin') {
+    if (AppState.currentView !== prevView) {
+      sendAnalyticsEvent('page_view', { page: AppState.currentView });
+    }
+    if (AppState.currentView === 'checkout') {
+      sendAnalyticsEvent('begin_checkout', {
+        page: 'checkout',
+        stage: 'Iniciou a finalização da compra (Checkout)'
+      });
+    }
+  }
 };
 window.ByAngelyApp.navigateTo = navigateTo;
+
+// Monitora buscas no catálogo, filtros, categorias e compartilhamento
 let _searchDebounceTimer = null;
 document.addEventListener('input', (e) => {
-const t = e.target;
-if (!t) return;
-if (t.id === 'filter-search' || t.id === 'catalog-search-input' || t.id === 'header-search-input') {
-clearTimeout(_searchDebounceTimer);
-const q = String(t.value || '').trim();
-if (q.length < 2) return;
-_searchDebounceTimer = setTimeout(() => {
-const matches = (AppState.db.products || []).filter((p) => {
-if (!p || p.status === 'draft') return false;
-const hay = ((p.name || '') + ' ' + (p.categoryName || '') + ' ' + (p.category || '') + ' ' + (p.description || '') + ' ' + (p.sku || '')).toLowerCase();
-return hay.includes(q.toLowerCase());
+  const t = e.target;
+  if (!t) return;
+  if (t.id === 'filter-search' || t.id === 'catalog-search-input' || t.id === 'header-search-input') {
+    clearTimeout(_searchDebounceTimer);
+    const q = String(t.value || '').trim();
+    if (q.length < 2) return;
+    _searchDebounceTimer = setTimeout(() => {
+      const matches = (AppState.db.products || []).filter((p) => {
+        if (!p || p.status === 'draft') return false;
+        const hay = `${p.name || ''} ${p.categoryName || ''} ${p.category || ''} ${p.description || ''} ${p.sku || ''}`.toLowerCase();
+        return hay.includes(q.toLowerCase());
+      });
+      sendAnalyticsEvent('search', {
+        query: q,
+        resultsCount: matches.length
+      });
+    }, 650);
+  }
 });
-sendAnalyticsEvent('search', {
-query: q,
-resultsCount: matches.length
-});
-}, 650);
-}
-});
+
 document.addEventListener('change', (e) => {
-const t = e.target;
-if (!t) return;
-if ((t.id === 'filter-size-select' || t.id === 'drawer-filter-size') && t.value && t.value !== 'all') {
-sendAnalyticsEvent('filter_use', { filterType: 'Tamanho', filterValue: t.value });
-} else if ((t.id === 'filter-color-select' || t.id === 'drawer-filter-color') && t.value && t.value !== 'all') {
-sendAnalyticsEvent('filter_use', { filterType: 'Cor', filterValue: t.value });
-} else if ((t.id === 'filter-sort-select' || t.id === 'drawer-filter-sort') && t.value) {
-sendAnalyticsEvent('filter_use', { filterType: 'Ordenação', filterValue: t.value });
-} else if (t.id === 'drawer-filter-category' && t.value && t.value !== 'all') {
-sendAnalyticsEvent('category_access', { category: t.value });
-} else if (t.id === 'drawer-filter-style' && t.value && t.value !== 'all') {
-sendAnalyticsEvent('filter_use', { filterType: 'Estilo', filterValue: t.value });
-} else if (t.id === 'drawer-filter-price' && t.value && t.value !== 'all') {
-sendAnalyticsEvent('filter_use', { filterType: 'Faixa de Preço', filterValue: t.value });
-} else if (t.name === 'shippingMethod') {
-sendAnalyticsEvent('checkout_step', { stage: 'Seleção de entrega no checkout' });
-} else if (t.name === 'paymentMethod') {
-sendAnalyticsEvent('checkout_step', { stage: 'Seleção de forma de pagamento (' + t.value + ')' });
-}
+  const t = e.target;
+  if (!t) return;
+  if ((t.id === 'filter-size-select' || t.id === 'drawer-filter-size') && t.value && t.value !== 'all') {
+    sendAnalyticsEvent('filter_use', { filterType: 'Tamanho', filterValue: t.value });
+  } else if ((t.id === 'filter-color-select' || t.id === 'drawer-filter-color') && t.value && t.value !== 'all') {
+    sendAnalyticsEvent('filter_use', { filterType: 'Cor', filterValue: t.value });
+  } else if ((t.id === 'filter-sort-select' || t.id === 'drawer-filter-sort') && t.value) {
+    sendAnalyticsEvent('filter_use', { filterType: 'Ordenação', filterValue: t.value });
+  } else if (t.id === 'drawer-filter-category' && t.value && t.value !== 'all') {
+    sendAnalyticsEvent('category_access', { category: t.value });
+  } else if (t.id === 'drawer-filter-style' && t.value && t.value !== 'all') {
+    sendAnalyticsEvent('filter_use', { filterType: 'Estilo', filterValue: t.value });
+  } else if (t.id === 'drawer-filter-price' && t.value && t.value !== 'all') {
+    sendAnalyticsEvent('filter_use', { filterType: 'Faixa de Preço', filterValue: t.value });
+  } else if (t.name === 'shippingMethod') {
+    sendAnalyticsEvent('checkout_step', { stage: 'Seleção de entrega no checkout' });
+  } else if (t.name === 'paymentMethod') {
+    sendAnalyticsEvent('checkout_step', { stage: 'Seleção de forma de pagamento (' + t.value + ')' });
+  }
 });
+
 document.addEventListener('click', (e) => {
-const target = e.target.closest('[data-action], #pdp-whatsapp-product-link');
-if (!target) return;
-if (target.id === 'pdp-whatsapp-product-link') {
-const pid = AppState.activeProductModal && AppState.activeProductModal.productId;
-const prod = (AppState.db.products || []).find((p) => p && p.id === pid);
-if (prod) {
-sendAnalyticsEvent('product_share', {
-productId: prod.id,
-productName: prod.name,
-category: prod.categoryName || prod.category || ''
+  const target = e.target.closest('[data-action], #pdp-whatsapp-product-link');
+  if (!target) return;
+  if (target.id === 'pdp-whatsapp-product-link') {
+    const pid = AppState.activeProductModal && AppState.activeProductModal.productId;
+    const prod = (AppState.db.products || []).find((p) => p && p.id === pid);
+    if (prod) {
+      sendAnalyticsEvent('product_share', {
+        productId: prod.id,
+        productName: prod.name,
+        category: prod.categoryName || prod.category || ''
+      });
+    }
+    return;
+  }
+  const act = target.getAttribute('data-action');
+  if (act === 'filter-category') {
+    const cat = target.getAttribute('data-category') || '';
+    if (cat && cat !== 'all') {
+      sendAnalyticsEvent('category_access', { category: cat });
+    }
+  } else if (act === 'share-product') {
+    const pid = target.getAttribute('data-product-id') || '';
+    const prod = (AppState.db.products || []).find((p) => p && p.id === pid);
+    sendAnalyticsEvent('product_share', {
+      productId: pid,
+      productName: prod ? prod.name : '',
+      category: prod ? (prod.categoryName || prod.category || '') : ''
+    });
+  }
 });
-}
-return;
-}
-const act = target.getAttribute('data-action');
-if (act === 'filter-category') {
-const cat = target.getAttribute('data-category') || '';
-if (cat && cat !== 'all') {
-sendAnalyticsEvent('category_access', { category: cat });
-}
-} else if (act === 'share-product') {
-const pid = target.getAttribute('data-product-id') || '';
-const prod = (AppState.db.products || []).find((p) => p && p.id === pid);
-sendAnalyticsEvent('product_share', {
-productId: pid,
-productName: prod ? prod.name : '',
-category: prod ? (prod.categoryName || prod.category || '') : ''
-});
-}
-});
+
+// Disparo inicial de visita à loja (protegido por sessionStorage para não duplicar em F5)
 setTimeout(() => {
-try {
-if (AppState.currentView === 'admin') return;
-const sid = getOrCreateSessionId();
-const visitKey = 'by_angely_visit_logged_' + sid;
-if (!sessionStorage.getItem(visitKey)) {
-sessionStorage.setItem(visitKey, '1');
-sendAnalyticsEvent('store_visit', { page: AppState.currentView || 'home' });
-}
-const pvKey = 'by_angely_last_pv_' + sid;
-const currPage = AppState.currentView || 'home';
-if (sessionStorage.getItem(pvKey) !== currPage) {
-sessionStorage.setItem(pvKey, currPage);
-sendAnalyticsEvent('page_view', { page: currPage });
-}
-} catch (_e) {}
+  try {
+    if (AppState.currentView === 'admin') return;
+    const sid = getOrCreateSessionId();
+    const visitKey = 'by_angely_visit_logged_' + sid;
+    if (!sessionStorage.getItem(visitKey)) {
+      sessionStorage.setItem(visitKey, '1');
+      sendAnalyticsEvent('store_visit', { page: AppState.currentView || 'home' });
+    }
+    const pvKey = 'by_angely_last_pv_' + sid;
+    const currPage = AppState.currentView || 'home';
+    if (sessionStorage.getItem(pvKey) !== currPage) {
+      sessionStorage.setItem(pvKey, currPage);
+      sendAnalyticsEvent('page_view', { page: currPage });
+    }
+  } catch (_e) {}
 }, 250);
 })();
-
-
