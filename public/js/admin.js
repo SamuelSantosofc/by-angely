@@ -3405,9 +3405,14 @@ const pay = db.paymentSettings || {};
 const pixCfg = pay.pix || {};
 const charges = db.pixCharges || [];
 const finEvents = db.financialEvents || [];
-const paidCharges = charges.filter((c) => c.status === 'paid' || c.status === 'paid_late_conflict');
-const pendingCharges = charges.filter((c) => c.status === 'pending');
-const expiredCharges = charges.filter((c) => c.status === 'expired');
+const paidCharges = charges.filter((c) => ['paid', 'approved', 'approved_late', 'paid_late_conflict'].includes(String(c.status || '').toLowerCase()));
+const pendingCharges = charges.filter((c) => String(c.status || '').toLowerCase() === 'pending');
+const expiredCharges = charges.filter((c) => ['expired', 'cancelled', 'cancelled_expired'].includes(String(c.status || '').toLowerCase()));
+const originUrl = (window.location && window.location.origin && window.location.origin.startsWith('http'))
+  ? window.location.origin
+  : 'https://by-angely.onrender.com';
+const officialWebhookUrl = `${originUrl}/api/webhooks/pix`;
+const officialWebhookUrlWithSecret = `${originUrl}/api/webhooks/pix?secret=by-angely-pix-webhook-secret-2026`;
 const pixControlCard = `
 <div class="admin-card" style="border:1.5px solid #806044;margin-bottom:22px;">
 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
@@ -3415,8 +3420,23 @@ const pixControlCard = `
 <span class="section-eyebrow">Motor Financeiro & Conciliação em Tempo Real</span>
 <h2 style="font-family:var(--font-serif);font-size:1.55rem;margin-bottom:2px;">Pix Automático, Expiração de 15 Minutos & Webhooks</h2>
 </div>
-<span class="status-pill confirmed">Webhook Automático Ativo (/api/webhooks/pix)</span>
+<span class="status-pill confirmed">Webhook Automático Ativo (/api/webhooks/pix) • Sincronização em Tempo Real</span>
 </div>
+
+<div style="padding:12px 14px;background:#FAF8F5;border:1px solid #D5C7B8;border-radius:8px;margin-bottom:14px;font-size:0.81rem;">
+<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px;">
+<strong style="color:#292522;">URL Oficial do Webhook para Cadastro no Provedor Pix (BACEN / Mercado Pago / Asaas / OpenPix / Efí / PagBank):</strong>
+<button type="button" class="btn btn-outline btn-sm" id="btn-copy-pix-webhook-url" data-webhook-url="${app.escapeHtml(officialWebhookUrlWithSecret)}" style="min-height:32px;padding:4px 10px;font-size:0.75rem;">Copiar URL do Webhook</button>
+</div>
+<div style="word-break:break-all;font-family:monospace;background:#FFFFFF;padding:8px 10px;border:1px solid #E5DDD3;border-radius:6px;color:#1E4D38;font-weight:600;margin-bottom:6px;">
+${app.escapeHtml(officialWebhookUrl)}
+</div>
+<div style="color:var(--text-secondary);font-size:0.76rem;line-height:1.45;">
+• <strong>Autenticação suportada:</strong> Cabeçalho <code>X-Webhook-Secret: by-angely-pix-webhook-secret-2026</code>, <code>Authorization: Bearer</code>, assinatura HMAC <code>X-Signature</code> ou query string direta <code>?secret=by-angely-pix-webhook-secret-2026</code>.<br/>
+• <strong>Atualização automática:</strong> Assim que o provedor confirma o recebimento, o pedido muda automaticamente de <em>"Aguardando pagamento"</em> para <em>"Pagamento aprovado • Aguardando separação"</em> sem precisar atualizar a página.
+</div>
+</div>
+
 <form id="admin-pix-expiration-form" style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;padding:12px;background:var(--bg-primary);border-radius:8px;margin-bottom:16px;">
 <div>
 <label style="display:block;font-size:0.76rem;font-weight:600;margin-bottom:4px;">Prazo de Expiração do QR Code Pix (minutos)</label>
@@ -3428,19 +3448,19 @@ const pixControlCard = `
 <div class="admin-form-grid-4" style="margin-bottom:16px;">
 <div style="padding:12px;background:#EDF7F1;border:1px solid #B8E0C8;border-radius:8px;">
 <span style="font-size:0.74rem;text-transform:uppercase;color:#1E4D38;font-weight:700;">Pix Aprovados</span>
-<strong style="display:block;font-size:1.4rem;color:#1E4D38;">${paidCharges.length}</strong>
+<strong style="display:block;font-size:1.4rem;color:#1E4D38;" id="admin-pix-paid-count">${paidCharges.length}</strong>
 </div>
 <div style="padding:12px;background:#FFF8EB;border:1px solid #E2B96B;border-radius:8px;">
 <span style="font-size:0.74rem;text-transform:uppercase;color:#7A5211;font-weight:700;">Aguardando (No Prazo)</span>
-<strong style="display:block;font-size:1.4rem;color:#7A5211;">${pendingCharges.length}</strong>
+<strong style="display:block;font-size:1.4rem;color:#7A5211;" id="admin-pix-pending-count">${pendingCharges.length}</strong>
 </div>
 <div style="padding:12px;background:#FDF2F2;border:1px solid #F2B8B5;border-radius:8px;">
 <span style="font-size:0.74rem;text-transform:uppercase;color:#8E2626;font-weight:700;">Expirados / Cancelados</span>
-<strong style="display:block;font-size:1.4rem;color:#8E2626;">${expiredCharges.length}</strong>
+<strong style="display:block;font-size:1.4rem;color:#8E2626;" id="admin-pix-expired-count">${expiredCharges.length}</strong>
 </div>
 <div style="padding:12px;background:var(--bg-primary);border:1px solid var(--border-subtle);border-radius:8px;">
 <span style="font-size:0.74rem;text-transform:uppercase;color:var(--text-secondary);font-weight:700;">Eventos Financeiros</span>
-<strong style="display:block;font-size:1.4rem;color:var(--text-primary);">${finEvents.length}</strong>
+<strong style="display:block;font-size:1.4rem;color:var(--text-primary);" id="admin-pix-events-count">${finEvents.length}</strong>
 </div>
 </div>
 ${charges.length > 0 ? `
@@ -3458,15 +3478,19 @@ ${charges.length > 0 ? `
 </tr>
 </thead>
 <tbody>
-${charges.slice(0, 20).map((c) => `
+${charges.slice(0, 20).map((c) => {
+  const stLower = String(c.status || 'pending').toLowerCase();
+  const pillClass = (stLower === 'paid' || stLower === 'approved') ? 'confirmed' : stLower === 'expired' ? 'danger' : 'pending';
+  return `
 <tr>
 <td><code>${app.escapeHtml(c.chargeId)}</code><br/><small>${app.escapeHtml(c.txid)}</small></td>
 <td><strong>${app.escapeHtml(c.orderNumber)}</strong></td>
 <td>${app.formatBRL(c.amount)}</td>
 <td style="font-size:0.76rem;">${app.formatDateBR(c.expiresAt)}</td>
-<td><span class="status-pill ${c.status === 'paid' ? 'confirmed' : c.status === 'expired' ? 'danger' : 'pending'}">${app.escapeHtml(c.status)}</span></td>
+<td><span class="status-pill ${pillClass}">${app.escapeHtml(stLower.toUpperCase())}</span></td>
 </tr>
-`).join('')}
+`;
+}).join('')}
 </tbody>
 </table>
 </div>
@@ -3493,7 +3517,7 @@ ${finEvents.slice(0, 20).map((ev) => `
 <td><code>${app.escapeHtml(ev.type)}</code></td>
 <td><strong>${app.escapeHtml(ev.orderNumber || '-')}</strong></td>
 <td>${ev.amount !== undefined ? app.formatBRL(ev.amount) : '-'}</td>
-<td style="font-size:0.78rem;">${app.escapeHtml(ev.detail || '')}</td>
+<td style="font-size:0.78rem;">${app.escapeHtml(ev.detail || ev.message || '')}</td>
 </tr>
 `).join('')}
 </tbody>
