@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="BY ANGÉLY — Boutique de Moda Feminina Contemporânea em Itaperuna, Rio de Janeiro. Vestidos, conjuntos, blusas & camisas, calças, saias e acessórios." />
-  <meta name="theme-color" content="#F8F5F0" />
+  <meta name="theme-color" content="#111111" />
   <title>BY ANGÉLY — Moda Feminina | Itaperuna, RJ</title>
   <link rel="stylesheet" href="css/styles.css" />
 </head>
@@ -95,7 +95,7 @@
           </svg>
           <span class="btn-label-desktop">Buscar</span>
         </button>
-        <button type="button" class="header-icon-btn" data-nav-view="account" aria-label="Minha Conta e Pedidos" title="Minha Conta">
+        <button type="button" class="header-icon-btn" data-nav-view="account" aria-label="Minha Conta" title="Minha Conta">
           <svg class="lucide-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
             <circle cx="12" cy="7" r="4"></circle>
@@ -117,6 +117,25 @@
           <span class="btn-label-desktop">Sacola</span>
           <span class="badge-counter" id="header-cart-count">0</span>
         </button>
+      </div>
+    </div>
+
+    <!-- Barra de Busca Rápida Expansível -->
+    <div id="header-search-bar" class="header-search-bar" aria-hidden="true" style="display:none;background:#FFFFFF;border-top:1px solid #E4E4E7;border-bottom:1px solid #E4E4E7;padding:12px 16px;position:relative;z-index:80;">
+      <div class="container" style="max-width:780px;margin:0 auto;">
+        <form id="header-search-form" style="display:flex;align-items:center;gap:8px;">
+          <div style="position:relative;flex:1;display:flex;align-items:center;">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#111111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:12px;pointer-events:none;" aria-hidden="true">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="search" id="header-search-input" class="form-control" placeholder="Buscar por nome, categoria, cor ou tecido (ex: vestido, calça, linho)..." autocomplete="off" aria-label="Buscar produtos na loja" style="padding-left:38px;padding-right:36px;height:44px;border-radius:999px;border:1px solid #D4D4D8;background:#F4F4F5;font-size:0.92rem;width:100%;" />
+            <button type="button" id="header-search-clear" data-action="clear-header-search" aria-label="Limpar busca" title="Limpar busca" style="display:none;position:absolute;right:10px;background:none;border:none;color:#111111;cursor:pointer;font-size:0.95rem;padding:4px 6px;">✕</button>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm" style="height:44px;padding:0 18px;border-radius:999px;white-space:nowrap;">Buscar</button>
+          <button type="button" class="btn btn-outline btn-sm" data-action="close-search-bar" style="height:44px;padding:0 14px;border-radius:999px;" aria-label="Fechar busca">Fechar</button>
+        </form>
+        <div id="header-search-results" style="margin-top:10px;display:none;max-height:380px;overflow-y:auto;background:#FFFFFF;border:1px solid #E4E4E7;border-radius:12px;padding:10px;box-shadow:0 10px 28px rgba(17,17,17,0.12);"></div>
       </div>
     </div>
 
@@ -159,9 +178,10 @@
         <div>
           <h2 class="footer-heading">Atendimento &amp; Cliente</h2>
           <ul class="footer-links">
-            <li><button type="button" data-nav-view="account">Minha Conta / Login</button></li>
-            <li><button type="button" data-action="go-account-orders">Meus Pedidos e Rastreio</button></li>
+            <li><button type="button" data-nav-view="account">Minha Conta</button></li>
+            <li><button type="button" data-action="go-account-orders">Meus Pedidos</button></li>
             <li><button type="button" data-nav-view="favorites">Meus Favoritos</button></li>
+            <li><button type="button" data-action="go-returns">Trocas e Devoluções</button></li>
             <li><button type="button" data-nav-view="contact">Central de Atendimento</button></li>
             <li><a href="https://wa.me/5528999871458?text=Ol%C3%A1!%20Vim%20pelo%20site%20da%20BY%20ANG%C3%89LY%20e%20gostaria%20de%20conhecer%20os%20produtos." target="_blank" rel="noopener noreferrer">WhatsApp Oficial ↗</a></li>
             <li><a href="https://www.instagram.com/_by.angely?dlrf=OXJrN2EwdHNka21x" target="_blank" rel="noopener noreferrer">Instagram Oficial ↗</a></li>
@@ -184,7 +204,7 @@
 
       <div class="footer-bottom">
         <p><span data-nav-view="admin" style="cursor:pointer;" title="BY ANGÉLY">© 2026 BY ANGÉLY</span> — Itaperuna, Rio de Janeiro. Todos os direitos reservados.</p>
-        <p>Compra segura • Pix EMV Banco Central &amp; Checkout Externo • Conformidade LGPD (Lei nº 13.709/2018) e Decreto nº 7.962/2013.</p>
+        <p id="footer-payment-legal-line">Compra segura • Pix QR Code Oficial &amp; Atendimento WhatsApp • Conformidade LGPD (Lei nº 13.709/2018) e Decreto nº 7.962/2013.</p>
       </div>
     </div>
   </footer>
@@ -202,6 +222,19 @@
     </div>
   </div>
 
+  <!-- Modal de Detalhes do Pedido -->
+  <div class="modal-backdrop" id="order-detail-modal" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Detalhes do Pedido">
+    <div class="modal-dialog" style="max-width:760px;">
+      <div class="modal-header">
+        <span style="font-size:0.74rem;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;color:var(--accent-primary);">
+          Acompanhamento de Pedido • BY ANGÉLY
+        </span>
+        <button type="button" class="modal-close-btn" data-action="close-order-detail-modal" aria-label="Fechar detalhes do pedido">✕</button>
+      </div>
+      <div id="order-detail-modal-body" style="padding:20px;max-height:80vh;overflow-y:auto;"></div>
+    </div>
+  </div>
+
   <!-- Lightbox para Ampliar Foto em Alta Resolução -->
   <div class="lightbox-overlay" id="lightbox-overlay" role="dialog" aria-modal="true" aria-label="Imagem ampliada">
     <button type="button" class="modal-close-btn" data-action="close-lightbox" aria-label="Fechar zoom" style="position:fixed;top:20px;right:20px;background:#FFF;">✕</button>
@@ -213,7 +246,7 @@
     <div class="drawer-panel">
       <div class="drawer-header">
         <div style="display:flex;align-items:center;gap:10px;">
-          <svg class="lucide-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#806044" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <svg class="lucide-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
             <line x1="3" y1="6" x2="21" y2="6"></line>
             <path d="M16 10a4 4 0 0 1-8 0"></path>
@@ -232,7 +265,7 @@
     <div class="filter-drawer-panel">
       <div class="drawer-header">
         <div style="display:flex;align-items:center;gap:10px;">
-          <svg class="lucide-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="#806044" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <svg class="lucide-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <line x1="4" y1="21" x2="4" y2="14"></line>
             <line x1="4" y1="10" x2="4" y2="3"></line>
             <line x1="12" y1="21" x2="12" y2="12"></line>
