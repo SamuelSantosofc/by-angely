@@ -22,6 +22,8 @@ const DB_FILE = path.join(DATA_DIR, 'db.json');
 const SECRETS_FILE = path.join(DATA_DIR, 'payment_secrets.json');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const DISABLE_SUPABASE_SYNC = process.env.DISABLE_SUPABASE_SYNC === '1';
+const DISABLE_FIREBASE_SYNC = process.env.DISABLE_FIREBASE_SYNC === '1';
+const FIREBASE_WEB_API_KEY = process.env.FIREBASE_WEB_API_KEY || 'AIzaSyAledB2RNyAadWuxG2GAVdXwqn_eZFgpys';
 
 // Segredo do Webhook Pix (armazenado apenas no servidor)
 const PIX_WEBHOOK_SECRET = process.env.PIX_WEBHOOK_SECRET || 'by-angely-pix-webhook-secret-2026';
@@ -35,6 +37,49 @@ const SUPABASE_KEY =
 
 function hashPassword(password, salt = 'by-angely-salt-v1') {
   return crypto.pbkdf2Sync(String(password), salt, 10000, 32, 'sha256').toString('hex');
+}
+
+async function verifyFirebaseIdToken(idToken) {
+  const tokenStr = String(idToken || '').trim();
+  if (!tokenStr || !FIREBASE_WEB_API_KEY) return null;
+  if (DISABLE_FIREBASE_SYNC) return null;
+  try {
+    const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(FIREBASE_WEB_API_KEY)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken: tokenStr })
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const user = data && Array.isArray(data.users) ? data.users[0] : null;
+    if (!user || !user.email || user.disabled) return null;
+    return {
+      localId: String(user.localId || ''),
+      email: String(user.email || '').trim().toLowerCase(),
+      emailVerified: Boolean(user.emailVerified)
+    };
+  } catch (_err) {
+    return null;
+  }
+}
+
+async function ensureCustomerInFirebaseAuth(email, password, displayName) {
+  if (DISABLE_FIREBASE_SYNC || !FIREBASE_WEB_API_KEY || !email || !password) return false;
+  try {
+    const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${encodeURIComponent(FIREBASE_WEB_API_KEY)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: String(email).trim().toLowerCase(),
+        password: String(password),
+        displayName: String(displayName || '').trim(),
+        returnSecureToken: false
+      })
+    });
+    return res.ok;
+  } catch (_err) {
+    return false;
+  }
 }
 
 function generateToken(prefix = 'tok') {
@@ -3436,6 +3481,7 @@ const server = http.createServer(async (req, res) => {
       db.customers = db.customers || [];
       db.customers.unshift(newCust);
       saveDatabase(db);
+      ensureCustomerInFirebaseAuth(email, password, name).catch(() => {});
 
       return sendJson(res, 201, {
         ok: true,
@@ -3454,12 +3500,37 @@ const server = http.createServer(async (req, res) => {
       const email = String(body.email || '').trim().toLowerCase();
       const password = String(body.password || '');
       const emailHash = hashPassword(email);
-      const cust = (db.customers || []).find(
+      let cust = (db.customers || []).find(
         (c) =>
           c &&
           (String(c.email || '').trim().toLowerCase() === email ||
             (c.deletedEmailHash && c.deletedEmailHash === emailHash))
       );
+
+      if (!cust && body.firebaseIdToken) {
+        const verifiedFb = await verifyFirebaseIdToken(body.firebaseIdToken);
+        if (verifiedFb && verifiedFb.email === email && password.length >= 6) {
+          const nowIsoFb = new Date().toISOString();
+          cust = {
+            id: 'cust-' + Date.now(),
+            name: email.split('@')[0] || 'Cliente BY ANGÉLY',
+            email,
+            phone: '',
+            cpf: '',
+            accountStatus: 'active',
+            passwordHash: hashPassword(password),
+            sessionToken: generateToken('cust'),
+            marketingOptIn: false,
+            addresses: [],
+            savedCart: [],
+            createdAt: nowIsoFb,
+            updatedAt: nowIsoFb,
+            lastActivityAt: nowIsoFb
+          };
+          db.customers = db.customers || [];
+          db.customers.unshift(cust);
+        }
+      }
 
       if (!cust) {
         return sendJson(res, 401, { ok: false, error: 'E-mail ou senha inválidos.' });
@@ -3484,9 +3555,16 @@ const server = http.createServer(async (req, res) => {
       }
 
       const passHash = hashPassword(password);
-      const validPass =
+      let validPass =
         (cust.passwordHash && cust.passwordHash === passHash) ||
         (cust.password && cust.password === password);
+
+      if (!validPass && body.firebaseIdToken) {
+        const verifiedFb = await verifyFirebaseIdToken(body.firebaseIdToken);
+        if (verifiedFb && verifiedFb.email === String(cust.email || '').trim().toLowerCase()) {
+          validPass = true;
+        }
+      }
 
       if (!validPass) {
         return sendJson(res, 401, { ok: false, error: 'E-mail ou senha inválidos.' });
@@ -3512,25 +3590,45 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (pathname === '/api/auth/recover' && req.method === 'POST') {
+    return sendJson(res, 410, {
+      ok: false,
+      code: 'DEPRECATED_USE_FIREBASE',
+      error: 'A alteração de senha sem verificação de e-mail foi desativada. Utilize a recuperação oficial via Firebase Authentication.'
+    });
+  }
+
+  if (pathname === '/api/auth/firebase-sync-password' && req.method === 'POST') {
     try {
       const body = await parseBody(req);
-      const email = String(body.email || '').trim().toLowerCase();
+      const idToken = String(body.idToken || '').trim();
       const newPassword = String(body.newPassword || '');
-      if (!email || newPassword.length < 6) {
-        return sendJson(res, 400, { ok: false, error: 'Informe um e-mail válido e nova senha com no mínimo 6 caracteres.' });
+      if (!idToken || newPassword.length < 6) {
+        return sendJson(res, 400, {
+          ok: false,
+          error: 'Token de verificação do Firebase ausente ou senha abaixo de 6 caracteres.'
+        });
       }
-      const cust = (db.customers || []).find((c) => String(c.email || '').trim().toLowerCase() === email);
-      if (!cust) {
-        return sendJson(res, 404, { ok: false, error: 'E-mail não localizado.' });
+      const verified = await verifyFirebaseIdToken(idToken);
+      if (!verified || !verified.email) {
+        return sendJson(res, 401, {
+          ok: false,
+          code: 'INVALID_FIREBASE_TOKEN',
+          error: 'Não foi possível validar a redefinição oficial no Firebase Authentication.'
+        });
       }
-      if (cust.accountStatus === 'blocked' || cust.accountStatus === 'deleted_anonymized') {
-        return sendJson(res, 403, { ok: false, error: 'Não é possível recuperar a senha desta conta.' });
+      const cust = (db.customers || []).find(
+        (c) => c && String(c.email || '').trim().toLowerCase() === verified.email
+      );
+      if (cust) {
+        if (cust.accountStatus === 'blocked' || cust.accountStatus === 'deleted_anonymized') {
+          return sendJson(res, 403, { ok: false, error: 'Esta conta não está ativa para alterações.' });
+        }
+        cust.passwordHash = hashPassword(newPassword);
+        delete cust.password;
+        cust.updatedAt = new Date().toISOString();
+        saveDatabase(db);
       }
-      cust.passwordHash = hashPassword(newPassword);
-      delete cust.password;
-      cust.updatedAt = new Date().toISOString();
-      saveDatabase(db);
-      return sendJson(res, 200, { ok: true });
+      return sendJson(res, 200, { ok: true, email: verified.email });
     } catch (err) {
       return sendJson(res, 400, { ok: false, error: err.message });
     }
