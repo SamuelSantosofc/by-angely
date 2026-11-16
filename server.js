@@ -5646,6 +5646,172 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // 11L. Limpeza Pré-Entrega de Pedidos, Logs, Eventos e Visitas de Teste (Exclusivo Proprietária/Admin)
+  if (pathname === '/api/admin/clear-test-data' && req.method === 'POST') {
+    try {
+      const body = await parseBody(req);
+      const adminUser = getAuthenticatedAdminFromReq(req, body || {});
+      if (!adminUser) {
+        return sendJson(res, 401, {
+          ok: false,
+          code: 'UNAUTHORIZED',
+          error: 'Sessão administrativa expirada ou não autenticada.'
+        });
+      }
+      if (
+        adminUser.role !== 'owner' &&
+        adminUser.role !== 'admin' &&
+        (!hasAdminPermission(adminUser, 'orders') || !hasAdminPermission(adminUser, 'payments'))
+      ) {
+        return sendJson(res, 403, {
+          ok: false,
+          code: 'FORBIDDEN',
+          error: 'Permissão insuficiente para limpar dados e históricos do site.'
+        });
+      }
+
+      const clearOrdersAndFinance = body.clearOrdersAndFinance !== false;
+      const clearAnalytics = body.clearAnalytics !== false;
+      const clearLogsAndSupport = body.clearLogsAndSupport !== false;
+      const clearTestCustomers = body.clearTestCustomers === true;
+      const restoreReservedStock = body.restoreReservedStock !== false;
+      const nowIso = new Date().toISOString();
+
+      const clearedSummary = {
+        orders: 0,
+        pixCharges: 0,
+        financialEvents: 0,
+        stockMovements: 0,
+        restoredStockUnits: 0,
+        analyticsEvents: 0,
+        analyticsSessions: 0,
+        visitors: 0,
+        auditLog: 0,
+        contactMessages: 0,
+        returnRequests: 0,
+        cancellationRequests: 0,
+        adminNotifications: 0,
+        customers: 0
+      };
+
+      if (clearOrdersAndFinance) {
+        const existingOrders = Array.isArray(db.orders) ? db.orders : [];
+        if (restoreReservedStock) {
+          existingOrders.forEach((ord) => {
+            if (!ord) return;
+            const st = String(ord.status || '').toLowerCase();
+            const isHoldingStock = Boolean(ord.stockReserved || ord.stockDeducted) && st !== 'cancelled' && st !== 'cancelled_expired';
+            if (!isHoldingStock || !Array.isArray(ord.items)) return;
+            ord.items.forEach((item) => {
+              const prod = (db.products || []).find((p) => p && (p.id === item.productId || p.sku === item.sku));
+              if (!prod || !Array.isArray(prod.variations)) return;
+              const qty = Math.max(1, Number(item.quantity) || 1);
+              const targetVar = prod.variations.find(
+                (v) =>
+                  v &&
+                  (!item.size || String(v.size).trim() === String(item.size).trim()) &&
+                  (!item.color || String(v.color).trim() === String(item.color).trim())
+              ) || prod.variations[0];
+              if (targetVar) {
+                targetVar.stock = Math.max(0, Number(targetVar.stock || 0)) + qty;
+                clearedSummary.restoredStockUnits += qty;
+              }
+            });
+          });
+        }
+
+        clearedSummary.orders = existingOrders.length;
+        clearedSummary.pixCharges = Array.isArray(db.pixCharges) ? db.pixCharges.length : 0;
+        clearedSummary.financialEvents = Array.isArray(db.financialEvents) ? db.financialEvents.length : 0;
+        clearedSummary.stockMovements = Array.isArray(db.stockMovements) ? db.stockMovements.length : 0;
+        clearedSummary.cancellationRequests = Array.isArray(db.cancellationRequests) ? db.cancellationRequests.length : 0;
+        clearedSummary.returnRequests = Array.isArray(db.returnRequests) ? db.returnRequests.length : 0;
+        clearedSummary.adminNotifications = Array.isArray(db.adminNotifications) ? db.adminNotifications.length : 0;
+
+        db.orders = [];
+        db.pixCharges = [];
+        db.processedWebhooks = [];
+        db.pendingWebhookRetries = [];
+        db.financialEvents = [];
+        db.stockMovements = [];
+        db.cancellationRequests = [];
+        db.returnRequests = [];
+        db.adminNotifications = [];
+
+        if (Array.isArray(db.products)) {
+          db.products = db.products.map((p) => (p ? { ...p, salesCount: 0 } : p));
+        }
+        if (Array.isArray(db.coupons)) {
+          db.coupons = db.coupons.map((c) => (c ? { ...c, usedCount: 0 } : c));
+        }
+
+        if (!DISABLE_SUPABASE_SYNC && SUPABASE_URL && SUPABASE_KEY) {
+          try {
+            await fetch(`${SUPABASE_URL}/rest/v1/by_angely_orders?id=not.is.null`, {
+              method: 'DELETE',
+              headers: {
+                'apikey': SUPABASE_KEY,
+                'Authorization': `Bearer ${SUPABASE_KEY}`,
+                'Prefer': 'return=minimal'
+              }
+            });
+          } catch (supaErr) {
+            console.warn('[Supabase] Aviso ao limpar by_angely_orders:', supaErr.message);
+          }
+        }
+      }
+
+      if (clearAnalytics) {
+        const curAnalytics = db.analytics || {};
+        clearedSummary.visitors = curAnalytics.visitors ? Object.keys(curAnalytics.visitors).length : 0;
+        clearedSummary.analyticsSessions = Array.isArray(curAnalytics.sessions) ? curAnalytics.sessions.length : 0;
+        clearedSummary.analyticsEvents = Array.isArray(curAnalytics.events) ? curAnalytics.events.length : 0;
+        db.analytics = {
+          collectionStartedAt: nowIso,
+          retentionDays: Number(curAnalytics.retentionDays) || 180,
+          botsFilteredCount: 0,
+          duplicateRefreshesIgnored: 0,
+          visitors: {},
+          sessions: [],
+          events: []
+        };
+      }
+
+      if (clearLogsAndSupport) {
+        clearedSummary.auditLog = Array.isArray(db.auditLog) ? db.auditLog.length : 0;
+        clearedSummary.contactMessages = Array.isArray(db.contactMessages) ? db.contactMessages.length : 0;
+        clearedSummary.returnRequests += Array.isArray(db.returnRequests) ? db.returnRequests.length : 0;
+        clearedSummary.adminNotifications += Array.isArray(db.adminNotifications) ? db.adminNotifications.length : 0;
+        db.auditLog = [];
+        db.contactMessages = [];
+        db.returnRequests = [];
+        db.adminNotifications = [];
+      }
+
+      if (clearTestCustomers) {
+        clearedSummary.customers = Array.isArray(db.customers) ? db.customers.length : 0;
+        db.customers = [];
+      }
+
+      db.updatedAt = nowIso;
+      try {
+        fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8');
+      } catch (writeErr) {
+        console.warn('Aviso ao salvar db.json após limpeza:', writeErr.message);
+      }
+      await pushStateToSupabase(db);
+
+      return sendJson(res, 200, {
+        ok: true,
+        cleared: clearedSummary,
+        db: sanitizeDbForPublic(db, { isAdmin: true }),
+        message: 'Históricos e registros de teste selecionados foram zerados com sucesso.'
+      });
+    } catch (err) {
+      return sendJson(res, 400, { ok: false, error: err.message });
+    }
+  }
+
   // 12. Arquivos estáticos de public/
   let safePath = path.normalize(decodeURIComponent(pathname)).replace(/^(\.\.[\/\\])+/, '');
   if (safePath === '/' || safePath === '\\') {
