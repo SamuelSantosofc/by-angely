@@ -319,10 +319,16 @@ function repairDatabaseState(rawDb) {
   if (Array.isArray(target.adminUsers)) {
     target.adminUsers = target.adminUsers
       .filter((u) => u && u.email !== 'proprietaria@byangely.local')
-      .map((u) => ({
-        ...u,
-        passwordHash: u.passwordHash || hashPassword(u.role === 'owner' ? 'Angely@2026' : 'Equipe@2026')
-      }));
+      .map((u) => {
+        const cleanAdmin = { ...u };
+        if (cleanAdmin.customPassword) {
+          cleanAdmin.passwordHash = hashPassword(String(cleanAdmin.customPassword));
+          delete cleanAdmin.customPassword;
+        } else {
+          cleanAdmin.passwordHash = cleanAdmin.passwordHash || hashPassword(cleanAdmin.role === 'owner' ? (process.env.ADMIN_OWNER_INITIAL_PASSWORD || 'Angely@2026') : 'Equipe@2026');
+        }
+        return cleanAdmin;
+      });
   }
 
   target.analytics = target.analytics && typeof target.analytics === 'object' ? target.analytics : {};
@@ -407,21 +413,42 @@ function sanitizeDbForPublic(rawDb, options = {}) {
       return clean;
     });
   }
-  // Restringe o histórico de auditoria e dados analíticos brutos a administradores autorizados (#9 e #13)
+
+  // Isolamento estrito de PII e dados internos operacionais para visitantes/clientes não-administradores
   if (!options.isAdmin) {
+    copy.adminUsers = [];
+    copy.customers = [];
+    copy.pixCharges = [];
+    copy.processedWebhooks = [];
+    copy.pendingWebhookRetries = [];
+    copy.financialEvents = [];
+    copy.stockMovements = [];
+    copy.cancellationRequests = [];
+    copy.contactMessages = [];
+    copy.adminNotifications = [];
     copy.auditLog = [];
     copy.analytics = {
       collectionStartedAt: (rawDb.analytics && rawDb.analytics.collectionStartedAt) || '2026-11-15T00:00:00.000Z',
       retentionDays: 180,
       privacyCompliant: true
     };
-  }
-  // Isola pedidos e dados caso não seja uma requisição autenticada de Admin
-  if (!options.isAdmin && options.customerEmail) {
-    const emailNorm = String(options.customerEmail).trim().toLowerCase();
-    copy.orders = (copy.orders || []).filter(
-      (o) => o && o.customer && String(o.customer.email || '').trim().toLowerCase() === emailNorm
-    );
+
+    const emailNorm = String(options.customerEmail || '').trim().toLowerCase();
+    const custIdStr = String(options.customerId || '').trim();
+    if (emailNorm || custIdStr) {
+      copy.orders = (copy.orders || []).filter(
+        (o) =>
+          o &&
+          ((custIdStr && o.customerId === custIdStr) ||
+            (emailNorm && o.customer && String(o.customer.email || '').trim().toLowerCase() === emailNorm))
+      );
+      copy.returnRequests = (copy.returnRequests || []).filter(
+        (r) => r && emailNorm && String(r.customerEmail || '').trim().toLowerCase() === emailNorm
+      );
+    } else {
+      copy.orders = [];
+      copy.returnRequests = [];
+    }
   }
   copy.serverNow = new Date().toISOString();
   return copy;
@@ -1590,9 +1617,43 @@ const MIME_TYPES = {
 function setCorsAndSecurityHeaders(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Role, X-Admin-Email, X-Admin-Token, X-Customer-Email, X-Webhook-Secret');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Role, X-Admin-Email, X-Admin-Token, X-Customer-Token, X-Customer-Email, X-Webhook-Secret');
   res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+}
+
+function safeTokenEquals(a, b) {
+  const s1 = String(a || '');
+  const s2 = String(b || '');
+  if (!s1 || !s2) return false;
+  const b1 = Buffer.from(s1, 'utf8');
+  const b2 = Buffer.from(s2, 'utf8');
+  if (b1.length !== b2.length) return false;
+  return crypto.timingSafeEqual(b1, b2);
+}
+
+const RATE_LIMIT_BUCKETS = new Map();
+function checkRateLimit(req, bucketName, maxHits = 20, windowMs = 10 * 60 * 1000) {
+  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  const ip = forwarded || (req.socket && req.socket.remoteAddress) || 'unknown';
+  const key = `${bucketName}:${ip}`;
+  const now = Date.now();
+  const prev = (RATE_LIMIT_BUCKETS.get(key) || []).filter((ts) => now - ts < windowMs);
+  if (prev.length >= maxHits) {
+    RATE_LIMIT_BUCKETS.set(key, prev);
+    const retryAfterSec = Math.max(1, Math.ceil((windowMs - (now - prev[0])) / 1000));
+    return { allowed: false, retryAfterSec };
+  }
+  prev.push(now);
+  RATE_LIMIT_BUCKETS.set(key, prev);
+  if (RATE_LIMIT_BUCKETS.size > 2000) {
+    for (const [k, list] of RATE_LIMIT_BUCKETS.entries()) {
+      if (!list.length || now - list[list.length - 1] >= windowMs) RATE_LIMIT_BUCKETS.delete(k);
+    }
+  }
+  return { allowed: true, retryAfterSec: 0 };
 }
 
 function sendJson(res, statusCode, payload) {
@@ -1627,57 +1688,37 @@ function parseBody(req) {
   });
 }
 
-function getAuthenticatedCustomerFromReq(req, bodyCustomer) {
-  const authHeader = req.headers['authorization'] || '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
-  const custId = (bodyCustomer && (bodyCustomer.customerId || bodyCustomer.id)) || '';
-  const emailHeader = req.headers['x-customer-email'] || (bodyCustomer && bodyCustomer.email) || '';
+function getAuthenticatedCustomerFromReq(req) {
+  const authHeader = String(req.headers['authorization'] || '');
+  const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+  const customerTokenHeader = String(req.headers['x-customer-token'] || '').trim();
+  const token = bearerToken || customerTokenHeader;
 
-  if (token) {
-    const byToken = (db.customers || []).find((c) => c && c.sessionToken === token);
-    if (byToken) return byToken;
-  }
-  if (custId) {
-    const byId = (db.customers || []).find((c) => c && c.id === custId);
-    if (byId) return byId;
-  }
-  if (emailHeader) {
-    const emailNorm = String(emailHeader).trim().toLowerCase();
-    const byEmail = (db.customers || []).find((c) => c && String(c.email || '').trim().toLowerCase() === emailNorm);
-    if (byEmail) return byEmail;
-  }
-  return null;
+  if (!token) return null;
+  const byToken = (db.customers || []).find(
+    (c) =>
+      c &&
+      c.sessionToken &&
+      c.accountStatus !== 'blocked' &&
+      c.accountStatus !== 'deleted_anonymized' &&
+      safeTokenEquals(c.sessionToken, token)
+  );
+  return byToken || null;
 }
 
 function getAuthenticatedAdminFromReq(req, body = {}) {
-  const adminToken = req.headers['x-admin-token'] || body.adminToken || '';
-  const adminEmail = String(req.headers['x-admin-email'] || body.adminEmail || '').trim().toLowerCase();
-  const adminRole = String(req.headers['x-admin-role'] || body.adminRole || '').trim().toLowerCase();
-  const users = Array.isArray(db.adminUsers) ? db.adminUsers : [];
+  const headerToken = String(req.headers['x-admin-token'] || '').trim();
+  const authHeader = String(req.headers['authorization'] || '');
+  const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+  const bodyToken = body && body.adminToken ? String(body.adminToken).trim() : '';
+  const adminToken = headerToken || bearerToken || bodyToken;
 
-  if (adminToken) {
-    const byToken = users.find((u) => u && u.active !== false && u.sessionToken === adminToken);
-    if (byToken) return byToken;
-  }
-  if (adminEmail) {
-    const byEmail = users.find((u) => u && u.active !== false && String(u.email || '').toLowerCase() === adminEmail);
-    if (byEmail) return byEmail;
-  }
-  if (adminRole) {
-    const byRole = users.find((u) => u && u.active !== false && u.role === adminRole) ||
-      users.find((u) => u && u.active !== false && u.role === 'owner');
-    if (byRole) return byRole;
-    return {
-      id: 'admin-owner-official',
-      name: 'Proprietária BY ANGÉLY',
-      email: 'byangely1@gmail.com',
-      role: 'owner',
-      roleLabel: 'Proprietária (Acesso Total)',
-      permissions: ['products', 'categories', 'orders', 'customers', 'payments', 'shipping', 'branding', 'policies', 'users'],
-      active: true
-    };
-  }
-  return null;
+  if (!adminToken) return null;
+  const users = Array.isArray(db.adminUsers) ? db.adminUsers : [];
+  const byToken = users.find(
+    (u) => u && u.active !== false && u.sessionToken && safeTokenEquals(u.sessionToken, adminToken)
+  );
+  return byToken || null;
 }
 
 function hasAdminPermission(adminUser, perm) {
@@ -1691,10 +1732,11 @@ function verifyAdminPassword(adminUser, rawPassword) {
   if (!adminUser || !rawPassword) return false;
   const pwd = String(rawPassword);
   const pwdHash = hashPassword(pwd);
-  if (adminUser.customPassword && adminUser.customPassword === pwd) return true;
-  if (adminUser.passwordHash && adminUser.passwordHash === pwdHash) return true;
-  if (!adminUser.customPassword && adminUser.role === 'owner' && pwd === 'Angely@2026') return true;
-  if (!adminUser.customPassword && adminUser.role !== 'owner' && pwd === 'Equipe@2026') return true;
+  if (adminUser.passwordHash && safeTokenEquals(adminUser.passwordHash, pwdHash)) return true;
+  if (adminUser.customPassword && safeTokenEquals(adminUser.customPassword, pwd)) return true;
+  const defaultOwnerPwd = process.env.ADMIN_OWNER_INITIAL_PASSWORD || 'Angely@2026';
+  if (!adminUser.passwordHash && !adminUser.customPassword && adminUser.role === 'owner' && pwd === defaultOwnerPwd) return true;
+  if (!adminUser.passwordHash && !adminUser.customPassword && adminUser.role !== 'owner' && pwd === 'Equipe@2026') return true;
   return false;
 }
 
@@ -3244,167 +3286,319 @@ const server = http.createServer(async (req, res) => {
     });
   }
 
-  // 2. Estado Público e Administrativo Sincronizado
+  // 2. Estado Público e Administrativo Sincronizado (com isolamento estrito de PII)
   if (pathname === '/api/state' && req.method === 'GET') {
     await processExpiredPixOrders();
-    const isAdmin = Boolean(req.headers['x-admin-role'] || req.headers['x-admin-token'] || parsedUrl.query.admin === '1');
-    const customerEmail = req.headers['x-customer-email'] || parsedUrl.query.customerEmail || '';
-    return sendJson(res, 200, sanitizeDbForPublic(db, { isAdmin, customerEmail }));
+    const adminUser = getAuthenticatedAdminFromReq(req);
+    const authCust = adminUser ? null : getAuthenticatedCustomerFromReq(req);
+    return sendJson(
+      res,
+      200,
+      sanitizeDbForPublic(db, {
+        isAdmin: Boolean(adminUser),
+        customerEmail: authCust ? authCust.email : '',
+        customerId: authCust ? authCust.id : ''
+      })
+    );
   }
 
   if (pathname === '/api/state' && req.method === 'POST') {
     try {
       const incoming = await parseBody(req);
-      if (incoming && typeof incoming === 'object' && incoming.storeSettings) {
-        // Preserva senhas, hashes, status de conta, cobranças Pix, auditoria e eventos financeiros do servidor
-        const existingById = new Map((db.customers || []).map((c) => [String(c.id || ''), c]));
-        const existingByEmail = new Map((db.customers || []).map((c) => [String(c.email || '').toLowerCase(), c]));
-        const mergedCustomers = Array.isArray(incoming.customers)
-          ? incoming.customers.map((c) => {
-              const prev = existingById.get(String(c.id || '')) || existingByEmail.get(String(c.email || '').toLowerCase());
-              const isDeleted = (prev && prev.accountStatus === 'deleted_anonymized') || c.accountStatus === 'deleted_anonymized';
-              return {
-                ...(prev || {}),
-                ...c,
-                accountStatus: c.accountStatus || (prev && prev.accountStatus) || 'active',
-                deletedEmailHash: (prev && prev.deletedEmailHash) || c.deletedEmailHash || undefined,
-                passwordHash: isDeleted ? null : (c.passwordHash || (prev && prev.passwordHash) || (c.password ? hashPassword(c.password) : undefined)),
-                sessionToken: isDeleted || c.accountStatus === 'blocked' ? null : (c.sessionToken || (prev && prev.sessionToken) || generateToken('cust'))
-              };
-            })
-          : db.customers;
+      const adminUser = getAuthenticatedAdminFromReq(req, incoming);
+      if (!adminUser) {
+        return sendJson(res, 401, {
+          ok: false,
+          code: 'ADMIN_AUTH_REQUIRED',
+          error: 'Autenticação administrativa necessária para alterar o estado da loja.'
+        });
+      }
+      if (!incoming || typeof incoming !== 'object' || !incoming.storeSettings) {
+        return sendJson(res, 400, { ok: false, error: 'Estrutura de estado inválida.' });
+      }
 
-        // Protege status de pedidos contra aprovação falsa vinda de cliente comum
-        // e impede que um salvamento administrativo com estado antigo em memória sobrescreva um pagamento Pix já confirmado pelo servidor
-        const isAdminReq = Boolean(req.headers['x-admin-role'] || req.headers['x-admin-token']);
-        let mergedOrders = db.orders || [];
-        if (Array.isArray(incoming.orders)) {
-          const serverOrdersById = new Map((db.orders || []).map((o) => [o.id, o]));
-          const incomingIds = new Set();
+      // Preserva senhas, hashes, tokens, cobranças Pix confirmadas, auditoria e eventos financeiros do servidor
+      const canManageUsers = adminUser.role === 'owner' || hasAdminPermission(adminUser, 'users');
+      const existingAdminsByEmail = new Map(
+        (db.adminUsers || []).map((u) => [String((u && u.email) || '').trim().toLowerCase(), u])
+      );
+      let mergedAdminUsers = db.adminUsers || [];
+      if (canManageUsers && Array.isArray(incoming.adminUsers)) {
+        mergedAdminUsers = incoming.adminUsers
+          .filter((u) => u && u.email && u.email !== 'proprietaria@byangely.local')
+          .map((u) => {
+            const emailKey = String(u.email).trim().toLowerCase();
+            const prev = existingAdminsByEmail.get(emailKey);
+            const rawNewPass = u.customPassword ? String(u.customPassword) : '';
+            const nextHash = rawNewPass
+              ? hashPassword(rawNewPass)
+              : ((prev && prev.passwordHash) || hashPassword(u.role === 'owner' ? 'Angely@2026' : 'Equipe@2026'));
+            const cleanAdmin = { ...(prev || {}), ...u };
+            delete cleanAdmin.customPassword;
+            cleanAdmin.passwordHash = nextHash;
+            cleanAdmin.sessionToken = prev && prev.sessionToken ? prev.sessionToken : undefined;
+            return cleanAdmin;
+          });
+      }
 
-          const mappedIncoming = incoming.orders.map((incOrd) => {
-            if (!incOrd || !incOrd.id) return incOrd;
-            incomingIds.add(incOrd.id);
-            const srvOrd = serverOrdersById.get(incOrd.id);
-            if (!srvOrd) return incOrd;
+      const existingById = new Map((db.customers || []).map((c) => [String(c.id || ''), c]));
+      const existingByEmail = new Map((db.customers || []).map((c) => [String(c.email || '').toLowerCase(), c]));
+      const mergedCustomers = (hasAdminPermission(adminUser, 'customers') && Array.isArray(incoming.customers))
+        ? incoming.customers.map((c) => {
+            const prev = existingById.get(String(c.id || '')) || existingByEmail.get(String(c.email || '').toLowerCase());
+            const isDeleted = (prev && prev.accountStatus === 'deleted_anonymized') || c.accountStatus === 'deleted_anonymized';
+            return {
+              ...(prev || {}),
+              ...c,
+              accountStatus: c.accountStatus || (prev && prev.accountStatus) || 'active',
+              deletedEmailHash: (prev && prev.deletedEmailHash) || c.deletedEmailHash || undefined,
+              passwordHash: isDeleted ? null : ((prev && prev.passwordHash) || (c.password ? hashPassword(c.password) : undefined)),
+              sessionToken: isDeleted || c.accountStatus === 'blocked' ? null : ((prev && prev.sessionToken) || generateToken('cust'))
+            };
+          })
+        : db.customers;
 
-            const srvPaid = ['paid', 'approved', 'approved_late', 'approved_late_conflict', 'refunded'].includes(
-              String(srvOrd.paymentStatus || srvOrd.payment_status || '').toLowerCase()
-            );
-            const incPaid = ['paid', 'approved', 'approved_late', 'approved_late_conflict', 'refunded'].includes(
-              String(incOrd.paymentStatus || incOrd.payment_status || '').toLowerCase()
-            );
-
-            if (!isAdminReq) {
-              return {
-                ...incOrd,
-                status: srvOrd.status,
-                statusLabel: srvOrd.statusLabel,
-                paymentStatus: srvOrd.paymentStatus,
-                payment_status: srvOrd.payment_status || srvOrd.paymentStatus,
-                total: srvOrd.total,
-                expiresAt: srvOrd.expiresAt,
-                paidAt: srvOrd.paidAt,
-                pixData: srvOrd.pixData || incOrd.pixData,
-                notificationsLog: srvOrd.notificationsLog || incOrd.notificationsLog,
-                cancellationRequest: srvOrd.cancellationRequest || incOrd.cancellationRequest
-              };
-            }
-
-            // Se for requisição Admin, mas o pedido já foi pago/confirmado no servidor via Webhook Pix e o navegador Admin ainda estava com 'pending', preserva a aprovação!
-            if (srvPaid && !incPaid) {
-              const preserveApprovedStatus =
-                incOrd.status === 'awaiting_payment' || incOrd.status === 'awaiting_confirmation'
-                  ? srvOrd.status
-                  : incOrd.status;
-              const preserveApprovedLabel =
-                incOrd.status === 'awaiting_payment' || incOrd.status === 'awaiting_confirmation'
-                  ? srvOrd.statusLabel
-                  : incOrd.statusLabel;
-              return {
-                ...incOrd,
-                status: preserveApprovedStatus,
-                statusLabel: preserveApprovedLabel,
-                paymentStatus: srvOrd.paymentStatus,
-                payment_status: srvOrd.payment_status || srvOrd.paymentStatus,
-                paidAt: srvOrd.paidAt,
-                stockReserved: srvOrd.stockReserved,
-                stockDeducted: srvOrd.stockDeducted,
-                pixData: srvOrd.pixData || incOrd.pixData,
-                notificationsLog: Array.isArray(srvOrd.notificationsLog) && srvOrd.notificationsLog.length >= (incOrd.notificationsLog || []).length
-                  ? srvOrd.notificationsLog
-                  : incOrd.notificationsLog,
-                cancellationRequest: srvOrd.cancellationRequest || incOrd.cancellationRequest
-              };
-            }
-
+      let mergedOrders = db.orders || [];
+      if (hasAdminPermission(adminUser, 'orders') && Array.isArray(incoming.orders)) {
+        const serverOrdersById = new Map((db.orders || []).map((o) => [o.id, o]));
+        const incomingIds = new Set();
+        const mappedIncoming = incoming.orders.map((incOrd) => {
+          if (!incOrd || !incOrd.id) return incOrd;
+          incomingIds.add(incOrd.id);
+          const srvOrd = serverOrdersById.get(incOrd.id);
+          if (!srvOrd) return incOrd;
+          const srvPaid = ['paid', 'approved', 'approved_late', 'approved_late_conflict', 'refunded'].includes(
+            String(srvOrd.paymentStatus || srvOrd.payment_status || '').toLowerCase()
+          );
+          const incPaid = ['paid', 'approved', 'approved_late', 'approved_late_conflict', 'refunded'].includes(
+            String(incOrd.paymentStatus || incOrd.payment_status || '').toLowerCase()
+          );
+          if (srvPaid && !incPaid) {
+            const preserveApprovedStatus =
+              incOrd.status === 'awaiting_payment' || incOrd.status === 'awaiting_confirmation'
+                ? srvOrd.status
+                : incOrd.status;
+            const preserveApprovedLabel =
+              incOrd.status === 'awaiting_payment' || incOrd.status === 'awaiting_confirmation'
+                ? srvOrd.statusLabel
+                : incOrd.statusLabel;
             return {
               ...incOrd,
-              payment_status: incOrd.paymentStatus || incOrd.payment_status || srvOrd.paymentStatus,
-              pixData: srvOrd.pixData || incOrd.pixData
+              status: preserveApprovedStatus,
+              statusLabel: preserveApprovedLabel,
+              paymentStatus: srvOrd.paymentStatus,
+              payment_status: srvOrd.payment_status || srvOrd.paymentStatus,
+              paidAt: srvOrd.paidAt,
+              stockReserved: srvOrd.stockReserved,
+              stockDeducted: srvOrd.stockDeducted,
+              pixData: srvOrd.pixData || incOrd.pixData,
+              notificationsLog: Array.isArray(srvOrd.notificationsLog) && srvOrd.notificationsLog.length >= (incOrd.notificationsLog || []).length
+                ? srvOrd.notificationsLog
+                : incOrd.notificationsLog,
+              cancellationRequest: srvOrd.cancellationRequest || incOrd.cancellationRequest
             };
-          });
+          }
+          return {
+            ...incOrd,
+            payment_status: incOrd.paymentStatus || incOrd.payment_status || srvOrd.paymentStatus,
+            pixData: srvOrd.pixData || incOrd.pixData
+          };
+        });
+        const missingServerOrders = (db.orders || []).filter((srvOrd) => srvOrd && srvOrd.id && !incomingIds.has(srvOrd.id));
+        mergedOrders = [...missingServerOrders, ...mappedIncoming];
+      }
 
-          // Preserva pedidos recém-criados no servidor que ainda não estavam na memória do navegador
-          const missingServerOrders = (db.orders || []).filter((srvOrd) => srvOrd && srvOrd.id && !incomingIds.has(srvOrd.id));
-          mergedOrders = [...missingServerOrders, ...mappedIncoming];
-        }
-
-        // Mescla cobranças Pix preservando confirmações do servidor
-        const serverChargesById = new Map((db.pixCharges || []).map((c) => [c.chargeId || c.txid, c]));
-        let mergedPixCharges = db.pixCharges || [];
-        if (Array.isArray(incoming.pixCharges) && isAdminReq) {
-          const seenChargeKeys = new Set();
-          const combinedCharges = [];
-          [...(db.pixCharges || []), ...incoming.pixCharges].forEach((c) => {
-            if (!c) return;
-            const key = c.chargeId || c.txid;
-            if (!key || seenChargeKeys.has(key)) return;
-            seenChargeKeys.add(key);
-            const srvCharge = serverChargesById.get(key);
-            if (srvCharge && ['paid', 'approved', 'expired', 'paid_late_conflict'].includes(String(srvCharge.status || '').toLowerCase())) {
-              combinedCharges.push(srvCharge);
-            } else {
-              combinedCharges.push(c);
-            }
-          });
-          mergedPixCharges = combinedCharges;
-        }
-
-        // Mescla log de auditoria sem perder registros do servidor
-        const serverAudit = Array.isArray(db.auditLog) ? db.auditLog : [];
-        const incomingAudit = Array.isArray(incoming.auditLog) ? incoming.auditLog : [];
-        const seenAuditIds = new Set();
-        const mergedAuditLog = [];
-        [...incomingAudit, ...serverAudit].forEach((entry) => {
-          if (!entry) return;
-          const key = entry.id || `${entry.date || entry.timestamp}_${entry.action}_${entry.user}`;
-          if (!seenAuditIds.has(key)) {
-            seenAuditIds.add(key);
-            mergedAuditLog.push(entry);
+      const serverChargesById = new Map((db.pixCharges || []).map((c) => [c.chargeId || c.txid, c]));
+      let mergedPixCharges = db.pixCharges || [];
+      if (hasAdminPermission(adminUser, 'payments') && Array.isArray(incoming.pixCharges)) {
+        const seenChargeKeys = new Set();
+        const combinedCharges = [];
+        [...(db.pixCharges || []), ...incoming.pixCharges].forEach((c) => {
+          if (!c) return;
+          const key = c.chargeId || c.txid;
+          if (!key || seenChargeKeys.has(key)) return;
+          seenChargeKeys.add(key);
+          const srvCharge = serverChargesById.get(key);
+          if (srvCharge && ['paid', 'approved', 'expired', 'paid_late_conflict'].includes(String(srvCharge.status || '').toLowerCase())) {
+            combinedCharges.push(srvCharge);
+          } else {
+            combinedCharges.push(c);
           }
         });
-
-        db = repairDatabaseState({
-          ...db,
-          ...incoming,
-          customers: mergedCustomers,
-          orders: mergedOrders,
-          pixCharges: mergedPixCharges,
-          processedWebhooks: db.processedWebhooks || [],
-          pendingWebhookRetries: db.pendingWebhookRetries || [],
-          financialEvents: db.financialEvents || [],
-          stockMovements: db.stockMovements || [],
-          cancellationRequests: Array.isArray(incoming.cancellationRequests) && isAdminReq ? incoming.cancellationRequests : (db.cancellationRequests || []),
-          auditLog: mergedAuditLog.slice(0, 500),
-          adminNotifications: Array.isArray(incoming.adminNotifications) && isAdminReq ? incoming.adminNotifications : (db.adminNotifications || []),
-          analytics: db.analytics,
-          updatedAt: new Date().toISOString()
-        });
-        saveDatabase(db);
-        return sendJson(res, 200, { ok: true, updatedAt: db.updatedAt, serverNow: new Date().toISOString() });
+        mergedPixCharges = combinedCharges;
       }
-      return sendJson(res, 400, { ok: false, error: 'Estrutura de estado inválida.' });
+
+      const serverAudit = Array.isArray(db.auditLog) ? db.auditLog : [];
+      const incomingAudit = Array.isArray(incoming.auditLog) ? incoming.auditLog : [];
+      const seenAuditIds = new Set();
+      const mergedAuditLog = [];
+      [...incomingAudit, ...serverAudit].forEach((entry) => {
+        if (!entry) return;
+        const key = entry.id || `${entry.date || entry.timestamp}_${entry.action}_${entry.user}`;
+        if (!seenAuditIds.has(key)) {
+          seenAuditIds.add(key);
+          mergedAuditLog.push(entry);
+        }
+      });
+
+      const nextProducts = (hasAdminPermission(adminUser, 'products') && Array.isArray(incoming.products)) ? incoming.products : db.products;
+      const nextCategories = (hasAdminPermission(adminUser, 'categories') && Array.isArray(incoming.categories)) ? incoming.categories : db.categories;
+      const nextCoupons = ((hasAdminPermission(adminUser, 'categories') || hasAdminPermission(adminUser, 'products')) && Array.isArray(incoming.coupons)) ? incoming.coupons : db.coupons;
+      const nextPaymentSettings = (hasAdminPermission(adminUser, 'payments') && incoming.paymentSettings) ? incoming.paymentSettings : db.paymentSettings;
+      const nextShippingSettings = (hasAdminPermission(adminUser, 'shipping') && incoming.shippingSettings) ? incoming.shippingSettings : db.shippingSettings;
+      const nextStoreSettings = (hasAdminPermission(adminUser, 'branding') || hasAdminPermission(adminUser, 'categories')) ? incoming.storeSettings : db.storeSettings;
+      const nextPolicies = (hasAdminPermission(adminUser, 'policies') && incoming.policies) ? incoming.policies : db.policies;
+
+      db = repairDatabaseState({
+        ...db,
+        storeSettings: nextStoreSettings,
+        paymentSettings: nextPaymentSettings,
+        shippingSettings: nextShippingSettings,
+        categories: nextCategories,
+        products: nextProducts,
+        coupons: nextCoupons,
+        policies: nextPolicies,
+        reviews: Array.isArray(incoming.reviews) ? incoming.reviews : db.reviews,
+        returnRequests: Array.isArray(incoming.returnRequests) ? incoming.returnRequests : db.returnRequests,
+        contactMessages: Array.isArray(incoming.contactMessages) ? incoming.contactMessages : db.contactMessages,
+        adminUsers: mergedAdminUsers,
+        customers: mergedCustomers,
+        orders: mergedOrders,
+        pixCharges: mergedPixCharges,
+        processedWebhooks: db.processedWebhooks || [],
+        pendingWebhookRetries: db.pendingWebhookRetries || [],
+        financialEvents: db.financialEvents || [],
+        stockMovements: db.stockMovements || [],
+        cancellationRequests: (hasAdminPermission(adminUser, 'orders') && Array.isArray(incoming.cancellationRequests)) ? incoming.cancellationRequests : (db.cancellationRequests || []),
+        auditLog: mergedAuditLog.slice(0, 500),
+        adminNotifications: Array.isArray(incoming.adminNotifications) ? incoming.adminNotifications : (db.adminNotifications || []),
+        analytics: db.analytics,
+        updatedAt: new Date().toISOString()
+      });
+      saveDatabase(db);
+      return sendJson(res, 200, { ok: true, updatedAt: db.updatedAt, serverNow: new Date().toISOString() });
+    } catch (err) {
+      return sendJson(res, 400, { ok: false, error: err.message });
+    }
+  }
+
+  // 2B. Endpoints Dedicados Seguros para Interações Públicas / da Cliente (SAC, Avaliações e Devoluções)
+  if (pathname === '/api/public/contact' && req.method === 'POST') {
+    const rl = checkRateLimit(req, 'public_contact', 10, 10 * 60 * 1000);
+    if (!rl.allowed) {
+      return sendJson(res, 429, { ok: false, error: 'Muitas mensagens enviadas em sequência. Aguarde alguns minutos.' });
+    }
+    try {
+      const body = await parseBody(req);
+      const name = String(body.name || '').trim().slice(0, 120);
+      const email = String(body.email || '').trim().toLowerCase().slice(0, 160);
+      const subject = String(body.subject || '').trim().slice(0, 160);
+      const message = String(body.message || '').trim().slice(0, 2000);
+      if (!name || !email || !email.includes('@') || !subject || !message) {
+        return sendJson(res, 400, { ok: false, error: 'Preencha nome, e-mail válido, assunto e mensagem.' });
+      }
+      const msgObj = {
+        id: 'sac-' + Date.now(),
+        name,
+        email,
+        subject,
+        message,
+        status: 'Pendente',
+        createdAt: new Date().toISOString()
+      };
+      db.contactMessages = db.contactMessages || [];
+      db.contactMessages.unshift(msgObj);
+      addAdminNotification(`Nova mensagem SAC — ${subject}`, `${name} (${email}) enviou uma mensagem de atendimento.`, null, null, 'info');
+      saveDatabase(db);
+      return sendJson(res, 201, { ok: true, contactMessage: msgObj });
+    } catch (err) {
+      return sendJson(res, 400, { ok: false, error: err.message });
+    }
+  }
+
+  if (pathname === '/api/public/reviews' && req.method === 'POST') {
+    try {
+      const cust = getAuthenticatedCustomerFromReq(req);
+      if (!cust) {
+        return sendJson(res, 401, { ok: false, error: 'Entre na sua conta para enviar uma avaliação.' });
+      }
+      const body = await parseBody(req);
+      const productId = String(body.productId || '').trim();
+      const prod = (db.products || []).find((p) => p && p.id === productId);
+      if (!prod) {
+        return sendJson(res, 404, { ok: false, error: 'Produto não encontrado.' });
+      }
+      db.reviews = db.reviews || [];
+      const custEmailNorm = String(cust.email || '').trim().toLowerCase();
+      const alreadyDup = db.reviews.some(
+        (r) => r && r.productId === prod.id && (r.customerId === cust.id || String(r.customerEmail || '').trim().toLowerCase() === custEmailNorm)
+      );
+      if (alreadyDup) {
+        return sendJson(res, 409, { ok: false, error: 'Você já avaliou este produto.' });
+      }
+      const rating = Math.max(1, Math.min(5, Math.floor(Number(body.rating) || 5)));
+      const comment = String(body.comment || '').trim().slice(0, 1000);
+      const revObj = {
+        id: 'rev-' + Date.now(),
+        productId: prod.id,
+        productName: prod.name,
+        customerId: cust.id,
+        customerName: cust.name,
+        customerEmail: cust.email,
+        rating,
+        comment,
+        status: 'approved',
+        date: new Date().toLocaleDateString('pt-BR'),
+        createdAt: new Date().toISOString(),
+        isDemo: false
+      };
+      db.reviews.unshift(revObj);
+      saveDatabase(db);
+      return sendJson(res, 201, { ok: true, review: revObj });
+    } catch (err) {
+      return sendJson(res, 400, { ok: false, error: err.message });
+    }
+  }
+
+  if (pathname === '/api/customer/returns' && req.method === 'POST') {
+    try {
+      const cust = getAuthenticatedCustomerFromReq(req);
+      if (!cust) {
+        return sendJson(res, 401, { ok: false, error: 'Entre na sua conta para solicitar troca ou devolução.' });
+      }
+      const body = await parseBody(req);
+      const orderNumber = String(body.orderNumber || '').trim();
+      const type = String(body.type || '').trim().slice(0, 80);
+      const reason = String(body.reason || '').trim().slice(0, 1500);
+      if (!orderNumber || !reason) {
+        return sendJson(res, 400, { ok: false, error: 'Informe o número do pedido e o motivo da solicitação.' });
+      }
+      const custEmailNorm = String(cust.email || '').trim().toLowerCase();
+      const ownedOrder = (db.orders || []).find(
+        (o) =>
+          o &&
+          (o.orderNumber === orderNumber || o.id === orderNumber) &&
+          (o.customerId === cust.id || (o.customer && String(o.customer.email || '').trim().toLowerCase() === custEmailNorm))
+      );
+      if (!ownedOrder) {
+        return sendJson(res, 403, { ok: false, error: 'Pedido não localizado na sua conta.' });
+      }
+      const reqObj = {
+        id: 'ret-' + Date.now(),
+        orderNumber: ownedOrder.orderNumber || orderNumber,
+        customerName: cust.name,
+        customerEmail: cust.email,
+        type: type || 'Troca / Devolução',
+        reason,
+        status: 'Em análise pela loja',
+        ownerResponse: '',
+        createdAt: new Date().toISOString()
+      };
+      db.returnRequests = db.returnRequests || [];
+      db.returnRequests.unshift(reqObj);
+      addAdminNotification(`Solicitação de Troca/Devolução — ${reqObj.orderNumber}`, `${cust.name} abriu solicitação: ${reqObj.type}`, ownedOrder.id, reqObj.orderNumber, 'info');
+      saveDatabase(db);
+      return sendJson(res, 201, { ok: true, returnRequest: reqObj });
     } catch (err) {
       return sendJson(res, 400, { ok: false, error: err.message });
     }
@@ -3495,6 +3689,10 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (pathname === '/api/auth/login' && req.method === 'POST') {
+    const rl = checkRateLimit(req, 'customer_login', 20, 10 * 60 * 1000);
+    if (!rl.allowed) {
+      return sendJson(res, 429, { ok: false, error: 'Muitas tentativas de login. Aguarde alguns minutos e tente novamente.' });
+    }
     try {
       const body = await parseBody(req);
       const email = String(body.email || '').trim().toLowerCase();
@@ -3773,7 +3971,11 @@ const server = http.createServer(async (req, res) => {
         const cleanColor = isValidColorName(reqItem.color)
           ? String(reqItem.color).trim()
           : (Array.isArray(prod.colors) && prod.colors[0] ? prod.colors[0].name : 'Padrão');
-        const qty = Math.max(1, Math.floor(Number(reqItem.quantity) || 1));
+        const rawQty = Number(reqItem.quantity);
+        if (!Number.isInteger(rawQty) || rawQty < 1 || rawQty > 50) {
+          return sendJson(res, 400, { ok: false, error: `Quantidade inválida para "${prod.name}". Informe um inteiro entre 1 e 50.` });
+        }
+        const qty = rawQty;
 
         const avail = getVariationStock(prod, cleanSize, cleanColor);
         if (avail < qty) {
@@ -3825,7 +4027,11 @@ const server = http.createServer(async (req, res) => {
       const shippingCost = selectedShip && selectedShip.priceStatus === 'confirmed' ? (Number(selectedShip.price) || 0) : 0;
 
       const total = Number(Math.max(0.01, subtotal - discount + shippingCost).toFixed(2));
-      const chosenMethod = body.paymentMethod || 'pix';
+      const allowedPayMethods = ['pix', 'whatsapp', 'creditCard', 'debitCard', 'payOnPickup'];
+      const chosenMethod = String(body.paymentMethod || 'pix').trim();
+      if (!allowedPayMethods.includes(chosenMethod)) {
+        return sendJson(res, 400, { ok: false, error: 'Forma de pagamento inválida.' });
+      }
 
       // Verifica se a forma de pagamento escolhida está ativa
       if (!db.paymentSettings || !db.paymentSettings[chosenMethod] || !db.paymentSettings[chosenMethod].enabled) {
@@ -4077,10 +4283,23 @@ const server = http.createServer(async (req, res) => {
   const paymentStatusMatch = pathname.match(/^\/api\/orders\/([^\/]+)\/payment-status$/);
   if (paymentStatusMatch && req.method === 'GET') {
     await processExpiredPixOrders();
+    const adminUser = getAuthenticatedAdminFromReq(req);
+    const authCust = adminUser ? null : getAuthenticatedCustomerFromReq(req);
+    if (!adminUser && !authCust) {
+      return sendJson(res, 401, { ok: false, error: 'Sessão autenticada necessária para consultar o status deste pedido.' });
+    }
     const orderIdOrNumber = decodeURIComponent(paymentStatusMatch[1]);
     const ord = (db.orders || []).find((o) => o.id === orderIdOrNumber || o.orderNumber === orderIdOrNumber);
     if (!ord) {
       return sendJson(res, 404, { ok: false, error: 'Pedido não encontrado.' });
+    }
+    if (!adminUser) {
+      const custEmailNorm = String(authCust.email || '').trim().toLowerCase();
+      const ordEmailNorm = String((ord.customer && ord.customer.email) || '').trim().toLowerCase();
+      const ownsOrder = ord.customerId === authCust.id || (custEmailNorm && ordEmailNorm === custEmailNorm);
+      if (!ownsOrder) {
+        return sendJson(res, 403, { ok: false, error: 'Acesso negado: você só pode consultar pedidos da sua conta.' });
+      }
     }
 
     const charge = (db.pixCharges || []).find((c) => c.orderId === ord.id || c.orderNumber === ord.orderNumber);
@@ -4133,6 +4352,10 @@ const server = http.createServer(async (req, res) => {
 
   // 6.1 Endpoint de Sincronização em Tempo Real do Painel Administrativo (Atualização Automática de Pedidos Pix)
   if (pathname === '/api/admin/pix-sync' && req.method === 'GET') {
+    const adminUser = getAuthenticatedAdminFromReq(req);
+    if (!adminUser) {
+      return sendJson(res, 401, { ok: false, error: 'Autenticação administrativa necessária.' });
+    }
     await processExpiredPixOrders();
 
     // Também verifica se há retentativas de webhook pendentes na fila para aprovar automaticamente
@@ -4477,10 +4700,18 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // 8. Endpoint de Simulação de Sandbox do Provedor Pix (Apenas para Testes de Homologação / Admin)
+  // 8. Endpoint de Simulação de Sandbox do Provedor Pix (Exclusivo Admin Autenticado em Sandbox)
   if (pathname === '/api/pix/sandbox-simulate-payment' && req.method === 'POST') {
     try {
       const body = await parseBody(req);
+      const adminUser = getAuthenticatedAdminFromReq(req, body);
+      if (!adminUser || !hasAdminPermission(adminUser, 'payments')) {
+        return sendJson(res, 401, { ok: false, error: 'Autenticação administrativa necessária para simulação Sandbox.' });
+      }
+      const creds = getPixProviderCredentials();
+      if (process.env.NODE_ENV === 'production' && creds && creds.environment === 'production' && process.env.ALLOW_SANDBOX_SIMULATION !== '1') {
+        return sendJson(res, 403, { ok: false, error: 'Simulação Sandbox desativada em ambiente de produção.' });
+      }
       const orderId = String(body.orderId || body.orderNumber || '').trim();
       const txid = String(body.txid || '').trim();
       const charge = (db.pixCharges || []).find(
@@ -4542,6 +4773,10 @@ const server = http.createServer(async (req, res) => {
     try {
       const orderId = decodeURIComponent(adminOrderStatusMatch[1]);
       const body = await parseBody(req);
+      const adminUser = getAuthenticatedAdminFromReq(req, body);
+      if (!adminUser || !hasAdminPermission(adminUser, 'orders')) {
+        return sendJson(res, 401, { ok: false, error: 'Autenticação administrativa necessária para alterar status de pedidos.' });
+      }
       const ord = (db.orders || []).find((o) => o.id === orderId || o.orderNumber === orderId);
       if (!ord) {
         return sendJson(res, 404, { ok: false, error: 'Pedido não localizado.' });
@@ -4710,6 +4945,10 @@ const server = http.createServer(async (req, res) => {
 
   // 11B. Autenticação Administrativa Oficial no Servidor + Token RBAC (#8 e #9)
   if (pathname === '/api/admin/login' && req.method === 'POST') {
+    const rl = checkRateLimit(req, 'admin_login', 12, 10 * 60 * 1000);
+    if (!rl.allowed) {
+      return sendJson(res, 429, { ok: false, error: 'Muitas tentativas de login administrativo. Aguarde alguns minutos.' });
+    }
     try {
       const body = await parseBody(req);
       const email = String(body.email || '').trim().toLowerCase();
@@ -4861,7 +5100,6 @@ const server = http.createServer(async (req, res) => {
       const providerCheck = await queryProviderChargeStatus(charge);
       const paidStates = ['payment_approved', 'paid', 'awaiting_separation', 'in_separation', 'preparing', 'ready_for_shipping', 'ready_pickup', 'shipped', 'out_for_delivery', 'delivered'];
       const isSimultaneousOrAlreadyPaid =
-        Boolean(body.simulateSimultaneousPayment) ||
         providerCheck.status === 'APPROVED' ||
         ord.paymentStatus === 'paid' ||
         ord.paymentStatus === 'approved' ||
