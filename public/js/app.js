@@ -3341,10 +3341,9 @@
               <details style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border-subtle);">
                 <summary style="font-size:0.82rem;font-weight:600;cursor:pointer;">Esqueceu sua senha? Recuperar acesso</summary>
                 <form id="customer-recover-form" style="margin-top:10px;">
-                  <p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:8px;">Informe seu e-mail cadastrado e defina uma nova senha:</p>
+                  <p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:8px;">Informe seu e-mail cadastrado. Se ele existir em nossa base, enviaremos um link oficial para redefinição:</p>
                   <input type="email" name="email" class="form-control" required placeholder="E-mail da conta" style="margin-bottom:8px;" />
-                  <input type="password" name="newPassword" class="form-control" required placeholder="Nova senha (mín. 6 caracteres)" minlength="6" style="margin-bottom:8px;" />
-                  <button type="submit" class="btn btn-outline btn-sm">Redefinir Senha</button>
+                  <button type="submit" class="btn btn-outline btn-sm">Enviar Link de Redefinição</button>
                 </form>
               </details>
             </div>
@@ -5846,10 +5845,9 @@ ${showBanner ? `
 <details style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border-subtle);">
 <summary style="font-size:0.82rem;font-weight:600;cursor:pointer;">Esqueceu sua senha? Recuperar senha</summary>
 <form id="customer-recover-form" style="margin-top:10px;">
-<p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:8px;">Informe seu e-mail cadastrado e defina uma nova senha:</p>
+<p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:8px;">Informe seu e-mail cadastrado. Se ele existir em nossa base, enviaremos um link oficial para redefinição:</p>
 <input type="email" name="email" class="form-control" required placeholder="E-mail da conta" style="margin-bottom:8px;" />
-<input type="password" name="newPassword" class="form-control" required placeholder="Nova senha (mín. 6 caracteres)" minlength="6" style="margin-bottom:8px;" />
-<button type="submit" class="btn btn-outline btn-sm">Redefinir Senha</button>
+<button type="submit" class="btn btn-outline btn-sm">Enviar Link de Redefinição</button>
 </form>
 </details>
 </div>
@@ -6284,25 +6282,18 @@ if (recForm) {
 recForm.addEventListener('submit', async (e) => {
 e.preventDefault();
 const fd = new FormData(recForm);
-try {
-const res = await fetch(apiBase + '/api/auth/recover', {
-method: 'POST',
-headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify({
-email: fd.get('email'),
-newPassword: fd.get('newPassword')
-})
-});
-const data = await res.json();
-if (!res.ok || !data.ok) {
-showToast((data && data.error) || 'E-mail não localizado.', 'danger');
+const email = String(fd.get('email') || '').trim().toLowerCase();
+if (!window.ByAngelyFirebaseAuth || !isValidEmailFormat(email)) {
+showToast('Informe um endereço de e-mail válido.', 'warning');
 return;
 }
-showToast('Senha redefinida com sucesso! Você já pode entrar.', 'success');
-recForm.reset();
-} catch (err) {
-showToast('Erro ao redefinir senha.', 'danger');
+const result = await window.ByAngelyFirebaseAuth.requestPasswordReset(email);
+if (!result.ok) {
+showToast(result.error || 'Não foi possível solicitar a redefinição.', 'danger');
+return;
 }
+showToast('Se este e-mail estiver cadastrado, enviaremos um link oficial para redefinir sua senha.', 'success');
+recForm.reset();
 });
 }
 const profForm = document.getElementById('customer-profile-form');
@@ -7344,6 +7335,7 @@ navigateTo = function (view, options = {}) {
       cart: '#sacola',
       checkout: '#checkout',
       account: '#minha-conta',
+      'reset-password': '#redefinir-senha',
       orders: '#meus-pedidos',
       favorites: '#favoritos',
       returns: '#trocas',
@@ -7513,6 +7505,10 @@ renderMainView = function () {
       mainEl.innerHTML = renderAccountView();
       bindAccountEvents();
       break;
+    case 'reset-password':
+      mainEl.innerHTML = renderResetPasswordView();
+      bindResetPasswordEvents();
+      break;
     case 'orders':
       mainEl.innerHTML = renderOrdersView();
       bindAccountEvents();
@@ -7650,24 +7646,20 @@ renderCustomerAuthScreen = function (contextLabel) {
               </button>
             </form>
 
-            <!-- Bloco de Recuperação de Senha -->
+            <!-- Bloco de Recuperação de Senha (Firebase Authentication) -->
             <div id="customer-recover-container" style="display:${AppState.showRecoverPasswordBox ? 'block' : 'none'};margin-top:16px;padding:14px;background:#F7F7F7;border:1px solid #E4E4E7;border-radius:10px;">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                <strong style="font-size:0.84rem;color:#111111;">Recuperar Senha de Acesso</strong>
+                <strong style="font-size:0.84rem;color:#111111;">Esqueci minha senha</strong>
                 <button type="button" data-action="toggle-recover-password" style="background:none;border:none;color:#71717A;font-size:0.8rem;cursor:pointer;">Fechar ✕</button>
               </div>
               <form id="customer-recover-form" novalidate>
-                <p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:10px;">Informe seu e-mail cadastrado e defina uma nova senha segura (mínimo 6 caracteres):</p>
+                <p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:10px;">Informe o e-mail da sua conta. Se estiver cadastrado, enviaremos um link oficial de redefinição de senha para o seu e-mail:</p>
                 <div class="form-field-group" style="margin-bottom:10px;">
-                  <input type="email" inputmode="email" name="email" id="recover-email-input" class="form-input-v4" required placeholder="E-mail cadastrado" />
+                  <input type="email" inputmode="email" name="email" id="recover-email-input" class="form-input-v4" required placeholder="seu@email.com" />
                 </div>
-                <div class="form-field-group" style="margin-bottom:10px;">
-                  <div class="password-input-wrapper">
-                    <input type="password" name="newPassword" id="recover-new-password-input" class="form-input-v4" required minlength="6" placeholder="Nova senha (mín. 6 caracteres)" />
-                    <button type="button" class="password-toggle-btn" data-action="toggle-password-visibility" data-target="recover-new-password-input">Mostrar</button>
-                  </div>
-                </div>
-                <button type="submit" class="btn btn-outline btn-sm" style="width:100%;height:42px;">Redefinir Minha Senha</button>
+                <div id="recover-form-error" style="display:none;margin-bottom:10px;padding:9px 12px;border-radius:8px;background:#FFFFFF;border:1px solid #18181B;color:#111111;font-size:0.78rem;"></div>
+                <div id="recover-form-feedback" style="display:none;margin-bottom:10px;padding:10px 12px;border-radius:8px;background:#FFFFFF;border:1px solid #111111;color:#111111;font-size:0.79rem;line-height:1.45;"></div>
+                <button type="submit" id="btn-recover-submit" class="btn btn-primary btn-sm" style="width:100%;height:42px;">Enviar Link de Redefinição</button>
               </form>
             </div>
 
@@ -8945,12 +8937,23 @@ bindAccountEvents = function () {
       if (!valid) return;
 
       try {
-        const res = await fetch(apiBase + '/api/auth/login', {
+        let res = await fetch(apiBase + '/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password })
         });
-        const data = await res.json();
+        let data = await res.json();
+        if (res.status === 401 && window.ByAngelyFirebaseAuth && typeof window.ByAngelyFirebaseAuth.signInAndExtractIdToken === 'function') {
+          const fbAuth = await window.ByAngelyFirebaseAuth.signInAndExtractIdToken(email, password);
+          if (fbAuth && fbAuth.ok && fbAuth.idToken) {
+            res = await fetch(apiBase + '/api/auth/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email, password, firebaseIdToken: fbAuth.idToken })
+            });
+            data = await res.json();
+          }
+        }
         if (res.ok && data && data.ok && data.customer) {
           AppState.currentCustomer = { ...data.customer, token: data.token };
           localStorage.setItem(STORAGE_KEY_CUSTOMER_SESSION, JSON.stringify(AppState.currentCustomer));
@@ -9083,34 +9086,81 @@ bindAccountEvents = function () {
     });
   }
 
-  // 3. Recuperação de Senha
+  // 3. Recuperação de Senha Oficial (Firebase Authentication)
   const recForm = document.getElementById('customer-recover-form');
   if (recForm) {
     recForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const fd = new FormData(recForm);
       const email = String(fd.get('email') || '').trim().toLowerCase();
-      const newPassword = String(fd.get('newPassword') || '');
-      if (!isValidEmailFormat(email) || newPassword.length < 6) {
-        showToast('Informe um e-mail válido e uma nova senha com no mínimo 6 caracteres.', 'warning');
+      const errBox = document.getElementById('recover-form-error');
+      const feedbackBox = document.getElementById('recover-form-feedback');
+      const submitBtn = document.getElementById('btn-recover-submit');
+      if (errBox) {
+        errBox.style.display = 'none';
+        errBox.textContent = '';
+      }
+      if (feedbackBox) {
+        feedbackBox.style.display = 'none';
+        feedbackBox.textContent = '';
+      }
+
+      if (!isValidEmailFormat(email)) {
+        const msg = 'Informe um endereço de e-mail válido.';
+        if (errBox) {
+          errBox.textContent = msg;
+          errBox.style.display = 'block';
+        }
+        showToast(msg, 'warning');
         return;
       }
+
+      if (!window.ByAngelyFirebaseAuth || typeof window.ByAngelyFirebaseAuth.requestPasswordReset !== 'function') {
+        const msg = 'Serviço de verificação do Firebase ainda está carregando. Tente novamente em instantes.';
+        if (errBox) {
+          errBox.textContent = msg;
+          errBox.style.display = 'block';
+        }
+        showToast(msg, 'danger');
+        return;
+      }
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Enviando link...';
+      }
+
       try {
-        const res = await fetch(apiBase + '/api/auth/recover', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, newPassword })
-        });
-        const data = await res.json();
-        if (!res.ok || !data.ok) {
-          showToast((data && data.error) || 'E-mail não localizado.', 'danger');
+        const result = await window.ByAngelyFirebaseAuth.requestPasswordReset(email);
+        if (!result.ok) {
+          const msg = result.error || 'Não foi possível solicitar a recuperação agora.';
+          if (errBox) {
+            errBox.textContent = msg;
+            errBox.style.display = 'block';
+          }
+          showToast(msg, 'danger');
           return;
         }
-        AppState.showRecoverPasswordBox = false;
-        showToast('Senha redefinida com sucesso! Você já pode entrar na sua conta.', 'success');
-        renderMainView();
-      } catch (err) {
-        showToast('Erro ao redefinir senha.', 'danger');
+
+        const genericMsg = 'Se este endereço de e-mail estiver cadastrado, enviaremos em instantes uma mensagem com o link oficial para redefinição de senha. Verifique também sua caixa de spam.';
+        if (feedbackBox) {
+          feedbackBox.textContent = genericMsg;
+          feedbackBox.style.display = 'block';
+        }
+        showToast(genericMsg, 'success');
+        recForm.reset();
+      } catch (_err) {
+        const msg = 'Erro de conexão ao solicitar redefinição de senha.';
+        if (errBox) {
+          errBox.textContent = msg;
+          errBox.style.display = 'block';
+        }
+        showToast(msg, 'danger');
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Enviar Link de Redefinição';
+        }
       }
     });
   }
@@ -9308,11 +9358,6 @@ bindAccountEvents = function () {
       if (!valid) return;
 
       await persistCustomerProfileToServer({ currentPassword, newPassword });
-      fetch(apiBase + '/api/auth/recover', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: AppState.currentCustomer.email, newPassword })
-      }).catch(() => {});
 
       pwdForm.reset();
       showToast('Sua senha foi atualizada com segurança!', 'success');
@@ -9514,8 +9559,344 @@ document.addEventListener('click', async (e) => {
   }
 }, true);
 
-// Restaura a visualização correspondente ao hash da URL ao carregar ou recarregar a página
+// ============================================================================
+// FLUXO DE REDEFINIÇÃO DE SENHA VIA FIREBASE AUTHENTICATION (?mode=resetPassword&oobCode=...)
+// ============================================================================
+AppState.passwordResetFlow = AppState.passwordResetFlow || {
+  stage: 'idle', // 'idle' | 'verifying' | 'form' | 'success' | 'invalid'
+  oobCode: '',
+  verifiedEmail: '',
+  errorMessage: ''
+};
+
+async function waitForFirebaseRecoveryModule(timeoutMs = 4000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (window.ByAngelyFirebaseAuth && typeof window.ByAngelyFirebaseAuth.verifyResetCode === 'function') {
+      return window.ByAngelyFirebaseAuth;
+    }
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  return null;
+}
+
+function extractFirebaseActionParams() {
+  try {
+    const searchParams = new URLSearchParams(window.location.search || '');
+    const rawHash = String(window.location.hash || '');
+    const hashQueryIdx = rawHash.indexOf('?');
+    const hashParams = hashQueryIdx >= 0 ? new URLSearchParams(rawHash.slice(hashQueryIdx + 1)) : new URLSearchParams('');
+    const mode = searchParams.get('mode') || hashParams.get('mode') || '';
+    const oobCode = searchParams.get('oobCode') || hashParams.get('oobCode') || '';
+    const recovered = searchParams.get('recovered') || hashParams.get('recovered') || '';
+    const pathnameNorm = String(window.location.pathname || '').replace(/\/+$/, '').toLowerCase();
+    return {
+      mode,
+      oobCode,
+      recovered,
+      isResetRoute: pathnameNorm === '/redefinir-senha' || rawHash.toLowerCase().startsWith('#redefinir-senha')
+    };
+  } catch (_e) {
+    return { mode: '', oobCode: '', recovered: '', isResetRoute: false };
+  }
+}
+
+async function startFirebasePasswordResetVerification(oobCode) {
+  const code = String(oobCode || '').trim();
+  if (!code) {
+    AppState.passwordResetFlow = {
+      stage: 'invalid',
+      oobCode: '',
+      verifiedEmail: '',
+      errorMessage: 'Link de redefinição inválido ou incompleto. Solicite um novo e-mail de recuperação de senha.'
+    };
+    if (AppState.currentView === 'reset-password') renderMainView();
+    return;
+  }
+
+  AppState.passwordResetFlow = {
+    stage: 'verifying',
+    oobCode: code,
+    verifiedEmail: '',
+    errorMessage: ''
+  };
+  if (AppState.currentView === 'reset-password') renderMainView();
+
+  const fbAuth = await waitForFirebaseRecoveryModule(4000);
+  if (!fbAuth) {
+    AppState.passwordResetFlow = {
+      stage: 'invalid',
+      oobCode: '',
+      verifiedEmail: '',
+      errorMessage: 'Não foi possível carregar o serviço oficial de verificação do Firebase. Recarregue a página e tente novamente.'
+    };
+    if (AppState.currentView === 'reset-password') renderMainView();
+    return;
+  }
+
+  const verified = await fbAuth.verifyResetCode(code);
+  if (!verified || !verified.ok) {
+    AppState.passwordResetFlow = {
+      stage: 'invalid',
+      oobCode: '',
+      verifiedEmail: '',
+      errorMessage: (verified && verified.error) || 'Este link de redefinição expirou ou já foi utilizado. Solicite um novo link.'
+    };
+  } else {
+    AppState.passwordResetFlow = {
+      stage: 'form',
+      oobCode: code,
+      verifiedEmail: verified.email || '',
+      errorMessage: ''
+    };
+  }
+  if (AppState.currentView === 'reset-password') renderMainView();
+}
+
+function renderResetPasswordView() {
+  const flow = AppState.passwordResetFlow || { stage: 'invalid', errorMessage: '' };
+  let innerHtml = '';
+
+  if (flow.stage === 'verifying') {
+    innerHtml = [
+      '<span class="section-eyebrow">Firebase Authentication • Verificação Segura</span>',
+      '<h1 style="font-family:var(--font-serif);font-size:1.7rem;margin-bottom:10px;">Validando link de redefinição...</h1>',
+      '<p style="font-size:0.86rem;color:var(--text-secondary);">Aguarde enquanto confirmamos a autenticidade e validade do seu código oficial de recuperação.</p>'
+    ].join('');
+  } else if (flow.stage === 'form') {
+    innerHtml = [
+      '<span class="section-eyebrow">Redefinição Oficial Verificada</span>',
+      '<h1 style="font-family:var(--font-serif);font-size:1.75rem;margin-bottom:8px;">Definir Nova Senha</h1>',
+      (flow.verifiedEmail
+        ? '<p style="font-size:0.84rem;color:var(--text-secondary);margin-bottom:14px;">Conta verificada pelo Firebase: <strong style="color:#111111;">' + escapeHtml(flow.verifiedEmail) + '</strong></p>'
+        : '<p style="font-size:0.84rem;color:var(--text-secondary);margin-bottom:14px;">Código verificado. Crie abaixo sua nova senha de acesso.</p>'),
+      '<div id="reset-password-error-box" style="display:none;margin-bottom:12px;padding:10px 12px;border-radius:8px;background:#F4F4F5;border:1px solid #18181B;color:#111111;font-size:0.81rem;"></div>',
+      '<form id="firebase-confirm-reset-form" novalidate>',
+      '  <div class="form-field-group">',
+      '    <label class="form-field-label" for="reset-new-password-input">Nova senha <span class="req-star">*</span></label>',
+      '    <div class="password-input-wrapper">',
+      '      <input type="password" autocomplete="new-password" name="newPassword" id="reset-new-password-input" class="form-input-v4" required minlength="6" placeholder="Crie sua nova senha (mín. 6 caracteres)" />',
+      '      <button type="button" class="password-toggle-btn" data-action="toggle-password-visibility" data-target="reset-new-password-input">Mostrar</button>',
+      '    </div>',
+      '    <span style="display:block;font-size:0.73rem;color:#71717A;margin-top:4px;">Requisito mínimo: pelo menos 6 caracteres.</span>',
+      '  </div>',
+      '  <div class="form-field-group">',
+      '    <label class="form-field-label" for="reset-confirm-password-input">Confirmar nova senha <span class="req-star">*</span></label>',
+      '    <div class="password-input-wrapper">',
+      '      <input type="password" autocomplete="new-password" name="confirmPassword" id="reset-confirm-password-input" class="form-input-v4" required minlength="6" placeholder="Repita a nova senha" />',
+      '      <button type="button" class="password-toggle-btn" data-action="toggle-password-visibility" data-target="reset-confirm-password-input">Mostrar</button>',
+      '    </div>',
+      '  </div>',
+      '  <button type="submit" id="btn-confirm-reset-submit" class="btn btn-primary btn-block" style="height:48px;font-size:0.86rem;margin-top:6px;">Salvar Nova Senha</button>',
+      '</form>',
+      '<div style="margin-top:14px;text-align:center;">',
+      '  <button type="button" data-action="go-back-to-login" style="background:none;border:none;color:#111111;font-size:0.82rem;font-weight:600;text-decoration:underline;cursor:pointer;">← Voltar para o Login</button>',
+      '</div>'
+    ].join('');
+  } else if (flow.stage === 'success') {
+    innerHtml = [
+      '<span class="section-eyebrow">Confirmação • Firebase Authentication</span>',
+      '<h1 style="font-family:var(--font-serif);font-size:1.75rem;margin-bottom:10px;">Senha redefinida com sucesso</h1>',
+      '<div style="padding:12px 14px;border-radius:8px;background:#F4F4F5;border:1px solid #111111;color:#111111;font-size:0.84rem;margin-bottom:16px;">',
+      '  ✓ Sua nova senha foi validada e atualizada com segurança. Você já pode acessar sua conta na BY ANGÉLY.',
+      '</div>',
+      '<button type="button" id="btn-reset-go-login" data-action="go-back-to-login" class="btn btn-primary btn-block" style="height:48px;font-size:0.86rem;">Ir para o Login</button>'
+    ].join('');
+  } else {
+    innerHtml = [
+      '<span class="section-eyebrow">Verificação de Link • Firebase Authentication</span>',
+      '<h1 style="font-family:var(--font-serif);font-size:1.65rem;margin-bottom:10px;">Link inválido ou expirado</h1>',
+      '<div id="reset-invalid-msg-box" style="padding:12px 14px;border-radius:8px;background:#F4F4F5;border:1px solid #18181B;color:#111111;font-size:0.83rem;margin-bottom:16px;">',
+      escapeHtml(flow.errorMessage || 'Este link de redefinição de senha não é válido ou já expirou.'),
+      '</div>',
+      '<div style="display:flex;flex-direction:column;gap:10px;">',
+      '  <button type="button" data-action="go-request-new-reset" class="btn btn-primary btn-block" style="height:46px;">Solicitar Novo Link de Recuperação</button>',
+      '  <button type="button" data-action="go-back-to-login" class="btn btn-outline btn-block" style="height:44px;">Voltar para o Login</button>',
+      '</div>'
+    ].join('');
+  }
+
+  return [
+    '<section class="section-block" id="view-reset-password">',
+    '  <div class="container" style="max-width:480px;">',
+    '    <div class="auth-card-v5" style="margin:0 auto;">',
+    innerHtml,
+    '    </div>',
+    '  </div>',
+    '</section>'
+  ].join('');
+}
+
+function bindResetPasswordEvents() {
+  const form = document.getElementById('firebase-confirm-reset-form');
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(form);
+      const newPassword = String(fd.get('newPassword') || '');
+      const confirmPassword = String(fd.get('confirmPassword') || '');
+      const errBox = document.getElementById('reset-password-error-box');
+      const submitBtn = document.getElementById('btn-confirm-reset-submit');
+      if (errBox) {
+        errBox.style.display = 'none';
+        errBox.textContent = '';
+      }
+
+      if (newPassword.length < 6) {
+        const msg = 'A nova senha não atende aos requisitos mínimos (informe pelo menos 6 caracteres).';
+        if (errBox) {
+          errBox.textContent = msg;
+          errBox.style.display = 'block';
+        }
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        const msg = 'As senhas informadas não coincidem. Confira e tente novamente.';
+        if (errBox) {
+          errBox.textContent = msg;
+          errBox.style.display = 'block';
+        }
+        return;
+      }
+
+      const flow = AppState.passwordResetFlow || {};
+      const oobCode = String(flow.oobCode || '').trim();
+      const verifiedEmail = String(flow.verifiedEmail || '').trim().toLowerCase();
+      if (!oobCode || !window.ByAngelyFirebaseAuth) {
+        AppState.passwordResetFlow = {
+          stage: 'invalid',
+          oobCode: '',
+          verifiedEmail: '',
+          errorMessage: 'Código de redefinição ausente ou inválido. Solicite um novo link.'
+        };
+        renderMainView();
+        return;
+      }
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Confirmando nova senha...';
+      }
+
+      try {
+        const resConfirm = await window.ByAngelyFirebaseAuth.confirmReset(oobCode, newPassword);
+        if (!resConfirm || !resConfirm.ok) {
+          if (resConfirm && (resConfirm.code === 'auth/expired-action-code' || resConfirm.code === 'auth/invalid-action-code')) {
+            AppState.passwordResetFlow = {
+              stage: 'invalid',
+              oobCode: '',
+              verifiedEmail: '',
+              errorMessage: resConfirm.error || 'Este link de redefinição expirou ou já foi utilizado.'
+            };
+            renderMainView();
+            return;
+          }
+          const msg = (resConfirm && resConfirm.error) || 'Não foi possível salvar a nova senha.';
+          if (errBox) {
+            errBox.textContent = msg;
+            errBox.style.display = 'block';
+          }
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Salvar Nova Senha';
+          }
+          return;
+        }
+
+        // Sincroniza o hash de login local somente mediante ID Token emitido pelo Firebase após confirmação
+        if (verifiedEmail) {
+          try {
+            const tokenRes = await window.ByAngelyFirebaseAuth.signInAndExtractIdToken(verifiedEmail, newPassword);
+            if (tokenRes && tokenRes.ok && tokenRes.idToken) {
+              const apiBase = window.ByAngelyCloud && window.ByAngelyCloud.getBackendBaseUrl
+                ? window.ByAngelyCloud.getBackendBaseUrl()
+                : '';
+              await fetch(apiBase + '/api/auth/firebase-sync-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ idToken: tokenRes.idToken, newPassword })
+              });
+            }
+          } catch (_syncErr) {}
+          AppState.loginDraft = { ...(AppState.loginDraft || {}), email: verifiedEmail, password: '' };
+        }
+
+        try {
+          if (window.location.search) {
+            window.history.replaceState(null, '', '/#redefinir-senha');
+          }
+        } catch (_histErr) {}
+
+        AppState.passwordResetFlow = {
+          stage: 'success',
+          oobCode: '',
+          verifiedEmail,
+          errorMessage: ''
+        };
+        showToast('Senha redefinida com sucesso!', 'success');
+        renderMainView();
+      } catch (_err) {
+        if (errBox) {
+          errBox.textContent = 'Erro de conexão ao confirmar redefinição de senha.';
+          errBox.style.display = 'block';
+        }
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Salvar Nova Senha';
+        }
+      }
+    });
+  }
+
+  document.querySelectorAll('[data-action="go-back-to-login"]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      AppState.authMode = 'login';
+      AppState.showRecoverPasswordBox = false;
+      try {
+        window.history.replaceState(null, '', '/#login');
+      } catch (_e) {}
+      navigateTo('account');
+    });
+  });
+
+  document.querySelectorAll('[data-action="go-request-new-reset"]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      AppState.authMode = 'login';
+      AppState.showRecoverPasswordBox = true;
+      try {
+        window.history.replaceState(null, '', '/#recuperar-senha');
+      } catch (_e) {}
+      navigateTo('account');
+    });
+  });
+}
+
+// Restaura a visualização correspondente ao hash ou parâmetros Firebase da URL
 function syncViewFromLocationHash() {
+  const fbParams = extractFirebaseActionParams();
+  if (fbParams.mode === 'resetPassword' && fbParams.oobCode) {
+    navigateTo('reset-password', { preserveScroll: true });
+    startFirebasePasswordResetVerification(fbParams.oobCode);
+    return;
+  }
+  if (fbParams.isResetRoute && fbParams.recovered === '1') {
+    AppState.passwordResetFlow = { stage: 'success', oobCode: '', verifiedEmail: '', errorMessage: '' };
+    navigateTo('reset-password', { preserveScroll: true });
+    return;
+  }
+  if (fbParams.isResetRoute) {
+    if (AppState.passwordResetFlow.stage === 'idle') {
+      AppState.passwordResetFlow = {
+        stage: 'invalid',
+        oobCode: '',
+        verifiedEmail: '',
+        errorMessage: 'Link de redefinição inválido ou código ausente. Solicite um novo link pela tela de login.'
+      };
+    }
+    navigateTo('reset-password', { preserveScroll: true });
+    return;
+  }
+
   const raw = String(window.location.hash || '').trim().toLowerCase();
   if (!raw || raw === '#') return;
   const h = raw.split('?')[0];
@@ -9541,6 +9922,8 @@ function syncViewFromLocationHash() {
     AppState.showRecoverPasswordBox = true;
     AppState.showPurchaseAuthBanner = false;
     navigateTo('account', { preserveScroll: true });
+  } else if (h === '#redefinir-senha') {
+    navigateTo('reset-password', { preserveScroll: true });
   } else if (h === '#cadastro' || h === '#cadastro-etapa-1' || h === '#cadastro-dados') {
     AppState.authMode = 'register';
     AppState.registerStep = 1;
@@ -9945,12 +10328,13 @@ renderCustomerAuthScreen = function (contextLabel) {
     '    <button type="submit" id="btn-login-submit" class="btn btn-primary btn-block" style="height:48px;font-size:0.86rem;margin-top:6px;">Entrar na Minha Conta</button>',
     '  </form>',
     '  <div id="customer-recover-container" style="display:' + (AppState.showRecoverPasswordBox ? 'block' : 'none') + ';margin-top:14px;padding:14px;background:#F7F7F7;border:1px solid #E4E4E7;border-radius:10px;">',
-    '    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong style="font-size:0.83rem;color:#111111;">Recuperar Senha</strong><button type="button" data-action="toggle-recover-password" style="background:none;border:none;color:#71717A;font-size:0.78rem;cursor:pointer;">Fechar ✕</button></div>',
+    '    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><strong style="font-size:0.83rem;color:#111111;">Esqueci minha senha</strong><button type="button" data-action="toggle-recover-password" style="background:none;border:none;color:#71717A;font-size:0.78rem;cursor:pointer;">Fechar ✕</button></div>',
     '    <form id="customer-recover-form" novalidate>',
-    '      <p style="font-size:0.77rem;color:var(--text-secondary);margin-bottom:10px;">Informe seu e-mail cadastrado e defina uma nova senha (mínimo 6 caracteres):</p>',
-    '      <div class="form-field-group" style="margin-bottom:10px;"><input type="email" inputmode="email" name="email" id="recover-email-input" class="form-input-v4" required placeholder="E-mail cadastrado" /></div>',
-    '      <div class="form-field-group" style="margin-bottom:10px;"><div class="password-input-wrapper"><input type="password" name="newPassword" id="recover-new-password-input" class="form-input-v4" required minlength="6" placeholder="Nova senha (mín. 6 caracteres)" /><button type="button" class="password-toggle-btn" data-action="toggle-password-visibility" data-target="recover-new-password-input">Mostrar</button></div></div>',
-    '      <button type="submit" class="btn btn-outline btn-sm" style="width:100%;height:42px;">Redefinir Senha</button>',
+    '      <p style="font-size:0.77rem;color:var(--text-secondary);margin-bottom:10px;">Informe seu e-mail para receber o link oficial de redefinição de senha via Firebase:</p>',
+    '      <div class="form-field-group" style="margin-bottom:10px;"><input type="email" inputmode="email" name="email" id="recover-email-input" class="form-input-v4" required placeholder="seu@email.com" /></div>',
+    '      <div id="recover-form-error" style="display:none;margin-bottom:10px;padding:9px 12px;border-radius:8px;background:#FFFFFF;border:1px solid #18181B;color:#111111;font-size:0.78rem;"></div>',
+    '      <div id="recover-form-feedback" style="display:none;margin-bottom:10px;padding:10px 12px;border-radius:8px;background:#FFFFFF;border:1px solid #111111;color:#111111;font-size:0.79rem;line-height:1.45;"></div>',
+    '      <button type="submit" id="btn-recover-submit" class="btn btn-primary btn-sm" style="width:100%;height:42px;">Enviar Link de Redefinição</button>',
     '    </form>',
     '  </div>',
     '  <div style="margin-top:16px;padding-top:14px;border-top:1px solid #E4E4E7;text-align:center;font-size:0.83rem;color:var(--text-secondary);">Primeira vez na BY ANGÉLY? <button type="button" data-action="switch-auth-mode" data-mode="register" style="background:none;border:none;color:#111111;font-weight:700;text-decoration:underline;cursor:pointer;margin-left:4px;">Criar Minha Conta →</button></div>',
