@@ -5774,8 +5774,7 @@ bindAdminWorkspaceEvents = function (containerEl) {
     }, true);
   }
 };
-})();
-  // Webhook copy button handler
+// Webhook copy button handler
   document.addEventListener('click', async (e) => {
     const copyWhBtn = e.target.closest('#btn-copy-pix-webhook-url');
     if (copyWhBtn) {
