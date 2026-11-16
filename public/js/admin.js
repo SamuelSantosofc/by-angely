@@ -361,6 +361,98 @@
   }
 
   // =========================================================================
+  // CARTÃO DE LIMPEZA PRÉ-ENTREGA (ZERAR DADOS E HISTÓRICOS DE TESTE)
+  // =========================================================================
+  function renderPreLaunchCleanupCard(db) {
+    const ordersCount = Array.isArray(db.orders) ? db.orders.length : 0;
+    const pixCount = Array.isArray(db.pixCharges) ? db.pixCharges.length : 0;
+    const eventsCount = Array.isArray(db.financialEvents) ? db.financialEvents.length : 0;
+    const stockMovCount = Array.isArray(db.stockMovements) ? db.stockMovements.length : 0;
+    const analyticsVisitorsCount = db.analytics && db.analytics.visitors ? Object.keys(db.analytics.visitors).length : 0;
+    const analyticsEventsCount = db.analytics && Array.isArray(db.analytics.events) ? db.analytics.events.length : 0;
+    const auditLogsCount = Array.isArray(db.auditLog) ? db.auditLog.length : 0;
+    const contactCount = Array.isArray(db.contactMessages) ? db.contactMessages.length : 0;
+    const returnsCount = Array.isArray(db.returnRequests) ? db.returnRequests.length : 0;
+    const customersCount = Array.isArray(db.customers) ? db.customers.length : 0;
+
+    return `
+      <div class="admin-card" id="admin-prelaunch-cleanup-card" style="margin-top:20px;border:1.5px solid #18181B;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:12px;">
+          <div>
+            <span class="section-eyebrow">Preparação para Entrega da Loja</span>
+            <h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:4px;">Limpar Logs e Históricos de Teste</h2>
+            <p style="font-size:0.84rem;color:var(--text-secondary);margin:0;">
+              Zere todos os registros gerados durante os testes (pedidos cancelados/pagos/pendentes, Pix de teste, eventos, visitas e logs) preservando produtos, fotos, preços, chaves Pix e configurações da loja.
+            </p>
+          </div>
+          <span class="status-pill pending">Uso antes da inauguração</span>
+        </div>
+
+        <form id="admin-prelaunch-cleanup-form" style="display:flex;flex-direction:column;gap:10px;">
+          <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--bg-primary);cursor:pointer;">
+            <input type="checkbox" name="clearOrdersAndFinance" checked style="margin-top:3px;" />
+            <div style="font-size:0.84rem;">
+              <strong>Pedidos, Cobranças Pix, Eventos e Devoluções</strong>
+              <span style="display:block;font-size:0.78rem;color:var(--text-secondary);">
+                Remove ${ordersCount} pedido(s), ${pixCount} cobrança(s) Pix, ${eventsCount} evento(s) financeiros/webhook, ${stockMovCount} movimentação(ões) de estoque e ${returnsCount} devolução(ões), zerando o contador de vendas das peças.
+              </span>
+            </div>
+          </label>
+
+          <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--bg-primary);cursor:pointer;margin-left:18px;">
+            <input type="checkbox" name="restoreReservedStock" checked style="margin-top:3px;" />
+            <div style="font-size:0.82rem;">
+              <strong>Restaurar estoque reservado por pedidos de teste</strong>
+              <span style="display:block;font-size:0.76rem;color:var(--text-secondary);">
+                Devolve automaticamente às peças do catálogo qualquer unidade reservada ou baixada por pedidos de teste que ainda não estavam cancelados.
+              </span>
+            </div>
+          </label>
+
+          <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--bg-primary);cursor:pointer;">
+            <input type="checkbox" name="clearAnalytics" checked style="margin-top:3px;" />
+            <div style="font-size:0.84rem;">
+              <strong>Visitas, Visitantes e Histórico de Análise da Loja</strong>
+              <span style="display:block;font-size:0.78rem;color:var(--text-secondary);">
+                Zera ${analyticsVisitorsCount} visitante(s) registrado(s) e ${analyticsEventsCount} evento(s) de navegação/funil acumulados nos testes.
+              </span>
+            </div>
+          </label>
+
+          <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--bg-primary);cursor:pointer;">
+            <input type="checkbox" name="clearLogsAndSupport" checked style="margin-top:3px;" />
+            <div style="font-size:0.84rem;">
+              <strong>Logs de Auditoria, Notificações e Mensagens de Atendimento (SAC)</strong>
+              <span style="display:block;font-size:0.78rem;color:var(--text-secondary);">
+                Limpa ${auditLogsCount} registro(s) de auditoria administrativa e ${contactCount} mensagem(ns) de atendimento.
+              </span>
+            </div>
+          </label>
+
+          <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--border-subtle);border-radius:8px;background:#FFFFFF;cursor:pointer;">
+            <input type="checkbox" name="clearTestCustomers" style="margin-top:3px;" />
+            <div style="font-size:0.84rem;">
+              <strong>Contas de Clientes Cadastradas (${customersCount} conta(s))</strong>
+              <span style="display:block;font-size:0.78rem;color:var(--text-secondary);">
+                Marque esta opção somente se desejar remover também todos os cadastros de clientes criados durante os testes (não remove contas da administração).
+              </span>
+            </div>
+          </label>
+
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-top:6px;">
+            <span style="font-size:0.76rem;color:var(--text-muted);">
+              Ação irreversível: produtos, imagens, cupons, políticas e acesso administrativo permanecem salvos.
+            </span>
+            <button type="submit" class="btn btn-primary" id="btn-execute-prelaunch-cleanup">
+              Zerar Histórico de Teste Selecionado
+            </button>
+          </div>
+        </form>
+      </div>
+    `;
+  }
+
+  // =========================================================================
   // SEÇÃO 1: DASHBOARD INTELIGENTE (INDICADORES REAIS, ALERTAS E ATALHOS)
   // =========================================================================
   function renderDashboardSection() {
@@ -459,6 +551,9 @@
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <button type="button" class="btn btn-primary btn-sm" data-admin-section="products">
               + Cadastrar Nova Peça
+            </button>
+            <button type="button" class="btn btn-outline btn-sm" data-action-admin="go-cleanup-card">
+              Limpar Histórico de Testes
             </button>
             ${demoProductsCount > 0 ? `
               <button type="button" class="btn btn-outline btn-sm" id="btn-quick-remove-demos">
@@ -662,6 +757,8 @@
             </div>
           </div>
         </div>
+
+        ${renderPreLaunchCleanupCard(db)}
       </div>
     `;
   }
@@ -2353,6 +2450,88 @@
     containerEl.querySelector('#btn-quick-remove-demos')?.addEventListener('click', removeDemosHandler);
     containerEl.querySelector('#btn-remove-all-demos')?.addEventListener('click', removeDemosHandler);
 
+    // Formulário de limpeza pré-entrega (zerar pedidos, Pix, visitas/analytics e logs de teste)
+    containerEl.querySelector('#admin-prelaunch-cleanup-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formEl = e.currentTarget;
+      const fd = new FormData(formEl);
+      const clearOrdersAndFinance = fd.get('clearOrdersAndFinance') === 'on';
+      const restoreReservedStock = fd.get('restoreReservedStock') === 'on';
+      const clearAnalytics = fd.get('clearAnalytics') === 'on';
+      const clearLogsAndSupport = fd.get('clearLogsAndSupport') === 'on';
+      const clearTestCustomers = fd.get('clearTestCustomers') === 'on';
+
+      if (!clearOrdersAndFinance && !clearAnalytics && !clearLogsAndSupport && !clearTestCustomers) {
+        app.showToast('Selecione ao menos uma categoria para limpar.', 'error');
+        return;
+      }
+
+      const confirmLines = ['Confirmar limpeza pré-entrega dos registros selecionados?\n'];
+      if (clearOrdersAndFinance) confirmLines.push('• Pedidos, cobranças Pix, eventos financeiros e devoluções');
+      if (clearOrdersAndFinance && restoreReservedStock) confirmLines.push('• Restaurar estoque reservado por pedidos de teste');
+      if (clearAnalytics) confirmLines.push('• Visitas, sessões e funil de Análise da Loja');
+      if (clearLogsAndSupport) confirmLines.push('• Logs de auditoria, notificações e mensagens de SAC');
+      if (clearTestCustomers) confirmLines.push('• Contas de clientes cadastradas em teste');
+      confirmLines.push('\nProdutos, fotos, preços, chaves Pix e contas admin serão mantidos intactos.');
+
+      if (!window.confirm(confirmLines.join('\n'))) return;
+
+      const submitBtn = formEl.querySelector('#btn-execute-prelaunch-cleanup');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Limpando registros...';
+      }
+
+      try {
+        const apiBase = window.ByAngelyCloud && window.ByAngelyCloud.getBackendBaseUrl
+          ? window.ByAngelyCloud.getBackendBaseUrl()
+          : '';
+        const res = await fetch(apiBase + '/api/admin/clear-test-data', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAdminHeadersV6(app)
+          },
+          body: JSON.stringify({
+            clearOrdersAndFinance,
+            restoreReservedStock,
+            clearAnalytics,
+            clearLogsAndSupport,
+            clearTestCustomers
+          })
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data || !data.ok || !data.db) {
+          app.showToast((data && data.error) || 'Não foi possível concluir a limpeza no servidor.', 'error');
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Zerar Histórico de Teste Selecionado';
+          }
+          return;
+        }
+
+        const st = app.getState();
+        st.db = data.db;
+        try {
+          localStorage.setItem('by_angely_db_v1', JSON.stringify(st.db));
+        } catch (_lsErr) {}
+        AdminState.analyticsReport = null;
+        _lastOrdersFingerprint = computeOrdersAndChargesFingerprint(st.db.orders || [], st.db.pixCharges || []);
+        app.updateGlobalChrome();
+        app.showToast(
+          `Limpeza concluída! (${data.cleared.orders} pedido(s), ${data.cleared.pixCharges} Pix, ${data.cleared.visitors} visitante(s) zerados${data.cleared.restoredStockUnits > 0 ? ', +' + data.cleared.restoredStockUnits + ' un. devolvidas ao estoque' : ''}).`,
+          'success'
+        );
+        renderAdminView(containerEl);
+      } catch (err) {
+        app.showToast('Erro de conexão ao limpar históricos: ' + err.message, 'error');
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Zerar Histórico de Teste Selecionado';
+        }
+      }
+    });
+
     // Atualiza a Pré-visualização ao Vivo do Produto enquanto a proprietária preenche o formulário
     function updateLiveProductPreview() {
       const previewBox = containerEl.querySelector('#admin-live-product-preview');
@@ -2702,6 +2881,19 @@
     containerEl.querySelectorAll('[data-action-admin]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const act = btn.getAttribute('data-action-admin');
+
+        if (act === 'go-cleanup-card') {
+          if (AdminState.activeSection !== 'overview') {
+            AdminState.activeSection = 'overview';
+            AdminState.mobileMenuOpen = false;
+            renderAdminView(containerEl);
+          }
+          setTimeout(() => {
+            const targetCard = document.getElementById('admin-prelaunch-cleanup-card');
+            if (targetCard) targetCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 60);
+          return;
+        }
 
         if (act === 'set-cat-subtab') {
           AdminState.categoriesSubTab = btn.getAttribute('data-subtab') || 'all';
@@ -4292,6 +4484,7 @@ renderUsersSection = function () {
     '      <h2 style="font-family:var(--font-serif);font-size:1.45rem;margin-bottom:2px;">Histórico e Auditoria de Ações Administrativas (' + logs.length + ')</h2>',
     '      <p style="font-size:0.82rem;color:var(--text-secondary);margin:0;">Registro protegido de bloqueios, desbloqueios, exclusões/anonimizações, cancelamentos, reembolsos e alterações de configuração.</p>',
     '    </div>',
+    '    <button type="button" class="btn btn-outline btn-sm" data-action-admin="go-cleanup-card">Limpar Logs e Dados de Teste</button>',
     '  </div>',
     (logs.length === 0
       ? '<p style="font-size:0.85rem;color:var(--text-muted);">Nenhum evento de auditoria registrado até o momento.</p>'
@@ -4995,7 +5188,7 @@ function renderAnalyticsSection() {
         <div class="admin-card" id="analytics-block-devices" style="margin-bottom:0;">
           <span class="section-eyebrow">3. Dispositivos e Navegadores</span>
           <h2 style="font-family:var(--font-serif);font-size:1.4rem;margin-bottom:10px;">Celulares, Computadores, Android vs. iPhone</h2>
-          <div style="background:#F3EDE4;border-left:4px solid #111111;padding:10px 12px;border-radius:6px;font-size:0.82rem;color:#111111;margin-bottom:12px;">
+          <div style="background:#F4F4F5;border-left:4px solid #111111;padding:10px 12px;border-radius:6px;font-size:0.82rem;color:#111111;margin-bottom:12px;">
             <strong>Diagnóstico de Plataforma:</strong> ${app.escapeHtml(rep.devices.prioritySummary || '')}
           </div>
           <h3 style="font-size:0.84rem;text-transform:uppercase;color:#111111;margin-bottom:8px;">Tipo de Dispositivo</h3>
