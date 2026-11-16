@@ -850,24 +850,29 @@
       if (saved) localState = JSON.parse(saved);
     } catch (e) {}
 
-    // Busca em paralelo do Supabase e da API do servidor para escolher o estado mais recente e íntegro
+    const stateReqHeaders = { ...getAdminRequestHeaders() };
+    if (!stateReqHeaders['Authorization'] && AppState.currentCustomer && AppState.currentCustomer.token) {
+      stateReqHeaders['Authorization'] = 'Bearer ' + AppState.currentCustomer.token;
+    }
+
+    // Busca da API oficial do servidor e mantém fallback para Supabase somente se o servidor não responder
     const tasks = [];
-    if (window.ByAngelyCloud && window.ByAngelyCloud.fetchStateFromSupabase) {
+    tasks.push(
+      fetch(apiBase + '/api/state', {
+        cache: 'no-store',
+        headers: stateReqHeaders
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((st) => { serverState = st; })
+        .catch(() => {})
+    );
+    if (apiBase && window.ByAngelyCloud && window.ByAngelyCloud.fetchStateFromSupabase) {
       tasks.push(
         window.ByAngelyCloud.fetchStateFromSupabase()
           .then((st) => { supaState = st; })
           .catch(() => {})
       );
     }
-    tasks.push(
-      fetch(apiBase + '/api/state', {
-        cache: 'no-store',
-        headers: getAdminRequestHeaders()
-      })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((st) => { serverState = st; })
-        .catch(() => {})
-    );
 
     await Promise.allSettled(tasks);
 
@@ -963,20 +968,23 @@
     }
 
     const syncPromises = [];
-    if (window.ByAngelyCloud && window.ByAngelyCloud.saveStateToSupabase) {
-      syncPromises.push(window.ByAngelyCloud.saveStateToSupabase(AppState.db).catch(() => {}));
+    const isAuthAdminSession = Boolean(AppState.currentAdmin && AppState.currentAdmin.token);
+    if (isAuthAdminSession) {
+      if (window.ByAngelyCloud && window.ByAngelyCloud.saveStateToSupabase) {
+        syncPromises.push(window.ByAngelyCloud.saveStateToSupabase(AppState.db).catch(() => {}));
+      }
+      const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+      syncPromises.push(
+        fetch(apiBase + '/api/state', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAdminRequestHeaders()
+          },
+          body: JSON.stringify(AppState.db)
+        }).catch(() => {})
+      );
     }
-    const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
-    syncPromises.push(
-      fetch(apiBase + '/api/state', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAdminRequestHeaders()
-        },
-        body: JSON.stringify(AppState.db)
-      }).catch(() => {})
-    );
 
     await Promise.allSettled(syncPromises);
   }
@@ -4040,22 +4048,36 @@
     });
 
     // Formulário de SAC na Home
-    document.addEventListener('submit', (e) => {
+    document.addEventListener('submit', async (e) => {
       if (e.target && e.target.id === 'sac-contact-form') {
         e.preventDefault();
-        const fd = new FormData(e.target);
-        AppState.db.contactMessages.unshift({
-          id: 'sac-' + Date.now(),
-          name: fd.get('name'),
-          email: fd.get('email'),
-          subject: fd.get('subject'),
-          message: fd.get('message'),
-          status: 'Pendente',
-          createdAt: new Date().toISOString()
-        });
-        saveDatabase('Nova mensagem recebida no SAC: ' + fd.get('subject'));
-        e.target.reset();
-        showToast('Sua mensagem foi registrada e enviada ao atendimento da By Angély!', 'success');
+        const formEl = e.target;
+        const fd = new FormData(formEl);
+        const payload = {
+          name: String(fd.get('name') || '').trim(),
+          email: String(fd.get('email') || '').trim(),
+          subject: String(fd.get('subject') || '').trim(),
+          message: String(fd.get('message') || '').trim()
+        };
+        try {
+          const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+          const res = await fetch(apiBase + '/api/public/contact', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json().catch(() => null);
+          if (!res.ok || !data || !data.ok) {
+            showToast((data && data.error) || 'Não foi possível enviar sua mensagem.', 'danger');
+            return;
+          }
+          AppState.db.contactMessages = AppState.db.contactMessages || [];
+          AppState.db.contactMessages.unshift(data.contactMessage);
+          formEl.reset();
+          showToast('Sua mensagem foi registrada e enviada ao atendimento da By Angély!', 'success');
+        } catch (_err) {
+          showToast('Erro de conexão ao enviar mensagem.', 'danger');
+        }
       }
     });
 
@@ -5095,7 +5117,7 @@ ${!cust ? `
 `;
 const reviewForm = document.getElementById('pdp-review-form');
 if (reviewForm) {
-reviewForm.addEventListener('submit', (e) => {
+reviewForm.addEventListener('submit', async (e) => {
 e.preventDefault();
 if (!AppState.currentCustomer) {
 showToast('Entre na sua conta para enviar uma avaliação.', 'warning');
@@ -5115,24 +5137,30 @@ return;
 const fd = new FormData(reviewForm);
 const ratingNum = Math.max(1, Math.min(5, Number(fd.get('rating')) || 5));
 const commentText = String(fd.get('comment') || '').trim();
-AppState.db.reviews = AppState.db.reviews || [];
-AppState.db.reviews.unshift({
-id: 'rev-' + Date.now(),
-productId: product.id,
-productName: product.name,
-customerId: AppState.currentCustomer.id,
-customerName: AppState.currentCustomer.name,
-customerEmail: AppState.currentCustomer.email,
-rating: ratingNum,
-comment: commentText,
-status: 'approved',
-date: new Date().toLocaleDateString('pt-BR'),
-createdAt: new Date().toISOString(),
-isDemo: false
-});
-saveDatabase('Nova avaliação (' + ratingNum + '★) enviada para ' + product.name);
-renderProductModalContent();
-showToast('Avaliação registrada com sucesso!', 'success');
+const revHeaders = { 'Content-Type': 'application/json' };
+if (AppState.currentCustomer && AppState.currentCustomer.token) {
+  revHeaders['Authorization'] = 'Bearer ' + AppState.currentCustomer.token;
+}
+try {
+  const apiBase = window.ByAngelyCloud ? window.ByAngelyCloud.getApiBaseUrl() : '';
+  const res = await fetch(apiBase + '/api/public/reviews', {
+    method: 'POST',
+    headers: revHeaders,
+    body: JSON.stringify({ productId: product.id, rating: ratingNum, comment: commentText })
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data || !data.ok) {
+    showToast((data && data.error) || 'Não foi possível registrar a avaliação.', 'danger');
+    return;
+  }
+  AppState.db.reviews = AppState.db.reviews || [];
+  AppState.db.reviews.unshift(data.review);
+  saveDatabase();
+  renderProductModalContent();
+  showToast('Avaliação registrada com sucesso!', 'success');
+} catch (_err) {
+  showToast('Erro de conexão ao registrar avaliação.', 'danger');
+}
 });
 }
 }
@@ -5602,8 +5630,13 @@ checkOrderStatusNow();
 }, 1000);
 async function checkOrderStatusNow() {
 try {
+const pollHeaders = { ...getAdminRequestHeaders() };
+if (AppState.currentCustomer && AppState.currentCustomer.token) {
+  pollHeaders['Authorization'] = 'Bearer ' + AppState.currentCustomer.token;
+}
 const res = await fetch(`${apiBase}/api/orders/${encodeURIComponent(orderId)}/payment-status`, {
-cache: 'no-store'
+cache: 'no-store',
+headers: pollHeaders
 });
 if (!res.ok) return;
 const data = await res.json();
@@ -9367,25 +9400,36 @@ bindAccountEvents = function () {
   // 7. Formulário de Trocas e Devoluções
   const returnForm = document.getElementById('customer-return-form');
   if (returnForm) {
-    returnForm.addEventListener('submit', (e) => {
+    returnForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const fd = new FormData(returnForm);
-      const reqObj = {
-        id: 'ret-' + Date.now(),
-        orderNumber: String(fd.get('orderNumber') || '').trim(),
-        customerName: AppState.currentCustomer.name,
-        customerEmail: AppState.currentCustomer.email,
-        type: String(fd.get('type') || '').trim(),
-        reason: String(fd.get('reason') || '').trim(),
-        status: 'Em análise pela loja',
-        ownerResponse: '',
-        createdAt: new Date().toISOString()
-      };
-      AppState.db.returnRequests = AppState.db.returnRequests || [];
-      AppState.db.returnRequests.unshift(reqObj);
-      saveDatabase(`Solicitação de troca/devolução aberta para ${reqObj.orderNumber}`);
-      renderMainView();
-      showToast('Solicitação de troca/devolução registrada com sucesso!', 'success');
+      const retHeaders = { 'Content-Type': 'application/json' };
+      if (AppState.currentCustomer && AppState.currentCustomer.token) {
+        retHeaders['Authorization'] = 'Bearer ' + AppState.currentCustomer.token;
+      }
+      try {
+        const res = await fetch(apiBase + '/api/customer/returns', {
+          method: 'POST',
+          headers: retHeaders,
+          body: JSON.stringify({
+            orderNumber: String(fd.get('orderNumber') || '').trim(),
+            type: String(fd.get('type') || '').trim(),
+            reason: String(fd.get('reason') || '').trim()
+          })
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data || !data.ok) {
+          showToast((data && data.error) || 'Não foi possível registrar a solicitação.', 'danger');
+          return;
+        }
+        AppState.db.returnRequests = AppState.db.returnRequests || [];
+        AppState.db.returnRequests.unshift(data.returnRequest);
+        saveDatabase();
+        renderMainView();
+        showToast('Solicitação de troca/devolução registrada com sucesso!', 'success');
+      } catch (_err) {
+        showToast('Erro de conexão ao registrar solicitação.', 'danger');
+      }
     });
   }
 };

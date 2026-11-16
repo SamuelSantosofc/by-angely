@@ -290,44 +290,10 @@
           renderAdminView(containerEl);
           return;
         }
-      } catch (err) {}
-
-      db.adminUsers = (db.adminUsers || []).filter(
-        (u) => u && u.email !== 'proprietaria@byangely.local' && u.email !== 'equipe@byangely.local'
-      );
-      if (!db.adminUsers.some((u) => u.email.toLowerCase() === 'byangely1@gmail.com')) {
-        db.adminUsers.unshift({
-          id: 'admin-owner-official',
-          name: 'Proprietária BY ANGÉLY',
-          email: 'byangely1@gmail.com',
-          role: 'owner',
-          roleLabel: 'Proprietária (Acesso Total)',
-          permissions: ROLE_DEFINITIONS.owner.permissions,
-          active: true
-        });
+        app.showToast((data && data.error) || 'Credenciais administrativas inválidas ou acesso revogado.', 'danger');
+      } catch (err) {
+        app.showToast('Erro de conexão ao autenticar no painel administrativo.', 'danger');
       }
-
-      const user = (db.adminUsers || []).find((u) => u.email.toLowerCase() === email && u.active !== false);
-      const validPass =
-        (user && user.customPassword && user.customPassword === password) ||
-        (user && !user.customPassword && user.role === 'owner' && password === 'Angely@2026') ||
-        (user && !user.customPassword && user.role !== 'owner' && password === 'Equipe@2026');
-
-      if (!user || !validPass) {
-        app.showToast('Credenciais administrativas inválidas ou acesso revogado.', 'danger');
-        return;
-      }
-
-      const safeSessionUser = { ...user };
-      delete safeSessionUser.customPassword;
-      delete safeSessionUser.passwordHash;
-
-      app.getState().currentAdmin = safeSessionUser;
-      sessionStorage.setItem(STORAGE_KEY_ADMIN_SESSION, JSON.stringify(safeSessionUser));
-      app.updateGlobalChrome();
-      app.saveDatabase(`Login administrativo realizado por ${user.name}`);
-      app.showToast(`Bem-vinda ao Painel Administrativo, ${user.name}!`, 'success');
-      renderAdminView(containerEl);
     });
   }
 
@@ -3942,7 +3908,10 @@ async function updateOrderStatusOnServer(orderId, newStatus, trackingCode) {
 try {
 const res = await fetch(`${apiBase}/api/admin/orders/${encodeURIComponent(orderId)}/status`, {
 method: 'POST',
-headers: { 'Content-Type': 'application/json' },
+headers: {
+  'Content-Type': 'application/json',
+  ...getAdminHeadersV6(app)
+},
 body: JSON.stringify({
 status: newStatus,
 trackingCode,

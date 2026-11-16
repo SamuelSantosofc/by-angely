@@ -29,7 +29,19 @@
       copy.adminUsers = copy.adminUsers.map(function (u) {
         var clean = Object.assign({}, u);
         delete clean.passwordHash;
+        delete clean.customPassword;
+        delete clean.sessionToken;
         return clean;
+      });
+    }
+    if (Array.isArray(copy.customers)) {
+      copy.customers = copy.customers.map(function (c) {
+        var cleanCust = Object.assign({}, c);
+        delete cleanCust.password;
+        delete cleanCust.passwordHash;
+        delete cleanCust.sessionToken;
+        delete cleanCust.deletedEmailHash;
+        return cleanCust;
       });
     }
     return copy;
